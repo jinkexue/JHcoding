@@ -17,6 +17,7 @@ export async function onRequestPost(context) {
         const sourceCode = String(body.sourceCode || '');
         const baseTitle = String(body.baseTitle || '编程小游戏').trim();
         const baseIcon = String(body.baseIcon || '🎮').trim();
+        const stream = body.stream === true;
 
         if (!prompt) {
             return json({ success: false, error: '提示词不能为空' }, 400);
@@ -37,6 +38,10 @@ export async function onRequestPost(context) {
             temperature: 0.35
         };
 
+        if (stream) {
+            requestBody.stream = true;
+        }
+
         if (String(env.OPENAI_USE_RESPONSE_FORMAT || '').toLowerCase() === 'true') {
             requestBody.response_format = { type: 'json_object' };
         }
@@ -50,11 +55,17 @@ export async function onRequestPost(context) {
             body: JSON.stringify(requestBody)
         });
 
-        const llmText = await llmRes.text();
         if (!llmRes.ok) {
-            return json({ success: false, error: `OpenAI 兼容接口调用失败：${truncate(llmText, 600)}` }, 502);
+            const llmText = await llmRes.text();
+            const error = `OpenAI 兼容接口调用失败：${truncate(llmText, 600)}`;
+            return stream ? ndjsonError(error) : json({ success: false, error }, 502);
         }
 
+        if (stream) {
+            return streamModelResponse(llmRes, { baseTitle, baseIcon, prompt });
+        }
+
+        const llmText = await llmRes.text();
         const llmData = safeJsonParse(llmText);
         const content = llmData?.choices?.[0]?.message?.content || '';
         const result = parseModelJson(content);
@@ -64,13 +75,7 @@ export async function onRequestPost(context) {
             return json({ success: false, error: '模型没有返回完整 HTML 文件，请换一种提示词再试。' }, 502);
         }
 
-        return json({
-            success: true,
-            title: sanitizeText(result.title || baseTitle, 30),
-            icon: sanitizeText(result.icon || baseIcon || '🎮', 4),
-            description: sanitizeText(result.description || `根据提示词生成：${prompt.slice(0, 80)}`, 120),
-            html
-        });
+        return json(buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }));
     } catch (error) {
         return json({ success: false, error: error.message || '生成失败' }, 500);
     }
@@ -106,6 +111,76 @@ HTML 要求：
     ];
 }
 
+function streamModelResponse(llmRes, meta) {
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let buffer = '';
+
+    const readable = new ReadableStream({
+        async start(controller) {
+            const send = (event) => controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'));
+            send({ type: 'status', message: '已连接模型，正在等待输出...' });
+
+            try {
+                const reader = llmRes.body.getReader();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const rawLine of lines) {
+                        const line = rawLine.trim();
+                        if (!line || !line.startsWith('data:')) continue;
+                        const data = line.slice(5).trim();
+                        if (!data || data === '[DONE]') continue;
+                        const parsed = safeJsonParse(data);
+                        const delta = parsed?.choices?.[0]?.delta?.content || parsed?.choices?.[0]?.message?.content || '';
+                        if (delta) {
+                            fullContent += delta;
+                            send({ type: 'delta', text: delta });
+                        }
+                    }
+                }
+
+                const result = parseModelJson(fullContent);
+                const html = cleanHtml(result.html || '');
+                if (!isCompleteHtml(html)) {
+                    send({ type: 'error', error: '模型输出完成，但没有得到完整 HTML 文件。可以让模型“只返回完整 HTML 或 JSON”。' });
+                    controller.close();
+                    return;
+                }
+
+                send({ type: 'done', result: buildSuccessResult(result, html, meta) });
+                controller.close();
+            } catch (error) {
+                send({ type: 'error', error: error.message || '读取模型流式输出失败' });
+                controller.close();
+            }
+        }
+    });
+
+    return new Response(readable, {
+        headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/x-ndjson; charset=utf-8',
+            'Cache-Control': 'no-store'
+        }
+    });
+}
+
+function buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }) {
+    return {
+        success: true,
+        title: sanitizeText(result.title || baseTitle, 30),
+        icon: sanitizeText(result.icon || baseIcon || '🎮', 4),
+        description: sanitizeText(result.description || `根据提示词生成：${prompt.slice(0, 80)}`, 120),
+        html
+    };
+}
+
 function normalizeBaseUrl(url) {
     return String(url || '').replace(/\/+$/, '');
 }
@@ -116,6 +191,17 @@ function json(data, status = 200) {
         headers: {
             ...corsHeaders,
             'Content-Type': 'application/json; charset=utf-8'
+        }
+    });
+}
+
+function ndjsonError(error, status = 502) {
+    return new Response(JSON.stringify({ type: 'error', error }) + '\n', {
+        status,
+        headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/x-ndjson; charset=utf-8',
+            'Cache-Control': 'no-store'
         }
     });
 }

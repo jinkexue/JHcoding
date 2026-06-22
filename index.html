@@ -347,6 +347,39 @@
         .status-area.warn { background: #fff7ed; color: #c2410c; }
         .status-area.error { background: #fef2f2; color: #b91c1c; }
 
+        .model-output-wrap {
+            margin-top: 12px;
+            border: 1px solid #dbeafe;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #0f172a;
+            display: none;
+        }
+
+        .model-output-title {
+            padding: 9px 12px;
+            background: #1e293b;
+            color: #bfdbfe;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .model-output {
+            max-height: 260px;
+            overflow: auto;
+            padding: 12px;
+            color: #d1fae5;
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
         .hint-list {
             margin-top: 12px;
             color: #6b7280;
@@ -446,6 +479,13 @@
                                 <button class="vibe-button ghost" onclick="fillExamplePrompt()">填入示例</button>
                             </div>
                             <div class="status-area" id="vibeStatus">编程功能需要密码 311051 解锁。</div>
+                            <div class="model-output-wrap" id="modelOutputWrap">
+                                <div class="model-output-title">
+                                    <span>大模型输出过程</span>
+                                    <span id="modelOutputCount">0 字</span>
+                                </div>
+                                <div class="model-output" id="modelOutput">等待开始生成...</div>
+                            </div>
                             <div class="hint-list">
                                 提示：可以写“把角色换成小猫”“增加倒计时”“让背景变成太空”“修复刚才的报错”。每次提交都会固定保存当前游戏的最新版本。
                             </div>
@@ -705,17 +745,13 @@ async function modifySelectedGame() {
 
 async function generateAndSave(payload) {
     setBusy(true);
-    setStatus('正在生成游戏代码，请稍等...', 'warn');
+    resetModelOutput();
+    setStatus('正在生成游戏代码，下方会实时显示模型输出...', 'warn');
 
     try {
-        const generateRes = await fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const generateData = await generateRes.json();
-        if (!generateRes.ok || !generateData.success) {
-            throw new Error(generateData.error || '生成失败');
+        const generateData = await generateWithStream({ ...payload, stream: true });
+        if (!generateData || !generateData.success) {
+            throw new Error((generateData && generateData.error) || '生成失败');
         }
 
         const html = generateData.html;
@@ -757,9 +793,60 @@ async function generateAndSave(payload) {
         setStatus(`已固定保存《${savedGame.title}》。它已经自动加入上方游戏卡片列表。`, 'ok');
     } catch (error) {
         setStatus(`生成或保存失败：${error.message}\n可以修改提示词后继续提交。`, 'error');
+        appendModelOutput(`\n\n[错误] ${error.message}`);
     } finally {
         setBusy(false);
     }
+}
+
+async function generateWithStream(payload) {
+    const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+
+    const contentType = res.headers.get('Content-Type') || '';
+    if (!contentType.includes('application/x-ndjson')) {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || '生成失败');
+        return data;
+    }
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || '生成失败');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            const event = JSON.parse(line);
+            if (event.type === 'status') {
+                setStatus(event.message, 'warn');
+            } else if (event.type === 'delta') {
+                appendModelOutput(event.text || '');
+            } else if (event.type === 'done') {
+                finalResult = event.result;
+            } else if (event.type === 'error') {
+                throw new Error(event.error || '模型输出失败');
+            }
+        }
+    }
+
+    if (!finalResult) throw new Error('模型输出结束，但没有收到最终结果');
+    return finalResult;
 }
 
 function getSaveId(payload) {
@@ -826,6 +913,25 @@ function setStatus(message, type = '') {
     const status = document.getElementById('vibeStatus');
     status.textContent = message;
     status.className = `status-area ${type}`.trim();
+}
+
+function resetModelOutput() {
+    const wrap = document.getElementById('modelOutputWrap');
+    const output = document.getElementById('modelOutput');
+    const count = document.getElementById('modelOutputCount');
+    wrap.style.display = 'block';
+    output.textContent = '';
+    count.textContent = '0 字';
+}
+
+function appendModelOutput(text) {
+    const wrap = document.getElementById('modelOutputWrap');
+    const output = document.getElementById('modelOutput');
+    const count = document.getElementById('modelOutputCount');
+    wrap.style.display = 'block';
+    output.textContent += text;
+    count.textContent = `${output.textContent.length} 字`;
+    output.scrollTop = output.scrollHeight;
 }
 
 function fillExamplePrompt() {
