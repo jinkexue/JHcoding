@@ -31,18 +31,23 @@ export async function onRequestPost(context) {
         }
 
         const messages = buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon });
+        const requestBody = {
+            model,
+            messages,
+            temperature: 0.35
+        };
+
+        if (String(env.OPENAI_USE_RESPONSE_FORMAT || '').toLowerCase() === 'true') {
+            requestBody.response_format = { type: 'json_object' };
+        }
+
         const llmRes = await fetch(`${baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: 0.35,
-                response_format: { type: 'json_object' }
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const llmText = await llmRes.text();
@@ -134,7 +139,31 @@ function parseModelJson(content) {
         const fallback = safeJsonParse(match[0]);
         if (fallback) return fallback;
     }
+
+    const html = extractHtml(cleaned);
+    if (html) {
+        return {
+            title: '编程小游戏',
+            icon: '🎮',
+            description: '这是一个由 VibeCoding 生成的小游戏。',
+            html
+        };
+    }
+
     return {};
+}
+
+function extractHtml(content) {
+    const text = String(content || '').trim()
+        .replace(/^```html\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```$/i, '')
+        .trim();
+    const doctypeIndex = text.toLowerCase().indexOf('<!doctype html>');
+    if (doctypeIndex >= 0) return text.slice(doctypeIndex);
+    const htmlIndex = text.toLowerCase().indexOf('<html');
+    if (htmlIndex >= 0) return '<!DOCTYPE html>\n' + text.slice(htmlIndex);
+    return '';
 }
 
 function cleanHtml(html) {
