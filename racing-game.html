@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>极速躲避赛车</title>
+    <style>
+       body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            height: 100dvh;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            overflow: hidden;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            width: 100vw;
+            max-width: 400px;
+        }
+
+        canvas {
+            background-color: #333;
+            border-left: 10px solid #4CAF50; /* 左侧草地 */
+            border-right: 10px solid #4CAF50; /* 右侧草地 */
+            display: block;
+            width: 100%;
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+            pointer-events: none; /* 让点击穿透 */
+        }
+
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+        }
+
+        button {
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 10px;
+            border-radius: 5px;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        button:hover {
+            background-color: #ff6b81;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+  .touch-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+        .touch-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: white;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto;
+            transition: background 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0.9);
+        }
+ .hidden {
+            display: none !important;
+        }
+        @media (min-width: 769px) {
+            .touch-controls { display: none; }
+        }
+        @media (max-width: 480px) {
+            #startScreen, #gameOverScreen {
+                width: 260px;
+                padding: 15px;
+            }
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="ui-layer">得分: <span id="score">0</span></div>
+    
+    <!-- 开始屏幕 -->
+    <div id="startScreen">
+        <h1>极速躲避</h1>
+        <p>使用 ← → 箭头键移动</p>
+        <button onclick="startGame()">开始游戏</button>
+    </div>
+
+     <!-- 结束屏幕 -->
+    <div id="gameOverScreen" class="hidden">
+        <h1>游戏结束!</h1>
+        <p>最终得分: <span id="finalScore">0</span></p>
+        <button onclick="resetGame()">再玩一次</button>
+    </div>
+
+    <!-- 触摸按钮 -->
+    <div class="touch-controls">
+        <div class="touch-btn" id="btnLeft">◀</div>
+        <div class="touch-btn" id="btnRight">▶</div>
+    </div>
+</div>
+
+<script>
+    // 音效系统
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playEngineSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(80 + Math.random() * 40, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function playCrashSound() {
+        if (!audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 0.3;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+        }
+        const source = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        source.buffer = buffer;
+        source.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        source.start(audioCtx.currentTime);
+    }
+
+    function playScoreSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.12);
+    }
+
+    function playGameOverSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.6);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.6);
+    }
+
+    document.addEventListener('click', initAudio, { once: true });
+    document.addEventListener('touchstart', initAudio, { once: true });
+
+    let engineTimer = 0;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const finalScoreEl = document.getElementById('finalScore');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+
+    // 游戏状态
+    let gameRunning = false;
+    let score = 0;
+    let speed = 5;
+    let animationId;
+
+    // 玩家车辆
+    const player = {
+        x: canvas.width / 2 - 25,
+        y: canvas.height - 100,
+        width: 50,
+        height: 80,
+        color: '#3498db',
+        dx: 0
+    };
+
+    // 障碍物数组
+    let enemies = [];
+
+    // 道路标线
+    let roadLines = [];
+    for (let i = 0; i < 5; i++) {
+        roadLines.push({ y: i * 150 });
+    }
+
+   // 键盘监听
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') player.dx = -7;
+        if (e.key === 'ArrowRight') player.dx = 7;
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') player.dx = 0;
+    });
+
+    // 触摸控制
+    function addTouchControl(btnId, dxValue) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            player.dx = dxValue;
+        }, { passive: false });
+        
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (player.dx === dxValue) player.dx = 0;
+        }, { passive: false });
+        
+        btn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            if (player.dx === dxValue) player.dx = 0;
+        }, { passive: false });
+
+        // 也支持鼠标点击（桌面浏览器测试）
+        btn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            player.dx = dxValue;
+        });
+        btn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            if (player.dx === dxValue) player.dx = 0;
+        });
+        btn.addEventListener('mouseleave', (e) => {
+            if (player.dx === dxValue) player.dx = 0;
+        });
+    }
+
+    addTouchControl('btnLeft', -7);
+    addTouchControl('btnRight', 7);
+
+    function startGame() {
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        gameRunning = true;
+        score = 0;
+        speed = 5;
+        enemies = [];
+        player.x = canvas.width / 2 - 25;
+        scoreEl.innerText = score;
+        animate();
+    }
+
+    function resetGame() {
+        startGame();
+    }
+
+    function gameOver() {
+        gameRunning = false;
+        cancelAnimationFrame(animationId);
+        finalScoreEl.innerText = score;
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    function spawnEnemy() {
+        // 随机生成敌人位置 (3条车道)
+        const laneWidth = canvas.width / 3;
+        const lane = Math.floor(Math.random() * 3);
+        const enemyX = lane * laneWidth + (laneWidth - 50) / 2;
+        
+        enemies.push({
+            x: enemyX,
+            y: -100,
+            width: 50,
+            height: 80,
+            color: '#e74c3c'
+        });
+    }
+
+    function drawCar(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        // 车身
+        ctx.fillRect(x, y, w, h);
+        
+        // 车轮
+        ctx.fillStyle = 'black';
+        ctx.fillRect(x - 5, y + 10, 5, 20); // 左前
+        ctx.fillRect(x + w, y + 10, 5, 20); // 右前
+        ctx.fillRect(x - 5, y + h - 30, 5, 20); // 左后
+        ctx.fillRect(x + w, y + h - 30, 5, 20); // 右后
+        
+        // 挡风玻璃
+        ctx.fillStyle = '#8ecae6';
+        ctx.fillRect(x + 5, y + 20, w - 10, 15);
+    }
+
+    function drawRoad() {
+        ctx.strokeStyle = 'white';
+        ctx.setLineDash([40, 30]); // 虚线
+        ctx.lineWidth = 5;
+
+        // 绘制中间分隔线
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+
+        // 绘制车道分隔线 (移动效果)
+        roadLines.forEach(line => {
+            // 左车道线
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 3, line.y);
+            ctx.lineTo(canvas.width / 3, line.y + 40);
+            ctx.stroke();
+
+            // 右车道线
+            ctx.beginPath();
+            ctx.moveTo((canvas.width / 3) * 2, line.y);
+            ctx.lineTo((canvas.width / 3) * 2, line.y + 40);
+            ctx.stroke();
+
+            // 更新线条位置以模拟移动
+            line.y += speed;
+            if (line.y > canvas.height) {
+                line.y = -100;
+            }
+        });
+    }
+
+    function update() {
+        // 移动玩家
+        player.x += player.dx;
+
+        // 边界检测
+        if (player.x < 0) player.x = 0;
+        if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+        // 生成敌人 (概率生成)
+        if (Math.random() < 0.02) {
+            // 确保不会太密集
+            const lastEnemy = enemies[enemies.length - 1];
+            if (!lastEnemy || lastEnemy.y > 150) {
+                spawnEnemy();
+            }
+        }
+
+        // 更新敌人
+        for (let i = 0; i < enemies.length; i++) {
+            let enemy = enemies[i];
+            enemy.y += speed;
+
+            // 碰撞检测 (AABB)
+            if (
+                player.x < enemy.x + enemy.width &&
+                player.x + player.width > enemy.x &&
+                player.y < enemy.y + enemy.height &&
+                player.y + player.height > enemy.y
+            ) {
+               gameOver();
+                playCrashSound();
+                playGameOverSound();
+                return;
+            }
+
+            // 移除超出屏幕的敌人并加分
+            if (enemy.y > canvas.height) {
+                enemies.splice(i, 1);
+                i--;
+                score++;
+                scoreEl.innerText = score;
+                playScoreSound();
+                
+                // 难度增加：每得10分速度加快
+                if (score % 10 === 0) {
+                    speed += 0.5;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        drawRoad();
+        drawCar(player.x, player.y, player.width, player.height, player.color);
+        
+        enemies.forEach(enemy => {
+            drawCar(enemy.x, enemy.y, enemy.width, enemy.height, enemy.color);
+        });
+    }
+
+      function animate() {
+        if (!gameRunning) return;
+
+        engineTimer += 16;
+        if (engineTimer > 100) {
+            playEngineSound();
+            engineTimer = 0;
+        }
+
+        update();
+        draw();
+        animationId = requestAnimationFrame(animate);
+    }
+</script>
+
+</body>
+</html>

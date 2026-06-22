@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园求生 - 景绘编程乐园</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; cursor: grab; }
+        body.dragging { cursor: grabbing; }
+        canvas { display: block; touch-action: none; }
+
+        #characterSelect {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; color: white;
+        }
+        #characterSelect h1 { font-size: 48px; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        #characterSelect p { font-size: 18px; margin-bottom: 40px; opacity: 0.9; }
+        .char-buttons { display: flex; gap: 30px; }
+        .char-btn {
+            width: 200px; padding: 30px; background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3); border-radius: 15px;
+            color: white; cursor: pointer; transition: all 0.3s; text-align: center;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .char-btn:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+        .char-btn:active { transform: scale(0.95); }
+        .char-btn .icon { font-size: 60px; display: block; margin-bottom: 10px; }
+        .char-btn .name { font-size: 24px; font-weight: bold; }
+        .char-btn .desc { font-size: 13px; opacity: 0.8; margin-top: 5px; }
+
+        #hud {
+            position: fixed; top: 0; left: 0; width: 100%; padding: 15px 20px;
+            display: none; z-index: 50; pointer-events: none;
+        }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+
+        #healthBar {
+            width: 250px; height: 30px; background: rgba(0,0,0,0.5);
+            border-radius: 15px; overflow: hidden; border: 2px solid rgba(255,255,255,0.3);
+        }
+        #healthFill {
+            width: 100%; height: 100%; transition: width 0.3s;
+        }
+        #healthText { color: white; font-size: 14px; margin-top: 5px; text-align: center; }
+
+        #itemStatus { display: flex; gap: 10px; align-items: center; }
+        .item-badge {
+            padding: 8px 15px; background: rgba(0,0,0,0.5); border-radius: 20px;
+            color: white; font-size: 14px; display: none;
+        }
+        .item-badge.active { display: flex; align-items: center; gap: 8px; }
+        .item-badge .item-icon { font-size: 20px; }
+        .item-badge .item-timer { font-size: 12px; }
+
+        #weatherInfo { text-align: right; color: white; font-size: 16px; }
+        #weatherInfo .weather-icon { font-size: 30px; }
+
+        #minimap {
+            position: fixed; bottom: 20px; right: 20px; width: 180px; height: 180px;
+            background: rgba(0,0,0,0.6); border-radius: 10px; border: 2px solid rgba(255,255,255,0.3);
+            z-index: 50; overflow: hidden;
+        }
+        #minimapCanvas { width: 100%; height: 100%; }
+
+        #controls {
+            position: fixed; bottom: 20px; left: 20px; color: white; font-size: 13px;
+            background: rgba(0,0,0,0.5); padding: 12px 15px; border-radius: 10px;
+            z-index: 50; line-height: 1.8;
+        }
+
+        #jumpIndicator {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 24px; text-align: center; pointer-events: none; z-index: 50;
+            display: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        #jumpIndicator .arrow { font-size: 36px; animation: bounce 1s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        #fallWarning {
+            position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            color: #ff4444; font-size: 28px; text-align: center; pointer-events: none; z-index: 50;
+            display: none; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        #gameOverScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; color: white;
+        }
+        #gameOverScreen h1 { font-size: 48px; margin-bottom: 20px; }
+        #gameOverScreen p { font-size: 24px; margin-bottom: 30px; }
+        #gameOverScreen button {
+            padding: 15px 40px; font-size: 20px; background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; border: none; border-radius: 25px; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        #gameOverScreen button:active {
+            transform: scale(0.95);
+        }
+
+        .damage-flash { animation: damageFlash 0.3s; }
+        @keyframes damageFlash {
+            0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+            50% { box-shadow: inset 0 0 100px rgba(255,0,0,0.5); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="characterSelect">
+        <h1>校园求生</h1>
+        <p>从校门口出发，穿越风雨到达教室！</p>
+        <div class="char-buttons">
+            <div class="char-btn" onclick="selectCharacter('girl')">
+                <span class="icon">👧</span>
+                <span class="name">小女孩</span>
+                <span class="desc">均衡型 | 速度适中</span>
+            </div>
+            <div class="char-btn" onclick="selectCharacter('boy')">
+                <span class="icon">👦</span>
+                <span class="name">小男孩</span>
+                <span class="desc">速度快 | 血量较少</span>
+            </div>
+            <div class="char-btn" onclick="selectCharacter('teacher')">
+                <span class="icon">👩‍🏫</span>
+                <span class="name">老师</span>
+                <span class="desc">血量大 | 速度较慢</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud">
+        <div class="hud-top">
+            <div>
+                <div id="healthBar"><div id="healthFill"></div></div>
+                <div id="healthText">100 / 100</div>
+            </div>
+            <div id="itemStatus">
+                <div class="item-badge" id="umbrellaBadge">
+                    <span class="item-icon">☂️</span>
+                    <span class="item-timer" id="umbrellaTimer"></span>
+                </div>
+                <div class="item-badge" id="blowerBadge">
+                    <span class="item-icon">💨</span>
+                    <span class="item-timer" id="blowerTimer"></span>
+                </div>
+                <div class="item-badge" id="hatBadge">
+                    <span class="item-icon">🧢</span>
+                    <span class="item-timer" id="hatTimer"></span>
+                </div>
+            </div>
+            <div id="weatherInfo">
+                <div class="weather-icon" id="weatherIcon">🌧️</div>
+                <div id="weatherName">下雨</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="minimap"><canvas id="minimapCanvas"></canvas></div>
+
+    <div id="controls">
+        WASD/摇杆 移动 | 空格/按钮 跳跃 | 拖拽 视角<br>
+        收集道具躲避天气，到达教室即可胜利
+    </div>
+
+    <!-- 触摸控制 -->
+    <div id="touchControls" style="display:none; position:absolute; bottom:0; left:0; width:100%; height:180px; pointer-events:none;">
+        <!-- 虚拟摇杆 -->
+        <div id="touchJoystickArea" style="position:absolute; bottom:20px; left:20px; width:120px; height:120px; background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.3); border-radius:50%; pointer-events:auto; -webkit-tap-highlight-color:transparent;">
+            <div id="touchJoystickKnob" style="position:absolute; top:50%; left:50%; width:40px; height:40px; background:rgba(255,255,255,0.5); border-radius:50%; transform:translate(-50%,-50%);"></div>
+        </div>
+        <!-- 跳跃按钮 -->
+        <div id="touchJumpBtn" style="position:absolute; bottom:30px; right:30px; width:80px; height:80px; background:rgba(100,200,255,0.4); border:3px solid rgba(100,200,255,0.6); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; color:white; user-select:none; -webkit-user-select:none; pointer-events:auto; -webkit-tap-highlight-color:transparent;">⬆️</div>
+        <!-- 视角拖拽区域 -->
+        <div id="touchLookArea" style="position:absolute; top:80px; right:20px; width:120px; height:120px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:50%; pointer-events:auto;"></div>
+    </div>
+
+    <style>
+        @media (max-width: 768px), (pointer: coarse) {
+            #touchControls { display: block; }
+            #controls { display: none; }
+        }
+    </style>
+
+    <div id="jumpIndicator">
+        <div class="arrow">⬆️</div>
+        <div>按空格跳跃通过</div>
+    </div>
+
+    <div id="fallWarning">⚠️ 远离道路！即将跌落！</div>
+
+    <div id="gameOverScreen">
+        <h1 id="endTitle"></h1>
+        <p id="endMessage"></p>
+        <button onclick="restartGame()">再来一次</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ==================== 音效系统 ====================
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playJumpSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(700, audioCtx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        function playDamageSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.25);
+        }
+
+        function playVictorySound() {
+            if (!audioCtx) return;
+            const notes = [523, 659, 784, 1047];
+            notes.forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + i * 0.15);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime + i * 0.15);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.3);
+                osc.start(audioCtx.currentTime + i * 0.15);
+                osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
+            });
+        }
+
+        function playDeathSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 1.0);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.0);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 1.0);
+        }
+
+        function playWeatherChangeSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+        function playPickupSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+       document.addEventListener('click', initAudio, { once: true });
+        document.addEventListener('touchstart', initAudio, { once: true });
+
+        let damageSoundCooldown = 0;
+
+        // ===== 触摸控制变量 =====
+        let touchMoveInput = { x: 0, y: 0 };
+        let touchJumpPressed = false;
+        let isTouchDevice = false;
+
+        // 触摸虚拟摇杆控制
+        const touchJoystickArea = document.getElementById('touchJoystickArea');
+        const touchJoystickKnob = document.getElementById('touchJoystickKnob');
+        let touchJoystickCenter = { x: 0, y: 0 };
+        let touchJoystickActive = false;
+
+        if (touchJoystickArea) {
+            touchJoystickArea.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const rect = touchJoystickArea.getBoundingClientRect();
+                touchJoystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                touchJoystickActive = true;
+                updateTouchJoystick(e.touches[0]);
+            }, { passive: false });
+
+            touchJoystickArea.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (touchJoystickActive) updateTouchJoystick(e.touches[0]);
+            }, { passive: false });
+
+            touchJoystickArea.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchJoystickActive = false;
+                touchMoveInput.x = 0;
+                touchMoveInput.y = 0;
+                if (touchJoystickKnob) {
+                    touchJoystickKnob.style.transform = 'translate(-50%, -50%)';
+                }
+            }, { passive: false });
+
+            touchJoystickArea.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                touchJoystickActive = false;
+                touchMoveInput.x = 0;
+                touchMoveInput.y = 0;
+                if (touchJoystickKnob) {
+                    touchJoystickKnob.style.transform = 'translate(-50%, -50%)';
+                }
+            }, { passive: false });
+        }
+
+        function updateTouchJoystick(touch) {
+            const dx = touch.clientX - touchJoystickCenter.x;
+            const dy = touch.clientY - touchJoystickCenter.y;
+            const dist = Math.min(Math.sqrt(dx * dx + dy * dy), 40);
+            const angle = Math.atan2(dy, dx);
+            const knobX = Math.cos(angle) * dist;
+            const knobY = Math.sin(angle) * dist;
+
+            if (touchJoystickKnob) {
+                touchJoystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+            }
+
+            touchMoveInput.x = knobX / 40;
+            touchMoveInput.y = knobY / 40;
+        }
+
+        // 触摸跳跃按钮
+        const touchJumpBtn = document.getElementById('touchJumpBtn');
+        if (touchJumpBtn) {
+            touchJumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchJumpPressed = true;
+                keys.space = true;
+            }, { passive: false });
+
+            touchJumpBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchJumpPressed = false;
+                keys.space = false;
+            }, { passive: false });
+
+            touchJumpBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                touchJumpPressed = false;
+                keys.space = false;
+            }, { passive: false });
+        }
+
+        // ==================== 全局变量 ====================
+        let scene, camera, renderer, clock;
+        let player, playerMesh;
+        let weatherType = 'rain';
+        let weatherDamage = 0.5;
+        let weatherSpeed = 0.8;
+        let health = 100;
+        let maxHealth = 100;
+        let gameActive = false;
+        let selectedCharacter = 'girl';
+        let characterStats = {};
+        let items = [];
+        let obstacles = [];
+        let pathSegments = [];
+        let jumpZones = [];
+        let classroomTarget;
+        let schoolGate;
+        let flagPole;
+        let keys = { w: false, a: false, s: false, d: false, space: false };
+        let weatherParticles = null;
+        let minimapCtx;
+
+        // 鼠标视角控制
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraAngleX = 0;
+        let cameraAngleY = 0.5;
+        let cameraDistance = 25;
+
+        // 玩家跳跃
+        let playerVelocityY = 0;
+        let isJumping = false;
+        const gravity = -0.015;
+        const jumpForce = 0.35;
+
+        // 角色属性
+        const characterData = {
+            girl: { speed: 0.12, maxHealth: 100, color: 0xff69b4, scale: 1 },
+            boy: { speed: 0.16, maxHealth: 80, color: 0x4169e1, scale: 0.95 },
+            teacher: { speed: 0.09, maxHealth: 130, color: 0x8b4513, scale: 1.05 }
+        };
+
+        // 天气配置 - 随机选择顺序
+        let weatherOrder = [];
+        const baseWeatherConfig = {
+            rain: { damage: 0.3, interval: 12000, icon: '🌧️', name: '下雨', count: 2000, color: 0x87ceeb, size: 0.25, speed: 0.6 },
+            snow: { damage: 0.8, interval: 15000, icon: '🌨️', name: '下雪', count: 1500, color: 0xffffff, size: 0.4, speed: 0.15 },
+            hail: { damage: 2.0, interval: 18000, icon: '🧊', name: '冰雹', count: 600, color: 0xe0e0ff, size: 0.6, speed: 1.5 }
+        };
+
+        // ==================== 角色选择 ====================
+        function selectCharacter(char) {
+            selectedCharacter = char;
+            characterStats = characterData[char];
+            document.getElementById('characterSelect').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            initGame();
+        }
+
+        // ==================== 初始化游戏 ====================
+        function initGame() {
+            health = characterStats.maxHealth;
+            maxHealth = characterStats.maxHealth;
+            gameActive = true;
+            updateHealthUI();
+
+            scene = new THREE.Scene();
+            const skyColor = 0x87ceeb;
+            scene.background = new THREE.Color(skyColor);
+            scene.fog = new THREE.FogExp2(skyColor, 0.003);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 25, 30);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(skyColor, 1);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // 天空球
+            const skyGeo = new THREE.SphereGeometry(400, 32, 32);
+            const skyMat = new THREE.MeshBasicMaterial({
+                color: skyColor,
+                side: THREE.BackSide
+            });
+            const sky = new THREE.Mesh(skyGeo, skyMat);
+            scene.add(sky);
+
+            clock = new THREE.Clock();
+
+          const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x4a7c59, 0.5);
+            scene.add(hemiLight);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 80, 50);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -80;
+            dirLight.shadow.camera.right = 80;
+            dirLight.shadow.camera.top = 80;
+            dirLight.shadow.camera.bottom = -80;
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 200;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            scene.add(dirLight);
+            scene.add(dirLight.target);
+
+            createFloatingGround();
+            createCurvedPaths();
+            createSchoolGate();
+            createClassroom();
+            createFlagPole();
+            createScenery();
+            createPlayer();
+            createJumpZones();
+            createMinimap();
+
+            window.addEventListener('keydown', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === ' ') { keys.space = true; e.preventDefault(); }
+                else if (keys.hasOwnProperty(k)) keys[k] = true;
+            });
+            window.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === ' ') { keys.space = false; }
+                else if (keys.hasOwnProperty(k)) keys[k] = false;
+            });
+            window.addEventListener('resize', onWindowResize);
+
+            // 鼠标视角控制
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    isDragging = true;
+                    document.body.classList.add('dragging');
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                cameraAngleX -= deltaX * 0.005;
+                cameraAngleY = Math.max(0.2, Math.min(1.2, cameraAngleY + deltaY * 0.005));
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                document.body.classList.remove('dragging');
+            });
+
+            // 触摸视角控制
+            const touchLookArea = document.getElementById('touchLookArea');
+            if (touchLookArea) {
+                let touchLookStartX = 0;
+                let touchLookStartY = 0;
+                let touchLookPrevX = 0;
+                let touchLookPrevY = 0;
+                let touchLookActive = false;
+
+                touchLookArea.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    touchLookStartX = touch.clientX;
+                    touchLookStartY = touch.clientY;
+                    touchLookPrevX = touch.clientX;
+                    touchLookPrevY = touch.clientY;
+                    touchLookActive = true;
+                }, { passive: false });
+
+                touchLookArea.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    if (!touchLookActive) return;
+                    const touch = e.touches[0];
+                    const deltaX = touch.clientX - touchLookPrevX;
+                    const deltaY = touch.clientY - touchLookPrevY;
+                    cameraAngleX -= deltaX * 0.008;
+                    cameraAngleY = Math.max(0.2, Math.min(1.2, cameraAngleY + deltaY * 0.008));
+                    touchLookPrevX = touch.clientX;
+                    touchLookPrevY = touch.clientY;
+                }, { passive: false });
+
+                touchLookArea.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    touchLookActive = false;
+                }, { passive: false });
+
+                touchLookArea.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    touchLookActive = false;
+                }, { passive: false });
+            }
+
+            startWeatherCycle();
+            animate();
+        }
+
+        // ==================== 悬浮地面（天空场景）====================
+        function createFloatingGround() {
+            const groundGeo = new THREE.PlaneGeometry(300, 300);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x4a7c59 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -30;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 云朵装饰
+            for (let i = 0; i < 15; i++) {
+                const cloudGroup = new THREE.Group();
+                const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+                for (let j = 0; j < 4; j++) {
+                    const sphere = new THREE.Mesh(
+                        new THREE.SphereGeometry(3 + Math.random() * 4, 8, 8),
+                        cloudMat
+                    );
+                    sphere.position.set(j * 4 - 6, Math.random() * 2, Math.random() * 3);
+                    cloudGroup.add(sphere);
+                }
+                cloudGroup.position.set(
+                    (Math.random() - 0.5) * 150,
+                    30 + Math.random() * 20,
+                    (Math.random() - 0.5) * 150
+                );
+                scene.add(cloudGroup);
+            }
+        }
+
+        // ==================== 曲折路径系统 ====================
+        function createCurvedPaths() {
+            pathSegments = [];
+
+            const pathData = [
+                // 从校门口出发的主路径（曲折）
+                { x: 0, zStart: 55, zEnd: 40, width: 8 },
+                { x: 12, zStart: 40, zEnd: 25, width: 7 },
+                { x: -5, zStart: 25, zEnd: 10, width: 8 },
+                { x: -15, zStart: 10, zEnd: -5, width: 6 },
+                { x: -8, zStart: -5, zEnd: -20, width: 7 },
+                { x: 5, zStart: -20, zEnd: -35, width: 6 },
+                { x: 0, zStart: -35, zEnd: -48, width: 8 },
+            ];
+
+            const pathMat = new THREE.MeshLambertMaterial({ color: 0xd2b48c });
+            const edgeMat = new THREE.MeshLambertMaterial({ color: 0x8b7355 });
+
+            pathData.forEach((data, idx) => {
+                const length = data.zEnd - data.zStart;
+                const midX = (data.x + (pathData[idx - 1] ? pathData[idx - 1].x : data.x)) / 2;
+
+                // 路径面
+                const pathGeo = new THREE.PlaneGeometry(data.width, Math.abs(length));
+                const pathMesh = new THREE.Mesh(pathGeo, pathMat);
+                pathMesh.rotation.x = -Math.PI / 2;
+                pathMesh.position.set(midX, 0.05, (data.zStart + data.zEnd) / 2);
+                scene.add(pathMesh);
+
+                // 边缘（护栏效果）
+                const edgeGeo = new THREE.BoxGeometry(0.3, 0.8, Math.abs(length));
+                const leftEdge = new THREE.Mesh(edgeGeo, edgeMat);
+                leftEdge.position.set(midX - data.width / 2, 0.4, (data.zStart + data.zEnd) / 2);
+                scene.add(leftEdge);
+
+                const rightEdge = new THREE.Mesh(edgeGeo, edgeMat);
+                rightEdge.position.set(midX + data.width / 2, 0.4, (data.zStart + data.zEnd) / 2);
+                scene.add(rightEdge);
+
+                pathSegments.push({
+                    x: midX,
+                    zCenter: (data.zStart + data.zEnd) / 2,
+                    halfLength: Math.abs(length) / 2,
+                    width: data.width / 2,
+                    zStart: Math.min(data.zStart, data.zEnd),
+                    zEnd: Math.max(data.zStart, data.zEnd)
+                });
+            });
+
+            // 路径标记点
+            const markerMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+            pathData.forEach((data, idx) => {
+                const marker = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 8), markerMat);
+                marker.position.set(data.x, 0.1, (data.zStart + data.zEnd) / 2);
+                scene.add(marker);
+            });
+        }
+
+        // ==================== 校门口 ====================
+        let gateLeftDoor, gateRightDoor, gateOpening = false, gateOpenAmount = 0;
+        function createSchoolGate() {
+            schoolGate = new THREE.Group();
+            const gateMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+
+            // 门柱
+            const pillarGeo = new THREE.BoxGeometry(2, 10, 2);
+            const leftPillar = new THREE.Mesh(pillarGeo, gateMat);
+            leftPillar.position.set(-10, 5, 60);
+            leftPillar.castShadow = true;
+            schoolGate.add(leftPillar);
+
+            const rightPillar = new THREE.Mesh(pillarGeo, gateMat);
+            rightPillar.position.set(10, 5, 60);
+            rightPillar.castShadow = true;
+            schoolGate.add(rightPillar);
+
+            // 横梁
+            const beam = new THREE.Mesh(new THREE.BoxGeometry(22, 1.5, 2.5), gateMat);
+            beam.position.set(0, 10.75, 60);
+            beam.castShadow = true;
+            schoolGate.add(beam);
+
+            // 校门装饰柱顶
+            const topDecoGeo = new THREE.SphereGeometry(0.8, 8, 8);
+            const goldMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+            const leftTop = new THREE.Mesh(topDecoGeo, goldMat);
+            leftTop.position.set(-10, 10.5, 60);
+            schoolGate.add(leftTop);
+            const rightTop = new THREE.Mesh(topDecoGeo, goldMat);
+            rightTop.position.set(10, 10.5, 60);
+            schoolGate.add(rightTop);
+
+            // 校门 - 左门（可开合）
+            const doorGeo = new THREE.BoxGeometry(8, 8, 0.5);
+            const doorMat = new THREE.MeshLambertMaterial({ color: 0xa0522d });
+            gateLeftDoor = new THREE.Mesh(doorGeo, doorMat);
+            gateLeftDoor.position.set(-6, 4, 60);
+            gateLeftDoor.castShadow = true;
+            schoolGate.add(gateLeftDoor);
+
+            // 校门 - 右门（可开合）
+            gateRightDoor = new THREE.Mesh(doorGeo, doorMat);
+            gateRightDoor.position.set(6, 4, 60);
+            gateRightDoor.castShadow = true;
+            schoolGate.add(gateRightDoor);
+
+            // 校门装饰条纹
+            const stripeMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+            for (let i = 0; i < 3; i++) {
+                const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.2, 6, 0.1), stripeMat);
+                stripe.position.set(-8 + i * 2, 4, 60.3);
+                schoolGate.add(stripe);
+                const stripe2 = stripe.clone();
+                stripe2.position.x = 8 - i * 2;
+                schoolGate.add(stripe2);
+            }
+
+            // 校名横幅
+            const bannerGroup = new THREE.Group();
+            const bannerBg = new THREE.Mesh(
+                new THREE.PlaneGeometry(10, 2),
+                new THREE.MeshLambertMaterial({ color: 0xcc0000, side: THREE.DoubleSide })
+            );
+            bannerGroup.add(bannerBg);
+            bannerGroup.position.set(0, 13, 60.5);
+            schoolGate.add(bannerGroup);
+
+            scene.add(schoolGate);
+
+            // 2秒后校门打开
+            setTimeout(() => {
+                gateOpening = true;
+            }, 500);
+        }
+
+        // ==================== 教室 ====================
+        function createClassroom() {
+            classroomTarget = new THREE.Group();
+            const buildingMat = new THREE.MeshLambertMaterial({ color: 0xf5f5dc });
+
+            const building = new THREE.Mesh(new THREE.BoxGeometry(30, 18, 22), buildingMat);
+            building.position.set(0, 9, -65);
+            building.castShadow = true;
+            classroomTarget.add(building);
+
+            const doorMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+            const door = new THREE.Mesh(new THREE.BoxGeometry(4, 7, 0.5), doorMat);
+            door.position.set(0, 3.5, -53);
+            classroomTarget.add(door);
+
+            const windowMat = new THREE.MeshLambertMaterial({ color: 0x87ceeb });
+            for (let i = -2; i <= 2; i++) {
+                const win = new THREE.Mesh(new THREE.BoxGeometry(3, 3.5, 0.5), windowMat);
+                win.position.set(i * 6, 12, -53.5);
+                classroomTarget.add(win);
+            }
+
+            // 旗杆（胜利标记）
+            const poleGeo = new THREE.CylinderGeometry(0.15, 0.2, 20, 8);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
+            const pole = new THREE.Mesh(poleGeo, poleMat);
+            pole.position.set(0, 10, -45);
+            pole.castShadow = true;
+            classroomTarget.add(pole);
+
+            // 旗帜
+            const flagGeo = new THREE.PlaneGeometry(4, 2.5);
+            const flagMat = new THREE.MeshLambertMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+            const flag = new THREE.Mesh(flagGeo, flagMat);
+            flag.position.set(2, 17, -45);
+            flag.name = 'flag';
+            classroomTarget.add(flag);
+
+            scene.add(classroomTarget);
+        }
+
+        // ==================== 旗杆 ====================
+        function createFlagPole() {
+            // 已集成到 createClassroom 中
+        }
+
+        // ==================== 丰富场景 ====================
+        function createScenery() {
+            // 大量树木
+            const treePositions = [
+                { x: -25, z: 50 }, { x: 25, z: 45 }, { x: -30, z: 30 },
+                { x: 28, z: 20 }, { x: -22, z: 5 }, { x: 22, z: -10 },
+                { x: -28, z: -20 }, { x: 30, z: -30 }, { x: -20, z: -40 },
+                { x: 25, z: -50 }, { x: -35, z: 15 }, { x: 35, z: 0 },
+                { x: -18, z: -55 }, { x: 18, z: 35 }, { x: -32, z: -45 },
+            ];
+
+            treePositions.forEach(pos => {
+                const tree = createTree();
+                tree.position.set(pos.x, 0, pos.z);
+                scene.add(tree);
+                obstacles.push({ mesh: tree, x: pos.x, z: pos.z, w: 3, d: 3 });
+            });
+
+            // 操场
+            const playground = new THREE.Group();
+            const courtMat = new THREE.MeshLambertMaterial({ color: 0xe74c3c });
+            const court = new THREE.Mesh(new THREE.PlaneGeometry(25, 18), courtMat);
+            court.rotation.x = -Math.PI / 2;
+            court.position.set(25, 0.06, 30);
+            playground.add(court);
+
+            // 篮球架
+            const hoopMat = new THREE.MeshLambertMaterial({ color: 0xff6600 });
+            const hoopPole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5, 8), hoopMat);
+            hoopPole.position.set(35, 2.5, 30);
+            playground.add(hoopPole);
+
+            const hoopBack = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 1.2), hoopMat);
+            hoopBack.position.set(35, 4.5, 30);
+            playground.add(hoopBack);
+
+            scene.add(playground);
+
+            // 花坛
+            const flowerBedPositions = [
+                { x: -12, z: 45 }, { x: 8, z: 15 }, { x: -18, z: -30 },
+                { x: 15, z: -40 }
+            ];
+            flowerBedPositions.forEach(pos => {
+                const bed = new THREE.Group();
+                const dirt = new THREE.Mesh(
+                    new THREE.CylinderGeometry(2, 2, 0.5, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x5d4037 })
+                );
+                dirt.position.y = 0.25;
+                bed.add(dirt);
+
+                const flowerColors = [0xff69b4, 0xffd700, 0xff4500, 0x9370db];
+                for (let i = 0; i < 5; i++) {
+                    const flower = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.3, 6, 6),
+                        new THREE.MeshLambertMaterial({ color: flowerColors[i % flowerColors.length] })
+                    );
+                    flower.position.set(
+                        Math.cos(i * 1.2) * 1.2,
+                        0.8,
+                        Math.sin(i * 1.2) * 1.2
+                    );
+                    bed.add(flower);
+                }
+
+                bed.position.set(pos.x, 0, pos.z);
+                scene.add(bed);
+            });
+
+            // 长椅
+            const benchPositions = [
+                { x: -8, z: 35 }, { x: 15, z: 20 }, { x: -12, z: -15 },
+                { x: 10, z: -30 }
+            ];
+            benchPositions.forEach(pos => {
+                const bench = new THREE.Group();
+                const woodMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 1), woodMat);
+                seat.position.y = 1;
+                bench.add(seat);
+
+                const back = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 0.2), woodMat);
+                back.position.set(0, 1.5, -0.4);
+                bench.add(back);
+
+                const legGeo = new THREE.BoxGeometry(0.2, 1, 0.8);
+                const leftLeg = new THREE.Mesh(legGeo, new THREE.MeshLambertMaterial({ color: 0x333333 }));
+                leftLeg.position.set(-1.2, 0.5, 0);
+                bench.add(leftLeg);
+                const rightLeg = new THREE.Mesh(legGeo, new THREE.MeshLambertMaterial({ color: 0x333333 }));
+                rightLeg.position.set(1.2, 0.5, 0);
+                bench.add(rightLeg);
+
+                bench.position.set(pos.x, 0, pos.z);
+                bench.rotation.y = Math.random() * Math.PI;
+                scene.add(bench);
+            });
+
+            // 路灯
+            const lampPositions = [
+                { x: -5, z: 42 }, { x: 5, z: 30 }, { x: -10, z: 15 },
+                { x: 8, z: 0 }, { x: -12, z: -20 }, { x: 5, z: -35 }
+            ];
+            lampPositions.forEach(pos => {
+                const lamp = new THREE.Group();
+                const poleMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 8, 8), poleMat);
+                pole.position.y = 4;
+                lamp.add(pole);
+
+                const light = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.5, 8, 8),
+                    new THREE.MeshLambertMaterial({ color: 0xffffaa, emissive: 0xffffaa, emissiveIntensity: 0.3 })
+                );
+                light.position.y = 8.2;
+                lamp.add(light);
+
+                lamp.position.set(pos.x, 0, pos.z);
+                scene.add(lamp);
+            });
+
+            // 围栏
+            const fenceMat = new THREE.MeshLambertMaterial({ color: 0xf5f5dc });
+            for (let z = -50; z <= 50; z += 4) {
+                const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2, 0.2), fenceMat);
+                post.position.set(-40, 1, z);
+                scene.add(post);
+                const post2 = post.clone();
+                post2.position.x = 40;
+                scene.add(post2);
+            }
+        }
+
+        function createTree() {
+            const tree = new THREE.Group();
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+            const leafMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 4, 8), trunkMat);
+            trunk.position.y = 2;
+            trunk.castShadow = true;
+            tree.add(trunk);
+
+            const leaves = new THREE.Mesh(new THREE.SphereGeometry(2.5, 8, 8), leafMat);
+            leaves.position.y = 5.5;
+            leaves.castShadow = true;
+            tree.add(leaves);
+
+            const leaves2 = new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 8), leafMat);
+            leaves2.position.set(0.8, 7, 0.5);
+            leaves2.castShadow = true;
+            tree.add(leaves2);
+
+            return tree;
+        }
+
+        // ==================== 跳跃区域 ====================
+        function createJumpZones() {
+            jumpZones = [
+                { x: 12, z: 32, width: 6, depth: 8, label: '断桥' },
+                { x: -5, z: 18, width: 5, depth: 7, label: '裂缝' },
+                { x: -15, z: -12, width: 6, depth: 8, label: '缺口' },
+                { x: 5, z: -28, width: 5, depth: 6, label: '断崖' },
+            ];
+
+            // 可视化跳跃区域
+            const zoneMat = new THREE.MeshLambertMaterial({
+                color: 0xff0000, transparent: true, opacity: 0.3
+            });
+            jumpZones.forEach(zone => {
+                const geo = new THREE.PlaneGeometry(zone.width * 2, zone.depth);
+                const mesh = new THREE.Mesh(geo, zoneMat);
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.position.set(zone.x, 0.1, zone.z);
+                scene.add(mesh);
+            });
+        }
+
+        // ==================== 创建玩家 ====================
+        function createPlayer() {
+            player = new THREE.Group();
+            const bodyColor = characterStats.color;
+            const bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.5, 1), bodyMat);
+            body.position.y = 2.5;
+            player.add(body);
+
+            const head = new THREE.Mesh(
+                new THREE.SphereGeometry(0.8, 16, 16),
+                new THREE.MeshLambertMaterial({ color: 0xffdbac })
+            );
+            head.position.y = 4.5;
+            player.add(head);
+
+            const legMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.5), legMat);
+            leftLeg.position.set(-0.4, 0.75, 0);
+            player.add(leftLeg);
+            const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.5), legMat);
+            rightLeg.position.set(0.4, 0.75, 0);
+            player.add(rightLeg);
+
+            if (selectedCharacter === 'girl') {
+                const hairMat = new THREE.MeshLambertMaterial({ color: 0x2c1810 });
+                const lh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8), hairMat);
+                lh.position.set(-1.2, 4.5, 0);
+                player.add(lh);
+                const rh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8), hairMat);
+                rh.position.set(1.2, 4.5, 0);
+                player.add(rh);
+            } else if (selectedCharacter === 'teacher') {
+                const glasses = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.2, 0.1, 0.1),
+                    new THREE.MeshLambertMaterial({ color: 0x000000 })
+                );
+                glasses.position.set(0, 4.7, 0.7);
+                player.add(glasses);
+            }
+
+            player.position.set(0, 0, 55);
+            scene.add(player);
+            playerMesh = player;
+        }
+
+        // ==================== 道具系统 ====================
+        function createItem(type) {
+            const itemGroup = new THREE.Group();
+            let color;
+
+            switch(type) {
+                case 'umbrella': color = 0xff0000; break;
+                case 'blower': color = 0x00bfff; break;
+                case 'hat': color = 0xffff00; break;
+            }
+
+            const itemGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.3, 16);
+            const itemMat = new THREE.MeshLambertMaterial({ color: color, transparent: true, opacity: 0.8 });
+            const itemMesh = new THREE.Mesh(itemGeo, itemMat);
+            itemGroup.add(itemMesh);
+
+            const glowGeo = new THREE.SphereGeometry(1.2, 16, 16);
+            const glowMat = new THREE.MeshLambertMaterial({ color: color, transparent: true, opacity: 0.3 });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            itemGroup.add(glow);
+
+            // 随机位置在路径附近
+            const segIdx = Math.floor(Math.random() * pathSegments.length);
+            const seg = pathSegments[segIdx];
+            const itemX = seg.x + (Math.random() - 0.5) * seg.width;
+            const itemZ = seg.zCenter + (Math.random() - 0.5) * seg.halfLength;
+
+            itemGroup.position.set(itemX, 0.5, itemZ);
+            scene.add(itemGroup);
+
+            const lifetime = 3 + Math.random() * 7;
+            items.push({ group: itemGroup, type: type, spawnTime: Date.now(), lifetime: lifetime });
+        }
+
+        function spawnItems() {
+            const types = ['umbrella', 'blower', 'hat'];
+            createItem(types[Math.floor(Math.random() * types.length)]);
+        }
+
+        function checkItemPickup() {
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                const dist = player.position.distanceTo(item.group.position);
+                if (dist < 3) {
+                    activateItem(item.type);
+                    scene.remove(item.group);
+                    items.splice(i, 1);
+                }
+            }
+        }
+
+        function activateItem(type) {
+            const badgeId = type === 'umbrella' ? 'umbrellaBadge' : type === 'blower' ? 'blowerBadge' : 'hatBadge';
+            const timerId = type === 'umbrella' ? 'umbrellaTimer' : type === 'blower' ? 'blowerTimer' : 'hatTimer';
+            document.getElementById(badgeId).classList.add('active');
+
+            const duration = 15;
+            let remaining = duration;
+            const timer = setInterval(() => {
+                remaining -= 0.1;
+                document.getElementById(timerId).textContent = Math.ceil(remaining) + 's';
+                if (remaining <= 0) {
+                    clearInterval(timer);
+                    document.getElementById(badgeId).classList.remove('active');
+                }
+            }, 100);
+
+            health = Math.min(maxHealth, health + 30);
+            updateHealthUI();
+        }
+
+        function updateItems() {
+            const now = Date.now();
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                if (now - item.spawnTime > item.lifetime * 1000) {
+                    scene.remove(item.group);
+                    items.splice(i, 1);
+                }
+            }
+        }
+
+        // ==================== 天气系统 ====================
+        function startWeatherCycle() {
+            // 随机打乱天气顺序
+            weatherOrder = ['rain', 'snow', 'hail'].sort(() => Math.random() - 0.5);
+            let currentIdx = 0;
+
+            function changeWeather() {
+                weatherType = weatherOrder[currentIdx];
+                const config = baseWeatherConfig[weatherType];
+                weatherDamage = config.damage;
+                weatherSpeed = config.speed;
+                document.getElementById('weatherIcon').textContent = config.icon;
+                document.getElementById('weatherName').textContent = config.name;
+                playWeatherChangeSound();
+
+                createWeatherParticles();
+
+                currentIdx = (currentIdx + 1) % 3;
+                setTimeout(changeWeather, config.interval);
+            }
+
+            changeWeather();
+        }
+
+        function createWeatherParticles() {
+            if (weatherParticles) scene.remove(weatherParticles);
+
+            const config = baseWeatherConfig[weatherType];
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array(config.count * 3);
+
+            for (let i = 0; i < config.count; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 1] = Math.random() * 50;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({
+                color: config.color, size: config.size, transparent: true, opacity: 0.7
+            });
+            weatherParticles = new THREE.Points(geo, mat);
+            scene.add(weatherParticles);
+        }
+
+        function updateWeather() {
+            if (!weatherParticles) return;
+            const positions = weatherParticles.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 1] -= weatherSpeed * 0.5;
+                if (positions[i + 1] < 0) {
+                    positions[i + 1] = 50;
+                    positions[i] = player.position.x + (Math.random() - 0.5) * 60;
+                    positions[i + 2] = player.position.z + (Math.random() - 0.5) * 60;
+                }
+            }
+            weatherParticles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function applyWeatherDamage() {
+            if (!gameActive) return;
+            let hasProtection = false;
+            if (weatherType === 'rain' && document.getElementById('umbrellaBadge').classList.contains('active')) hasProtection = true;
+            if (weatherType === 'snow' && document.getElementById('blowerBadge').classList.contains('active')) hasProtection = true;
+            if (weatherType === 'hail' && document.getElementById('hatBadge').classList.contains('active')) hasProtection = true;
+
+            if (!hasProtection) {
+                health -= weatherDamage;
+                if (health <= 0) { health = 0; endGame(false); }
+                updateHealthUI();
+            }
+        }
+
+        // ==================== 玩家移动 ====================
+        function getClosestPathSegment(px, pz) {
+            let closest = null;
+            let minDist = Infinity;
+            pathSegments.forEach(seg => {
+                const dz = Math.max(0, Math.abs(pz - seg.zCenter) - seg.halfLength);
+                const dx = Math.abs(px - seg.x);
+                const dist = dz * dz + dx * dx;
+                if (dist < minDist) { minDist = dist; closest = seg; }
+            });
+            return closest;
+        }
+
+        function isOnPath(px, pz) {
+            const seg = getClosestPathSegment(px, pz);
+            if (!seg) return false;
+            const dz = Math.abs(pz - seg.zCenter);
+            const dx = Math.abs(px - seg.x);
+            return dz <= seg.halfLength + 2 && dx <= seg.width + 1;
+        }
+
+        function isNearJumpZone(px, pz) {
+            for (const zone of jumpZones) {
+                const dz = Math.abs(pz - zone.z);
+                const dx = Math.abs(px - zone.x);
+                if (dz <= zone.depth / 2 + 3 && dx <= zone.width + 2) {
+                    return zone;
+                }
+            }
+            return null;
+        }
+
+        function updatePlayer(delta) {
+            if (!gameActive) return;
+
+            const speed = characterStats.speed;
+            let moved = false;
+
+            if (keys.w || (touchMoveInput.y < -0.1)) { player.position.z -= speed; moved = true; }
+            if (keys.s || (touchMoveInput.y > 0.1)) { player.position.z += speed; moved = true; }
+            if (keys.a || (touchMoveInput.x < -0.1)) { player.position.x -= speed; moved = true; }
+            if (keys.d || (touchMoveInput.x > 0.1)) { player.position.x += speed; moved = true; }
+
+            // 触摸跳跃逻辑
+            if ((keys.space || touchJumpPressed) && !isJumping) {
+                const jumpZone = isNearJumpZone(player.position.x, player.position.z);
+                if (jumpZone) {
+                    isJumping = true;
+                    playerVelocityY = jumpForce;
+                    playJumpSound();
+                }
+            }
+
+            // 重力
+            if (isJumping) {
+                playerVelocityY += gravity;
+                player.position.y += playerVelocityY;
+                if (player.position.y <= 0) {
+                    player.position.y = 0;
+                    isJumping = false;
+                    playerVelocityY = 0;
+                }
+            }
+
+            // 碰撞检测（障碍物）
+            obstacles.forEach(obs => {
+                if (player.position.x > obs.x - obs.w/2 - 1 && player.position.x < obs.x + obs.w/2 + 1 &&
+                    player.position.z > obs.z - obs.d/2 - 1 && player.position.z < obs.z + obs.d/2 + 1) {
+                    if (keys.w) player.position.z += speed * 2;
+                    if (keys.s) player.position.z -= speed * 2;
+                    if (keys.a) player.position.x += speed * 2;
+                    if (keys.d) player.position.x -= speed * 2;
+                }
+            });
+
+            // 跌落检测
+            const onPath = isOnPath(player.position.x, player.position.z);
+            const fallWarning = document.getElementById('fallWarning');
+
+          if (!onPath && !isJumping) {
+                damageSoundCooldown += delta;
+                if (damageSoundCooldown > 1) {
+                    playDamageSound();
+                    damageSoundCooldown = 0;
+                }
+                health -= 0.3;
+                fallWarning.style.display = 'block';
+                if (health <= 0) { health = 0; endGame(false); }
+                updateHealthUI();
+            } else {
+                fallWarning.style.display = 'none';
+            }
+
+            // 跳跃区域提示
+            const jumpZone = isNearJumpZone(player.position.x, player.position.z);
+            const jumpIndicator = document.getElementById('jumpIndicator');
+            if (jumpZone && !isJumping) {
+                jumpIndicator.style.display = 'block';
+                jumpIndicator.innerHTML = `<div class="arrow">⬆️</div><div>按空格跳跃通过 ${jumpZone.label}</div>`;
+            } else {
+                jumpIndicator.style.display = 'none';
+            }
+
+            // 相机跟随 + 鼠标视角
+            const camX = player.position.x + Math.sin(cameraAngleX) * cameraDistance * Math.cos(cameraAngleY);
+            const camZ = player.position.z + Math.cos(cameraAngleX) * cameraDistance * Math.cos(cameraAngleY);
+            const camY = 15 + Math.sin(cameraAngleY) * cameraDistance;
+
+            camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.05);
+            camera.lookAt(player.position.x, player.position.y + 3, player.position.z);
+
+            // 检查是否到达教室
+            const distToClassroom = Math.sqrt(
+                Math.pow(player.position.x, 2) + Math.pow(player.position.z + 55, 2)
+            );
+        if (distToClassroom < 10) {
+                endGame(true);
+            }
+
+            // 道具拾取音效
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                const dist = player.position.distanceTo(item.group.position);
+                if (dist < 3) {
+                    playPickupSound();
+                }
+            }
+        }
+
+        // ==================== 小地图 ====================
+        function createMinimap() {
+            const canvas = document.getElementById('minimapCanvas');
+            canvas.width = 180;
+            canvas.height = 180;
+            minimapCtx = canvas.getContext('2d');
+        }
+
+        function updateMinimap() {
+            if (!minimapCtx) return;
+            const ctx = minimapCtx;
+            const w = 180, h = 180;
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(0, 0, w, h);
+
+            const scale = w / 200;
+            const cx = 90, cy = 90;
+
+            // 绘制曲折路径
+            ctx.strokeStyle = '#d2b48c';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+
+            pathSegments.forEach((seg, i) => {
+                const mx = (seg.x + 100) * scale;
+                const my = ((seg.zCenter + 65) * scale);
+                if (i === 0) ctx.moveTo(mx, my);
+                else ctx.lineTo(mx, my);
+            });
+            ctx.stroke();
+
+            // 跳跃区域
+            ctx.fillStyle = 'rgba(255,0,0,0.5)';
+            jumpZones.forEach(zone => {
+                const mx = (zone.x + 100) * scale;
+                const my = ((zone.z + 65) * scale);
+                ctx.fillRect(mx - 3, my - 3, 6, 6);
+            });
+
+            // 教室
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(80, 2, 20, 15);
+
+            // 障碍物
+            ctx.fillStyle = '#228b22';
+            obstacles.forEach(obs => {
+                const mx = (obs.x + 100) * scale;
+                const my = ((obs.z + 65) * scale);
+                ctx.fillRect(mx - 1.5, my - 1.5, 3, 3);
+            });
+
+            // 道具
+            items.forEach(item => {
+                const mx = (item.group.position.x + 100) * scale;
+                const my = ((item.group.position.z + 65) * scale);
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(mx, my, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 玩家
+            const px = (player.position.x + 100) * scale;
+            const py = (player.position.z + 65) * scale;
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 校门
+            ctx.fillStyle = '#8b4513';
+            ctx.fillRect(75, 165, 30, 8);
+        }
+
+        // ==================== UI更新 ====================
+        function updateHealthUI() {
+            const percent = (health / maxHealth) * 100;
+            document.getElementById('healthFill').style.width = percent + '%';
+            document.getElementById('healthText').textContent = Math.ceil(health) + ' / ' + maxHealth;
+
+            if (percent > 60) {
+                document.getElementById('healthFill').style.background = 'linear-gradient(90deg, #2ecc71, #27ae60)';
+            } else if (percent > 30) {
+                document.getElementById('healthFill').style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
+            } else {
+                document.getElementById('healthFill').style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
+            }
+        }
+
+        // ==================== 游戏结束 ====================
+        function endGame(victory) {
+            gameActive = false;
+            const screen = document.getElementById('gameOverScreen');
+            screen.style.display = 'flex';
+
+        if (victory) {
+                playVictorySound();
+                document.getElementById('endTitle').textContent = '🎉 胜利！';
+                document.getElementById('endMessage').textContent = `成功到达教室！剩余血量: ${Math.ceil(health)}`;
+            } else {
+                playDeathSound();
+                document.getElementById('endTitle').textContent = '💀 游戏结束';
+                document.getElementById('endMessage').textContent = '你在风雨中倒下了...';
+            }
+        }
+
+        function restartGame() {
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('hud').style.display = 'block';
+            document.getElementById('characterSelect').style.display = 'flex';
+
+            gateOpening = false;
+            gateOpenAmount = 0;
+            if (gateLeftDoor) { gateLeftDoor.position.x = -6; }
+            if (gateRightDoor) { gateRightDoor.position.x = 6; }
+
+            // 彻底清理旧场景
+            if (renderer) {
+                document.body.removeChild(renderer.domElement);
+                renderer.dispose();
+                renderer = null;
+            }
+            if (scene) {
+                scene.traverse((obj) => {
+                    if (obj.geometry) obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => m.dispose());
+                        } else {
+                            obj.material.dispose();
+                        }
+                    }
+                });
+                scene = null;
+            }
+            if (camera) camera = null;
+            items = [];
+            player = null;
+            clock = null;
+        }
+
+        // ==================== 窗口调整 ====================
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ==================== 游戏循环 ====================
+        let weatherDamageTimer = 0;
+        let itemSpawnCounter = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!gameActive && !player) return;
+
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+
+            if (gameActive) {
+                updatePlayer(delta);
+                updateWeather();
+                checkItemPickup();
+                updateItems();
+
+                itemSpawnCounter += delta;
+                if (itemSpawnCounter > 3) { spawnItems(); itemSpawnCounter = 0; }
+
+                weatherDamageTimer += delta;
+                if (weatherDamageTimer > 0.5) { applyWeatherDamage(); weatherDamageTimer = 0; }
+
+                updateHealthUI();
+                updateMinimap();
+
+                // 旗帜飘动
+                if (classroomTarget) {
+                    const flag = classroomTarget.getObjectByName('flag');
+                    if (flag) {
+                        flag.rotation.y = Math.sin(elapsed * 2) * 0.3;
+                    }
+                }
+
+                // 校门打开动画
+                if (gateOpening && gateOpenAmount < 1) {
+                    gateOpenAmount += delta * 0.5;
+                    if (gateOpenAmount > 1) gateOpenAmount = 1;
+                    const openDist = gateOpenAmount * 7;
+                    gateLeftDoor.position.x = -6 - openDist;
+                    gateRightDoor.position.x = 6 + openDist;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

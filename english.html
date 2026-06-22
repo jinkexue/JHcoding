@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>快乐英语听力 - Bilibili</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; color: #e94560; font-size: 1.8rem; }
+
+    /* 链接输入区 */
+    .link-input-section { display: flex; gap: 10px; margin-bottom: 16px; }
+    .link-input-section input {
+      flex: 1; padding: 12px 16px; border: 2px solid #16213e; border-radius: 8px;
+      background: #16213e; color: #eee; font-size: 1rem; outline: none; transition: border-color 0.3s;
+    }
+    .link-input-section input:focus { border-color: #e94560; }
+    .link-input-section button {
+      padding: 12px 24px; background: #e94560; color: #fff; border: none; border-radius: 8px;
+      font-size: 1rem; cursor: pointer; transition: background 0.3s; white-space: nowrap;
+    }
+    .link-input-section button:hover { background: #c73652; }
+
+    /* B站嵌入播放器 */
+    .bilibili-section { margin-bottom: 24px; }
+    .bilibili-wrapper {
+      position: relative; width: 100%; padding-bottom: 56.25%;
+      background: #0f3460; border-radius: 12px; overflow: hidden;
+    }
+    .bilibili-wrapper iframe, .bilibili-wrapper embed {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;
+    }
+    .bilibili-placeholder {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 1.1rem;
+    }
+
+    /* 录音+输入区域 */
+    .input-section { margin-bottom: 24px; }
+    .input-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .input-actions { display: flex; gap: 8px; }
+    .input-actions button {
+      padding: 6px 14px; background: #0f3460; color: #ccc; border: 1px solid #333; border-radius: 6px;
+      font-size: 0.85rem; cursor: pointer; transition: all 0.3s;
+    }
+    .input-actions button:hover { background: #16213e; color: #fff; }
+
+    /* 录音状态指示 */
+    .recording-indicator {
+      display: none; align-items: center; gap: 8px; padding: 10px 16px; margin-bottom: 12px;
+      background: #1a0a0e; border: 1px solid #e94560; border-radius: 8px; font-size: 0.9rem; color: #e94560;
+    }
+    .recording-indicator.active { display: flex; }
+    .rec-dot {
+      width: 12px; height: 12px; background: #e94560; border-radius: 50%;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* 录音+输入布局 */
+    .input-wrapper { display: flex; gap: 10px; align-items: flex-end; }
+    .mic-btn {
+      width: 52px; height: 52px; border-radius: 50%; border: 2px solid #16213e; background: #16213e;
+      color: #eee; font-size: 1.4rem; cursor: pointer; transition: all 0.3s; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .mic-btn:hover { border-color: #e94560; color: #e94560; }
+    .mic-btn.recording {
+      background: #e94560; border-color: #e94560; color: #fff; animation: pulse 1s infinite;
+    }
+    .text-input-area { flex: 1; }
+    .text-input-area textarea {
+      width: 100%; padding: 12px 16px; border: 2px solid #16213e; border-radius: 8px;
+      background: #16213e; color: #eee; font-size: 1rem; resize: vertical;
+      min-height: 52px; outline: none; font-family: inherit; transition: border-color 0.3s;
+    }
+    .text-input-area textarea:focus { border-color: #e94560; }
+    .text-input-area textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .input-hint { font-size: 0.8rem; color: #666; margin-top: 6px; }
+
+    /* 音频预览 */
+    .audio-preview {
+      display: none; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 10px;
+      background: #16213e; border-radius: 8px;
+    }
+    .audio-preview.active { display: flex; }
+    .audio-preview audio { flex: 1; height: 36px; }
+    .audio-preview .discard-btn {
+      background: none; border: none; color: #888; cursor: pointer; font-size: 1.2rem; padding: 4px 8px;
+    }
+    .audio-preview .discard-btn:hover { color: #e94560; }
+
+    /* 提交按钮 */
+    .submit-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .submit-btn {
+      padding: 10px 28px; background: #e94560; color: #fff; border: none; border-radius: 8px;
+      font-size: 1rem; cursor: pointer; transition: background 0.3s;
+    }
+    .submit-btn:hover { background: #c73652; }
+    .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* 已提交的记录 */
+    .submitted-section { margin-bottom: 24px; }
+    .section-title { font-size: 1rem; color: #aaa; margin-bottom: 10px; }
+    .submitted-list { max-height: 500px; overflow-y: auto; }
+    .submitted-item {
+      background: #16213e; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .submitted-item .item-index {
+      color: #e94560; font-weight: bold; min-width: 28px; text-align: right; font-size: 0.9rem;
+    }
+    .submitted-item .item-content { flex: 1; }
+    .submitted-item .audio-player { margin-bottom: 6px; }
+    .submitted-item .audio-player audio { width: 100%; height: 34px; }
+    .submitted-item .text-display {
+      color: #ccc; line-height: 1.6; outline: none; word-break: break-word;
+    }
+    .submitted-item .text-display[contenteditable="true"]:focus {
+      border-bottom: 1px solid #e94560;
+    }
+    .submitted-item .item-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .submitted-item .edit-btn, .submitted-item .delete-btn {
+      background: none; border: none; color: #666; cursor: pointer; font-size: 0.85rem; padding: 2px 6px;
+    }
+    .submitted-item .edit-btn:hover { color: #4fc3f7; }
+    .submitted-item .delete-btn:hover { color: #e94560; }
+
+    /* 历史记录 */
+    .history-section { margin-top: 32px; border-top: 1px solid #16213e; padding-top: 20px; }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .clear-history-btn { padding: 8px 16px; background: transparent; color: #888; border: 1px solid #333; border-radius: 6px; cursor: pointer; }
+    .clear-history-btn:hover { color: #e94560; border-color: #e94560; }
+    .history-list { max-height: 400px; overflow-y: auto; }
+    .history-item { background: #16213e; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; }
+    .history-meta { display: flex; justify-content: space-between; font-size: 0.8rem; color: #666; margin-bottom: 8px; }
+    .history-texts { font-size: 0.9rem; line-height: 1.6; color: #ccc; }
+
+    @media (max-width: 600px) {
+      .link-input-section, .input-wrapper { flex-direction: column; }
+      .mic-btn { width: 100%; height: 44px; border-radius: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎧 快乐英语听力</h1>
+
+    <div class="link-input-section">
+      <input type="text" id="videoLink" placeholder="粘贴 Bilibili 链接，留空搜索英语..." />
+      <button onclick="loadVideo()">加载视频</button>
+    </div>
+
+    <div class="bilibili-section">
+      <div class="bilibili-wrapper">
+        <div class="bilibili-placeholder" id="bilibiliPlaceholder">默认搜索英语视频，点击播放即可开始听写</div>
+        <div id="playerContainer"></div>
+      </div>
+    </div>
+
+    <!-- 录音+输入区域 -->
+    <div class="input-section">
+      <div class="input-header">
+        <span class="section-title">🎤 听写输入</span>
+        <div class="input-actions">
+          <button onclick="saveRecord()" title="保存当前记录到 language 文件夹">💾 保存</button>
+          <button onclick="loadRecordFromFile()" title="从 language 文件夹加载记录">📂 加载</button>
+        </div>
+      </div>
+
+      <!-- 录音状态指示 -->
+      <div class="recording-indicator" id="recordingIndicator">
+        <div class="rec-dot"></div>
+        <span>正在录音... <strong id="recTimer">0:00</strong></span>
+        <button onclick="stopRecording()" style="margin-left:auto;background:none;border:none;color:#e94560;cursor:pointer;font-size:0.85rem;">■ 停止</button>
+      </div>
+
+      <!-- 录音预览 -->
+      <div class="audio-preview" id="audioPreview">
+        <span style="font-size:0.85rem;color:#aaa;">已录制音频：</span>
+        <audio id="previewAudio" controls></audio>
+        <button class="discard-btn" onclick="discardRecording()" title="重新录音">✕</button>
+      </div>
+
+      <!-- 录音按钮 + 文字输入 -->
+      <div class="input-wrapper">
+        <button class="mic-btn" id="micBtn" onclick="toggleRecording()" title="点击开始/停止录音">🎤</button>
+        <div class="text-input-area">
+          <textarea id="typingInput" placeholder="录音停止后，在此输入对应的文字..." rows="2" disabled></textarea>
+          <div class="input-hint" id="inputHint">点击左侧 🎤 开始录音</div>
+        </div>
+      </div>
+
+      <div class="submit-row">
+        <button class="submit-btn" id="submitBtn" onclick="submitRecord()" disabled>提交</button>
+      </div>
+    </div>
+
+    <!-- 已提交的记录 -->
+    <div class="submitted-section">
+      <div class="section-title">📋 已提交记录</div>
+      <div class="submitted-list" id="submittedList"></div>
+    </div>
+
+    <!-- 历史记录 -->
+    <div class="history-section">
+      <div class="history-header">
+        <h2>📝 历史练习记录</h2>
+        <button class="clear-history-btn" onclick="clearHistory()">清空记录</button>
+      </div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+  <script>
+    let playerReady = false;
+
+    // ===== Bilibili 链接解析 =====
+    function extractBilibiliInfo(url) {
+      // 处理 av 号
+      if (/^av\d+$/i.test(url)) {
+        return { type: 'av', aid: url.replace(/av/i, '') };
+      }
+      // 处理 BV 号
+      if (/^bv[a-zA-Z0-9]{10}$/.test(url)) {
+        return { type: 'bv', bvid: url };
+      }
+      // 处理完整链接
+      const avMatch = url.match(/av(\d+)/);
+      if (avMatch) return { type: 'av', aid: avMatch[1] };
+      const bvMatch = url.match(/bv([a-zA-Z0-9]{10})/);
+      if (bvMatch) return { type: 'bv', bvid: 'BV' + bvMatch[1] };
+      // 处理完整 URL
+      const watchMatch = url.match(/bilibili\.com\/video\/(av\d+|BV[a-zA-Z0-9]{10})/);
+      if (watchMatch) {
+        const id = watchMatch[1];
+        if (/^av/i.test(id)) return { type: 'av', aid: id.replace(/av/i, '') };
+        return { type: 'bv', bvid: 'BV' + id.slice(2) };
+      }
+      return null;
+    }
+
+    function getBilibiliEmbedUrl(info) {
+      if (info.type === 'av') {
+        return `https://player.bilibili.com/player.html?aid=${info.aid}&bilibiliautoplay=1`;
+      }
+      return `https://player.bilibili.com/player.html?bvid=${info.bvid}&bilibiliautoplay=1`;
+    }
+
+    function loadVideo() {
+      const url = document.getElementById('videoLink').value.trim();
+      document.getElementById('bilibiliPlaceholder').style.display = 'none';
+
+      if (!url) {
+        // 默认搜索英语
+        const searchUrl = 'https://search.bilibili.com/all?keyword=english';
+        document.getElementById('playerContainer').innerHTML =
+          `<iframe src="${searchUrl}" allowfullscreen sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>`;
+        return;
+      }
+
+      const info = extractBilibiliInfo(url);
+      if (!info) {
+        alert('请输入有效的 Bilibili 链接（av号、BV号或完整链接）');
+        document.getElementById('bilibiliPlaceholder').style.display = 'flex';
+        return;
+      }
+
+      const embedUrl = getBilibiliEmbedUrl(info);
+      document.getElementById('playerContainer').innerHTML =
+        `<iframe src="${embedUrl}" allowfullscreen sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>`;
+    }
+
+    // ===== 录音功能 =====
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let recordedBlob = null;
+    let recStartTime = null;
+    let recTimerInterval = null;
+
+    async function toggleRecording() {
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => { audioChunks.push(e.data); };
+
+        mediaRecorder.onstop = () => {
+          recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(recordedBlob);
+          const previewAudio = document.getElementById('previewAudio');
+          previewAudio.src = audioUrl;
+          document.getElementById('audioPreview').classList.add('active');
+          document.getElementById('inputHint').textContent = '音频已录制，请在右侧输入文字';
+
+          document.getElementById('typingInput').disabled = false;
+          checkSubmitReady();
+
+          stream.getTracks().forEach(t => t.stop());
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recStartTime = Date.now();
+
+        document.getElementById('micBtn').classList.add('recording');
+        document.getElementById('recordingIndicator').classList.add('active');
+        document.getElementById('audioPreview').classList.remove('active');
+        document.getElementById('typingInput').disabled = true;
+        document.getElementById('typingInput').value = '';
+        document.getElementById('submitBtn').disabled = true;
+
+        updateRecTimer();
+        recTimerInterval = setInterval(updateRecTimer, 1000);
+
+      } catch (err) {
+        alert('无法访问麦克风，请允许音频权限后重试。');
+        console.error(err);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+      clearInterval(recTimerInterval);
+
+      document.getElementById('micBtn').classList.remove('recording');
+      document.getElementById('recordingIndicator').classList.remove('active');
+    }
+
+    function updateRecTimer() {
+      const elapsed = Math.floor((Date.now() - recStartTime) / 1000);
+      const min = Math.floor(elapsed / 60);
+      const sec = (elapsed % 60).toString().padStart(2, '0');
+      document.getElementById('recTimer').textContent = `${min}:${sec}`;
+    }
+
+    function discardRecording() {
+      recordedBlob = null;
+      audioChunks = [];
+      document.getElementById('audioPreview').classList.remove('active');
+      document.getElementById('previewAudio').src = '';
+      document.getElementById('typingInput').disabled = true;
+      document.getElementById('typingInput').value = '';
+      document.getElementById('submitBtn').disabled = true;
+      document.getElementById('inputHint').textContent = '点击左侧 🎤 开始录音';
+    }
+
+    function checkSubmitReady() {
+      const text = document.getElementById('typingInput').value.trim();
+      document.getElementById('submitBtn').disabled = !(recordedBlob && text);
+    }
+
+    document.getElementById('typingInput').addEventListener('input', checkSubmitReady);
+
+    // ===== 提交录音+文字 =====
+    function submitRecord() {
+      const text = document.getElementById('typingInput').value.trim();
+      if (!recordedBlob || !text) return;
+
+      const reader = new FileReader();
+      reader.readAsDataURL(recordedBlob);
+      reader.onloadend = () => {
+        const audioBase64 = reader.result;
+        addSubmittedItem(audioBase64, text);
+        saveToHistory();
+
+        discardRecording();
+      };
+    }
+
+    function addSubmittedItem(audioDataUrl, text) {
+      const container = document.getElementById('submittedList');
+      const item = document.createElement('div');
+      item.className = 'submitted-item';
+      const index = container.querySelectorAll('.submitted-item').length + 1;
+      item.innerHTML = `
+        <span class="item-index">${index}.</span>
+        <div class="item-content">
+          <div class="audio-player"><audio controls src="${audioDataUrl}"></audio></div>
+          <div class="text-display" contenteditable="true">${text}</div>
+          <div class="item-actions">
+            <button class="delete-btn" onclick="deleteItem(this)" title="删除">🗑 删除</button>
+          </div>
+        </div>
+      `;
+      container.insertBefore(item, container.firstChild);
+      reindexItems();
+    }
+
+    function deleteItem(btn) {
+      btn.closest('.submitted-item').remove();
+      reindexItems();
+      saveToHistory();
+    }
+
+    function reindexItems() {
+      const items = document.querySelectorAll('.submitted-item');
+      items.forEach((item, i) => {
+        item.querySelector('.item-index').textContent = (i + 1) + '.';
+      });
+    }
+
+    // ===== 保存到 history（localStorage） =====
+    function saveToHistory() {
+      const items = [...document.querySelectorAll('.submitted-item')].map(el => ({
+        audio: el.querySelector('audio').src,
+        text: el.querySelector('.text-display').textContent
+      }));
+      if (items.length === 0) return;
+
+      const history = JSON.parse(localStorage.getItem('dict_history') || '[]');
+      const entry = {
+        time: new Date().toLocaleString(),
+        video: document.getElementById('videoLink').value.trim(),
+        content: items
+      };
+      localStorage.setItem('dict_history', JSON.stringify([entry, ...history.slice(0, 49)]));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('dict_history') || '[]');
+      const list = document.getElementById('historyList');
+      list.innerHTML = history.map(item => `
+        <div class="history-item">
+          <div class="history-meta"><span>${item.time}</span><span>${item.video || '无视频'}</span></div>
+          <div class="history-texts">${item.content.map(c => `<div>[音频] ${c.text}</div>`).join('')}</div>
+        </div>
+      `).join('');
+    }
+
+    function clearHistory() {
+      if (confirm('确定清空所有历史练习记录？')) {
+        localStorage.removeItem('dict_history');
+        renderHistory();
+      }
+    }
+
+    // ===== 保存到 language 文件夹 =====
+    function getVideoProjectName() {
+      const link = document.getElementById('videoLink').value.trim();
+      const info = extractBilibiliInfo(link);
+      if (info) return info.type === 'av' ? `av${info.aid}` : info.bvid;
+      return 'untitled';
+    }
+
+    function saveRecord() {
+      const items = [...document.querySelectorAll('.submitted-item')].map(el => ({
+        audio: el.querySelector('audio').src,
+        text: el.textContent.trim()
+      }));
+      if (items.length === 0) { alert('当前没有可保存的记录。'); return; }
+
+      const projectName = getVideoProjectName();
+      const record = {
+        projectName: projectName,
+        savedAt: new Date().toISOString(),
+        videoLink: document.getElementById('videoLink').value.trim(),
+        items: items
+      };
+
+      const jsonStr = JSON.stringify(record, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `language/${projectName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function loadRecordFromFile() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const record = JSON.parse(ev.target.result);
+            if (record.items && Array.isArray(record.items)) {
+              document.getElementById('submittedList').innerHTML = '';
+              record.items.forEach(item => {
+                addSubmittedItem(item.audio, item.text);
+              });
+              saveToHistory();
+              alert(`成功加载 ${record.items.length} 条记录！`);
+            } else {
+              alert('文件格式不正确，缺少 items 数组。');
+            }
+          } catch (err) {
+            alert('无法解析 JSON 文件。');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    // 初始化默认搜索
+    renderHistory();
+    loadVideo();
+  </script>
+</body>
+</html>
