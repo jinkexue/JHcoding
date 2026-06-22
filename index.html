@@ -111,6 +111,11 @@
             box-shadow: 0 0 0 7px rgba(255,213,79,0.35), 0 15px 40px rgba(0,0,0,0.3);
         }
 
+        .game-card.dragging {
+            opacity: 0.55;
+            transform: scale(0.98);
+        }
+
         .game-card.locked {
             opacity: 0.4;
             pointer-events: none;
@@ -159,6 +164,22 @@
             border-radius: 999px;
             padding: 5px 10px;
             font-size: 12px;
+        }
+
+        .card-number {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            color: #4338ca;
+            font-weight: 900;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.15);
         }
 
         .card-actions {
@@ -299,7 +320,7 @@
 
         #vibePrompt {
             width: 100%;
-            min-height: 190px;
+            min-height: 380px;
             resize: vertical;
             border: 2px solid #e5e7eb;
             border-radius: 16px;
@@ -521,7 +542,7 @@
                             <span id="vibeModeText">已锁定</span>
                         </div>
                         <div class="prompt-content">
-                            <textarea id="vibePrompt" placeholder="请按照下方 5 个魔法小步骤描述你的游戏想法。" disabled></textarea>
+                            <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
                             <div class="vibe-actions">
                                 <button class="vibe-button secondary" id="createGameBtn" onclick="createVibeGame()" disabled>新建游戏</button>
                                 <button class="vibe-button" id="modifyGameBtn" onclick="modifySelectedGame()" disabled>修改选中游戏</button>
@@ -574,6 +595,10 @@ let selectedGame = null;
 let selectedCardId = null;
 let dynamicGames = [];
 let trashGames = [];
+let hiddenBuiltinIds = [];
+let deletedBuiltinIds = [];
+let cardOrder = [];
+let draggedGameId = null;
 let isGenerating = false;
 let generatingStartTime = 0;
 let generatingTimerId = null;
@@ -648,9 +673,12 @@ const builtInGames = [
 
 function renderGameCards() {
     const grid = document.getElementById('gameGrid');
-    const allGames = [...builtInGames, ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)];
+    const allGames = sortGamesByOrder([
+        ...builtInGames.filter(game => !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
+        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)
+    ]);
 
-    grid.innerHTML = allGames.map(game => {
+    grid.innerHTML = allGames.map((game, index) => {
         const isDynamic = game.type === 'vibe';
         const hasOverride = game.type === 'builtin' && Boolean(getBuiltinOverride(game.id));
         const tag = isDynamic ? '<span class="card-tag">编程作品</span>' : (hasOverride ? '<span class="card-tag">已改版</span>' : '');
@@ -659,7 +687,8 @@ function renderGameCards() {
         const lockedClass = (!isUnlocked && !isVibeUnlocked) ? ' locked' : '';
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
         return `
-            <div class="game-card${lockedClass}${selectedClass}" data-game-id="${escapeAttr(game.id)}" onclick="selectGame('${escapeAttr(game.id)}')">
+            <div class="game-card${lockedClass}${selectedClass}" draggable="true" data-game-id="${escapeAttr(game.id)}" onclick="selectGame('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
+                <div class="card-number">${index + 1}</div>
                 ${tag}
                 <div class="game-preview">${game.icon || '🎮'}</div>
                 <div class="game-info">
@@ -667,12 +696,87 @@ function renderGameCards() {
                     <p>${escapeHtml(game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续用提示词修改。')}</p>
                     <div class="card-actions">
                         <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation();">${playText}</a>
-                        ${isDynamic ? `<button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>` : ''}
+                        <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>
                     </div>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function sortGamesByOrder(games) {
+    const knownIds = games.map(game => game.id);
+    const mergedOrder = [...cardOrder.filter(id => knownIds.includes(id)), ...knownIds.filter(id => !cardOrder.includes(id))];
+    if (mergedOrder.join('|') !== cardOrder.join('|')) {
+        cardOrder = mergedOrder;
+        saveLocalLayoutState();
+    }
+    return [...games].sort((a, b) => mergedOrder.indexOf(a.id) - mergedOrder.indexOf(b.id));
+}
+
+function handleCardDragStart(event, gameId) {
+    if (isGenerating) {
+        event.preventDefault();
+        showToast('大模型正在工作，请耐心等待');
+        return;
+    }
+    draggedGameId = gameId;
+    event.currentTarget.classList.add('dragging');
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', gameId);
+    }
+}
+
+function handleCardDragOver(event) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+}
+
+function handleCardDrop(event, targetGameId) {
+    event.preventDefault();
+    event.stopPropagation();
+    const sourceGameId = draggedGameId || (event.dataTransfer && event.dataTransfer.getData('text/plain'));
+    if (!sourceGameId || sourceGameId === targetGameId) return;
+    const visibleIds = sortGamesByOrder([
+        ...builtInGames.filter(game => !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
+        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)
+    ]).map(game => game.id);
+    const fromIndex = visibleIds.indexOf(sourceGameId);
+    const toIndex = visibleIds.indexOf(targetGameId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    visibleIds.splice(fromIndex, 1);
+    visibleIds.splice(toIndex, 0, sourceGameId);
+    const hiddenIds = cardOrder.filter(id => !visibleIds.includes(id));
+    cardOrder = [...visibleIds, ...hiddenIds];
+    saveLocalLayoutState();
+    renderGameCards();
+}
+
+function handleCardDragEnd(event) {
+    event.currentTarget.classList.remove('dragging');
+    draggedGameId = null;
+}
+
+function saveLocalLayoutState() {
+    localStorage.setItem('hiddenBuiltinIds', JSON.stringify(hiddenBuiltinIds));
+    localStorage.setItem('deletedBuiltinIds', JSON.stringify(deletedBuiltinIds));
+    localStorage.setItem('cardOrder', JSON.stringify(cardOrder));
+}
+
+function loadLocalLayoutState() {
+    hiddenBuiltinIds = safeJsonArray(localStorage.getItem('hiddenBuiltinIds'));
+    deletedBuiltinIds = safeJsonArray(localStorage.getItem('deletedBuiltinIds'));
+    cardOrder = safeJsonArray(localStorage.getItem('cardOrder'));
+}
+
+function safeJsonArray(value) {
+    try {
+        const parsed = JSON.parse(value || '[]');
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+        return [];
+    }
 }
 
 function checkGlobalPassword() {
@@ -1112,12 +1216,30 @@ async function moveGameToTrash(gameId, event) {
         showToast('大模型正在工作，请耐心等待');
         return;
     }
+    const builtin = builtInGames.find(game => game.id === gameId);
+    if (builtin) {
+        if (!hiddenBuiltinIds.includes(gameId)) hiddenBuiltinIds.push(gameId);
+        saveLocalLayoutState();
+        if (selectedGame && selectedGame.id === gameId) clearSelectedGame();
+        renderGameCards();
+        renderTrashList();
+        showToast('已放入回收站');
+        return;
+    }
     await updateGameTrash(gameId, 'trash');
 }
 
 async function restoreGameFromTrash(gameId) {
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
+        return;
+    }
+    if (hiddenBuiltinIds.includes(gameId)) {
+        hiddenBuiltinIds = hiddenBuiltinIds.filter(id => id !== gameId);
+        saveLocalLayoutState();
+        renderGameCards();
+        renderTrashList();
+        showToast('已恢复到卡片');
         return;
     }
     await updateGameTrash(gameId, 'restore');
@@ -1149,6 +1271,21 @@ async function deleteGameForever(gameId) {
     }
     const password = prompt('删除游戏需要输入密码 311051。此操作不可恢复，请输入密码：');
     if (password === null) return;
+    if (password !== VIBE_PASSWORD) {
+        setStatus('删除失败：删除密码错误', 'error');
+        return;
+    }
+    const builtin = builtInGames.find(game => game.id === gameId);
+    if (builtin) {
+        hiddenBuiltinIds = hiddenBuiltinIds.filter(id => id !== gameId);
+        if (!deletedBuiltinIds.includes(gameId)) deletedBuiltinIds.push(gameId);
+        cardOrder = cardOrder.filter(id => id !== gameId);
+        saveLocalLayoutState();
+        renderGameCards();
+        renderTrashList();
+        showToast('已从回收站移除该内置游戏显示状态');
+        return;
+    }
     try {
         const res = await fetch('/api/games', {
             method: 'POST',
@@ -1167,13 +1304,17 @@ async function deleteGameForever(gameId) {
 function renderTrashList() {
     const list = document.getElementById('trashList');
     if (!list) return;
-    if (!trashGames.length) {
+    const hiddenBuiltins = builtInGames
+        .filter(game => hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id))
+        .map(game => ({ ...game, trashType: 'builtin' }));
+    const allTrashGames = [...hiddenBuiltins, ...trashGames.map(game => ({ ...game, trashType: 'vibe' }))];
+    if (!allTrashGames.length) {
         list.textContent = '回收站为空。';
         return;
     }
-    list.innerHTML = trashGames.map(game => `
+    list.innerHTML = allTrashGames.map(game => `
         <div class="trash-item">
-            <span>${game.icon || '🎮'} ${escapeHtml(game.title)} <small>(${escapeHtml(game.id)})</small></span>
+            <span>${game.icon || '🎮'} ${escapeHtml(game.title)} <small>(${game.trashType === 'builtin' ? '内置游戏' : escapeHtml(game.id)})</small></span>
             <div class="trash-actions">
                 <button class="vibe-button ghost" onclick="restoreGameFromTrash('${escapeAttr(game.id)}')">恢复到卡片</button>
                 <button class="trash-btn" onclick="deleteGameForever('${escapeAttr(game.id)}')">永久删除</button>
@@ -1212,6 +1353,7 @@ function escapeAttr(value) {
 }
 
 function boot() {
+    loadLocalLayoutState();
     if (localStorage.getItem('gameUnlocked') === 'true') {
         isUnlocked = true;
         isVibeUnlocked = true;
