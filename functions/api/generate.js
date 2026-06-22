@@ -102,7 +102,7 @@ HTML 要求：
     ];
 
     if (action === 'modify' && sourceCode) {
-        userParts.push(`下面是当前游戏的源码。源码可能较长，我只提供关键部分和前后片段。请根据这些内容重建一个完整、可运行的单文件 HTML 游戏，并体现用户要求的修改。\n${compactSourceForModel(sourceCode)}`);
+        userParts.push(`下面是当前游戏的完整源码，请在它的基础上修改，并返回修改后的完整 HTML：\n${sourceCode}`);
     }
 
     return [
@@ -179,31 +179,6 @@ function buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }) {
         description: sanitizeText(result.description || `根据提示词生成：${prompt.slice(0, 80)}`, 120),
         html
     };
-}
-
-function compactSourceForModel(sourceCode) {
-    const source = String(sourceCode || '');
-    const maxLength = 42000;
-    if (source.length <= maxLength) return source;
-
-    const titleMatch = source.match(/<title[\s\S]*?<\/title>/i);
-    const bodyStartMatch = source.match(/<body[\s\S]*?>[\s\S]{0,9000}/i);
-    const scripts = [...source.matchAll(/<script[\s\S]*?<\/script>/gi)].map(match => match[0]);
-    const styles = [...source.matchAll(/<style[\s\S]*?<\/style>/gi)].map(match => match[0]);
-
-    const compactParts = [
-        '<!DOCTYPE html>',
-        '<html lang="zh-CN">',
-        '<head>',
-        titleMatch ? titleMatch[0] : '<title>编程小游戏</title>',
-        styles.map((style, index) => `<!-- style ${index + 1}，已截断 -->\n${truncate(style, 9000)}`).join('\n'),
-        '</head>',
-        bodyStartMatch ? `<!-- body 开头片段 -->\n${bodyStartMatch[0]}` : '<body>',
-        scripts.map((script, index) => `<!-- script ${index + 1}，已截断 -->\n${truncate(script, 14000)}`).join('\n'),
-        '</body>\n</html>'
-    ];
-
-    return compactParts.join('\n\n').slice(0, maxLength);
 }
 
 function normalizeBaseUrl(url) {

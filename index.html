@@ -571,12 +571,14 @@ const builtInGames = [
 
 function renderGameCards() {
     const grid = document.getElementById('gameGrid');
-    const allGames = [...builtInGames, ...dynamicGames];
+    const allGames = [...builtInGames, ...dynamicGames.filter(game => !game.isBuiltinOverride)];
 
     grid.innerHTML = allGames.map(game => {
         const isDynamic = game.type === 'vibe';
-        const tag = isDynamic ? '<span class="card-tag">编程作品</span>' : '';
+        const hasOverride = game.type === 'builtin' && Boolean(getBuiltinOverride(game.id));
+        const tag = isDynamic ? '<span class="card-tag">编程作品</span>' : (hasOverride ? '<span class="card-tag">已改版</span>' : '');
         const playText = isDynamic ? '打开作品' : (game.id === 'english' ? '开始学习' : '开始游戏');
+        const playUrl = hasOverride ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}&view=1` : (game.url || '#');
         const lockedClass = (!isUnlocked && !isVibeUnlocked) ? ' locked' : '';
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
         return `
@@ -586,7 +588,7 @@ function renderGameCards() {
                 <div class="game-info">
                     <h2>${escapeHtml(game.title)}</h2>
                     <p>${escapeHtml(game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续用提示词修改。')}</p>
-                    <a href="${escapeAttr(game.url || '#')}" class="play-btn" onclick="event.stopPropagation();">${playText}</a>
+                    <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation();">${playText}</a>
                 </div>
             </div>
         `;
@@ -650,7 +652,8 @@ async function loadDynamicGames() {
             icon: game.icon || '🎮',
             description: game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续修改。',
             url: `/api/games?id=${encodeURIComponent(game.id)}&view=1`,
-            updatedAt: game.updatedAt
+            updatedAt: game.updatedAt,
+            isBuiltinOverride: isBuiltinOverrideId(game.id)
         }));
         renderGameCards();
     } catch (error) {
@@ -671,19 +674,29 @@ async function selectGame(gameId) {
     setStatus(`正在加载《${game.title}》...`, 'warn');
     try {
         let html;
+        let selectedMeta = { ...game };
         if (game.type === 'vibe') {
             const res = await fetch(`/api/games?id=${encodeURIComponent(game.id)}`);
             if (!res.ok) throw new Error('读取编程作品失败');
             const data = await res.json();
             html = data.game && data.game.html;
         } else {
-            const res = await fetch(game.url, { cache: 'no-store' });
-            if (!res.ok) throw new Error('读取游戏源码失败');
-            html = await res.text();
+            const override = getBuiltinOverride(game.id);
+            if (override) {
+                const res = await fetch(`/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}`);
+                if (!res.ok) throw new Error('读取游戏修改版失败');
+                const data = await res.json();
+                html = data.game && data.game.html;
+                selectedMeta = { ...game, hasOverride: true, overrideId: getBuiltinOverrideId(game.id) };
+            } else {
+                const res = await fetch(game.url, { cache: 'no-store' });
+                if (!res.ok) throw new Error('读取游戏源码失败');
+                html = await res.text();
+            }
         }
 
         if (!html) throw new Error('游戏内容为空');
-        selectedGame = { ...game, html };
+        selectedGame = { ...selectedMeta, html };
         selectedCardId = game.id;
         document.getElementById('selectedGameName').textContent = game.title;
         document.getElementById('modifyGameBtn').disabled = false;
@@ -777,17 +790,32 @@ async function generateAndSave(payload) {
 
         await loadDynamicGames();
         const savedGame = saveData.game;
-        selectedGame = {
-            id: savedGame.id,
-            type: 'vibe',
-            title: savedGame.title,
-            icon: savedGame.icon || '🎮',
-            description: savedGame.description,
-            url: `/api/games?id=${encodeURIComponent(savedGame.id)}&view=1`,
-            html
-        };
-        selectedCardId = savedGame.id;
-        document.getElementById('selectedGameName').textContent = savedGame.title;
+        const builtinId = getBuiltinIdFromOverride(savedGame.id);
+        if (builtinId) {
+            const builtinGame = builtInGames.find(game => game.id === builtinId);
+            selectedGame = {
+                ...(builtinGame || {}),
+                id: builtinId,
+                type: 'builtin',
+                hasOverride: true,
+                overrideId: savedGame.id,
+                html
+            };
+            selectedCardId = builtinId;
+            document.getElementById('selectedGameName').textContent = builtinGame ? builtinGame.title : savedGame.title;
+        } else {
+            selectedGame = {
+                id: savedGame.id,
+                type: 'vibe',
+                title: savedGame.title,
+                icon: savedGame.icon || '🎮',
+                description: savedGame.description,
+                url: `/api/games?id=${encodeURIComponent(savedGame.id)}&view=1`,
+                html
+            };
+            selectedCardId = savedGame.id;
+            document.getElementById('selectedGameName').textContent = savedGame.title;
+        }
         document.getElementById('modifyGameBtn').disabled = false;
         renderGameCards();
         setStatus(`已固定保存《${savedGame.title}》。它已经自动加入上方游戏卡片列表。`, 'ok');
@@ -854,9 +882,26 @@ function getSaveId(payload) {
         return selectedGame.id;
     }
     if (payload.action === 'modify' && selectedGame) {
-        return `mod-${selectedGame.id}`;
+        return getBuiltinOverrideId(selectedGame.id);
     }
     return '';
+}
+
+function getBuiltinOverrideId(gameId) {
+    return `mod-${gameId}`;
+}
+
+function isBuiltinOverrideId(gameId) {
+    return String(gameId || '').startsWith('mod-') && builtInGames.some(game => getBuiltinOverrideId(game.id) === gameId);
+}
+
+function getBuiltinIdFromOverride(gameId) {
+    const match = builtInGames.find(game => getBuiltinOverrideId(game.id) === gameId);
+    return match ? match.id : '';
+}
+
+function getBuiltinOverride(gameId) {
+    return dynamicGames.find(game => game.id === getBuiltinOverrideId(gameId));
 }
 
 function previewHtml(html) {
