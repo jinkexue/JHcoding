@@ -39,7 +39,9 @@ export async function onRequestGet(context) {
                 title: meta.title || '编程小游戏',
                 icon: meta.icon || '🎮',
                 description: meta.description || '这是一个由 VibeCoding 生成的小游戏。',
-                updatedAt: meta.updatedAt || ''
+                updatedAt: meta.updatedAt || '',
+                trashed: Boolean(meta.trashed),
+                trashedAt: meta.trashedAt || ''
             };
         }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 
@@ -58,6 +60,16 @@ export async function onRequestPost(context) {
         }
 
         const body = await request.json();
+        const action = String(body.action || '').trim();
+
+        if (action === 'trash' || action === 'restore') {
+            return updateTrashState(kv, body, action === 'trash');
+        }
+
+        if (action === 'delete') {
+            return deleteGame(kv, body);
+        }
+
         const now = new Date().toISOString();
         const title = sanitizeText(body.title || '编程小游戏', 30);
         const icon = sanitizeText(body.icon || '🎮', 4);
@@ -77,17 +89,70 @@ export async function onRequestPost(context) {
             description,
             prompt,
             html: htmlCode,
+            trashed: false,
+            trashedAt: '',
             updatedAt: now
         };
 
         await kv.put(`game:${id}`, JSON.stringify(game), {
-            metadata: { title, icon, description, updatedAt: now }
+            metadata: { title, icon, description, updatedAt: now, trashed: false, trashedAt: '' }
         });
 
-        return json({ success: true, game: { id, title, icon, description, updatedAt: now } });
+        return json({ success: true, game: { id, title, icon, description, updatedAt: now, trashed: false } });
     } catch (error) {
         return json({ success: false, error: error.message || '保存游戏失败' }, 500);
     }
+}
+
+async function updateTrashState(kv, body, trashed) {
+    const id = sanitizeId(body.id || '');
+    if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
+
+    const stored = await kv.get(`game:${id}`, { type: 'json' });
+    if (!stored) return json({ success: false, error: '游戏不存在' }, 404);
+
+    const now = new Date().toISOString();
+    const game = {
+        ...stored,
+        trashed,
+        trashedAt: trashed ? now : '',
+        updatedAt: now
+    };
+
+    await kv.put(`game:${id}`, JSON.stringify(game), {
+        metadata: {
+            title: game.title || '编程小游戏',
+            icon: game.icon || '🎮',
+            description: game.description || '这是一个由 VibeCoding 生成的小游戏。',
+            updatedAt: now,
+            trashed,
+            trashedAt: game.trashedAt || ''
+        }
+    });
+
+    return json({ success: true, game: summarizeGame(game) });
+}
+
+async function deleteGame(kv, body) {
+    const id = sanitizeId(body.id || '');
+    const password = String(body.password || '').trim();
+    if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
+    if (password !== '311051') return json({ success: false, error: '删除密码错误' }, 403);
+
+    await kv.delete(`game:${id}`);
+    return json({ success: true, id });
+}
+
+function summarizeGame(game) {
+    return {
+        id: game.id,
+        title: game.title || '编程小游戏',
+        icon: game.icon || '🎮',
+        description: game.description || '这是一个由 VibeCoding 生成的小游戏。',
+        updatedAt: game.updatedAt || '',
+        trashed: Boolean(game.trashed),
+        trashedAt: game.trashedAt || ''
+    };
 }
 
 function json(data, status = 200) {
@@ -137,5 +202,6 @@ function pinyinLike(value) {
         .replace(/射击/g, 'shooting')
         .replace(/校园/g, 'campus')
         .replace(/俄罗斯方块/g, 'tetris')
+        .replace(/贪吃蛇/g, 'snake')
         .replace(/英语/g, 'english');
 }
