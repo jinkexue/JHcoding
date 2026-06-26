@@ -32,14 +32,14 @@ export async function onRequestPost(context) {
         }
 
         const messages = buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon });
-        const requestedMaxTokens = Number(env.OPENAI_MAX_TOKENS || env.OPENAI_MAX_COMPLETION_TOKENS || 12000);
+        const requestedMaxTokens = Number(env.OPENAI_MAX_TOKENS || env.OPENAI_MAX_COMPLETION_TOKENS || 6000);
+        const tokenParamName = String(env.OPENAI_TOKEN_PARAM || 'max_tokens').trim();
         const requestBody = {
             model,
             messages,
-            temperature: 0.2,
-            max_tokens: requestedMaxTokens,
-            max_completion_tokens: requestedMaxTokens
+            temperature: 0.2
         };
+        requestBody[tokenParamName === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens'] = requestedMaxTokens;
 
         if (stream) {
             requestBody.stream = true;
