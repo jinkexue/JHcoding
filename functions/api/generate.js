@@ -37,9 +37,12 @@ export async function onRequestPost(context) {
             model,
             messages,
             temperature: 0.2,
-            max_tokens: requestedMaxTokens,
-            max_completion_tokens: requestedMaxTokens
+            max_tokens: requestedMaxTokens
         };
+
+        if (String(env.OPENAI_USE_MAX_COMPLETION_TOKENS || '').toLowerCase() === 'true') {
+            requestBody.max_completion_tokens = requestedMaxTokens;
+        }
 
         if (stream) {
             requestBody.stream = true;
@@ -79,6 +82,10 @@ export async function onRequestPost(context) {
                 success: false,
                 error: '模型没有返回完整 HTML 文件，请换一种提示词再试。',
                 debug: {
+                    requestModel: model,
+                    requestBaseUrl: redactBaseUrl(baseUrl),
+                    requestMaxTokens: requestedMaxTokens,
+                    responseModel: llmData?.model || '',
                     rawResponseLength: llmText.length,
                     contentLength: content.length,
                     rawResponsePreview: llmText.slice(0, 1200),
@@ -315,6 +322,16 @@ function buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }) {
 
 function normalizeBaseUrl(url) {
     return String(url || '').replace(/\/+$/, '');
+}
+
+function redactBaseUrl(url) {
+    const text = String(url || '');
+    try {
+        const parsed = new URL(text);
+        return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+        return text.slice(0, 120);
+    }
 }
 
 function json(data, status = 200) {
