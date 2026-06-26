@@ -652,7 +652,7 @@
 <body>
 
     <header>
-        <h1>景绘编程乐园</h1>
+        <h1>景绘AI编程乐园</h1>
         <p id="headerSubtitle">在这里，用代码创造快乐</p>
         <div class="password-row" id="gamePasswordRow">
             <input type="password" id="globalPassword" placeholder="输入密码解锁所有游戏" maxlength="10">
@@ -667,7 +667,7 @@
             <div class="vibecoding-panel">
                 <div class="vibe-header">
                     <div>
-                        <h2>儿童 VibeCoding</h2>
+                        <h2>AI编程Vibecoding</h2>
                         <p>输入游戏密码后会同时解锁游戏和编程。选择上面的游戏继续修改，或直接新建小游戏；游戏会在独立预览框里运行，出错也可以继续修。</p>
                     </div>
                 </div>
@@ -680,8 +680,7 @@
                         </div>
                         <div id="previewEmpty" class="preview-empty">
                             <div>
-                                <strong>输入游戏密码后，选择上方游戏或直接新建游戏。</strong><br>
-                                预览框会使用 iframe 独立运行游戏，主页面的提示词区域不会被游戏错误影响。
+                                <strong>游戏预览区</strong>
                             </div>
                         </div>
                         <iframe id="gamePreviewFrame" sandbox="allow-scripts allow-same-origin" style="display:none;"></iframe>
@@ -693,10 +692,11 @@
 
                     <div class="prompt-box">
                         <div class="box-title">
-                            <span>自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！</span>
+                            <span>自然语言编程</span>
                         </div>
                         <div class="prompt-content collapsed" id="promptContent">
                             <button class="vibe-button primary-wide" id="openNewGameBtn" onclick="openNewGamePrompt()" disabled>新建游戏</button>
+                            <button class="vibe-button ghost" id="backToNewBtn" onclick="resetToNewGameMode()" style="display:none;">取消修改，改为新建游戏</button>
                             <div class="prompt-editor">
                                 <div class="prompt-mode-title" id="promptModeTitle">自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！</div>
                                 <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
@@ -747,7 +747,7 @@
     </main>
 
     <footer>
-        <p>景绘编程乐园 &copy; 2024 | 用代码创造快乐</p>
+        <p>景绘AI编程乐园 &copy; 2024 | 用代码创造快乐</p>
     </footer>
 
 <script>
@@ -971,6 +971,7 @@ function applyUnlockState() {
         document.getElementById('vibePrompt').disabled = false;
         document.getElementById('openNewGameBtn').disabled = false;
         document.getElementById('submitPromptBtn').disabled = false;
+        document.getElementById('backToNewBtn').disabled = false;
         setStatus('游戏和编程已解锁。点击“新建游戏”，或在游戏卡片上点击“修改游戏”。', 'ok');
     }
 
@@ -1077,26 +1078,36 @@ function clearSelectedGame() {
 
 function openNewGamePrompt() {
     if (!guardVibeReady()) return;
+    resetToNewGameMode({ keepOpen: true });
+}
+
+function resetToNewGameMode(options = {}) {
+    if (isGenerating) {
+        showToast('大模型正在工作，请耐心等待');
+        return;
+    }
     promptMode = 'new';
     selectedGame = null;
     selectedCardId = null;
     document.getElementById('selectedGameName').textContent = '未选择';
     document.getElementById('promptContent').classList.remove('collapsed');
     document.getElementById('openNewGameBtn').style.display = 'none';
-    document.getElementById('promptModeTitle').textContent = '自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！';
+    document.getElementById('backToNewBtn').style.display = 'none';
+    document.getElementById('promptModeTitle').textContent = '说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！';
     const promptBox = document.getElementById('vibePrompt');
     promptBox.placeholder = '请根据自己的想法或参考下方提示。';
     promptBox.value = '';
     promptBox.focus();
     document.getElementById('submitPromptBtn').textContent = '提交新建游戏';
     renderGameCards();
-    setStatus('请写下你想创建的新游戏。', 'ok');
+    setStatus(options.keepOpen ? '请写下你想创建的新游戏。' : '已切换到新建游戏模式。', 'ok');
 }
 
 function openModifyPrompt(game) {
     promptMode = 'modify';
     document.getElementById('promptContent').classList.remove('collapsed');
     document.getElementById('openNewGameBtn').style.display = 'none';
+    document.getElementById('backToNewBtn').style.display = 'block';
     document.getElementById('promptModeTitle').textContent = `正在修改《${game.title}》：提出你的优化修改方案`;
     const promptBox = document.getElementById('vibePrompt');
     promptBox.placeholder = '提出你的优化修改方案';
@@ -1407,6 +1418,7 @@ function setBusy(isBusy) {
     document.getElementById('vibePrompt').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('openNewGameBtn').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('submitPromptBtn').disabled = isBusy || !isVibeUnlocked;
+    document.getElementById('backToNewBtn').disabled = isBusy || !isVibeUnlocked;
     if (isBusy) {
         startGeneratingTimer();
     } else {
