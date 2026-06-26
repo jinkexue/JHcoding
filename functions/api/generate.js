@@ -37,12 +37,9 @@ export async function onRequestPost(context) {
             model,
             messages,
             temperature: 0.2,
-            max_tokens: requestedMaxTokens
+            max_tokens: requestedMaxTokens,
+            max_completion_tokens: requestedMaxTokens
         };
-
-        if (String(env.OPENAI_USE_MAX_COMPLETION_TOKENS || '').toLowerCase() === 'true') {
-            requestBody.max_completion_tokens = requestedMaxTokens;
-        }
 
         if (stream) {
             requestBody.stream = true;
@@ -75,29 +72,27 @@ export async function onRequestPost(context) {
         const llmData = safeJsonParse(llmText);
         const content = extractAssistantContent(llmData, llmText);
         const result = parseModelOutput(content || llmText);
-        const html = cleanHtml(result.html || '');
+        const patchResult = action === 'modify' && sourceCode ? applyPatchResult(sourceCode, result) : null;
+        const html = cleanHtml(patchResult?.html || result.html || '');
 
         if (!isCompleteHtml(html)) {
             return json({
                 success: false,
                 error: '模型没有返回完整 HTML 文件，请换一种提示词再试。',
                 debug: {
-                    requestModel: model,
-                    requestBaseUrl: redactBaseUrl(baseUrl),
-                    requestMaxTokens: requestedMaxTokens,
-                    responseModel: llmData?.model || '',
                     rawResponseLength: llmText.length,
                     contentLength: content.length,
                     rawResponsePreview: llmText.slice(0, 1200),
                     finishReason: llmData?.choices?.[0]?.finish_reason || '',
                     reasoningLength: String(llmData?.choices?.[0]?.message?.reasoning_content || '').length,
                     responseShape: describeResponseShape(llmData),
-                    parsedKeys: result && typeof result === 'object' ? Object.keys(result) : []
+                    parsedKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+                    patchesCount: Array.isArray(result?.patches) ? result.patches.length : 0
                 }
             }, 502);
         }
 
-        return json(buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }));
+        return json(buildSuccessResult({ ...result, ...(patchResult || {}) }, html, { baseTitle, baseIcon, prompt }));
     } catch (error) {
         return json({ success: false, error: error.message || '生成失败' }, 500);
     }
@@ -108,6 +103,8 @@ function buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon }) {
 重要：不要输出推理过程、思考过程、analysis、reasoning_content、解释、计划、对比或 Markdown。直接输出最终结果。
 你必须只返回 JSON 对象，不要返回 Markdown，不要解释。
 JSON 格式：{"title":"游戏名","icon":"一个emoji","description":"一句中文简介","html":"完整HTML源码"}
+修改已有游戏时优先返回补丁 JSON：{"title":"游戏名","icon":"emoji","description":"简介","patches":[{"old":"原始连续片段","new":"替换后的连续片段"}]}
+补丁要求：old 必须逐字匹配当前源码中的连续文本；只返回需要改动的 1-5 个小片段；不要重写全部 HTML。若无法可靠补丁，再返回完整 html 字段。
 HTML 要求：
 1. 必须返回完整单文件 HTML，必须包含 <html>、<head>、<body>，建议包含 <!DOCTYPE html>。
 2. CSS 和 JavaScript 必须全部内联，不能依赖外部库、CDN、远程图片或远程音频。
@@ -128,7 +125,7 @@ HTML 要求：
     ];
 
     if (action === 'modify' && sourceCode) {
-        userParts.push(`下面是当前游戏的完整源码，请在它的基础上修改，并返回修改后的完整 HTML：\n${sourceCode}`);
+        userParts.push(`下面是当前游戏源码。请优先返回 patches 补丁 JSON，不要返回完整 HTML，除非补丁无法表达。old 字段必须从下面源码中原样复制一段连续文本。\n${sourceCode}`);
     }
 
     return [
@@ -324,16 +321,6 @@ function normalizeBaseUrl(url) {
     return String(url || '').replace(/\/+$/, '');
 }
 
-function redactBaseUrl(url) {
-    const text = String(url || '');
-    try {
-        const parsed = new URL(text);
-        return `${parsed.origin}${parsed.pathname}`;
-    } catch {
-        return text.slice(0, 120);
-    }
-}
-
 function json(data, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
@@ -385,7 +372,7 @@ function parseModelJson(content) {
     const parsed = safeJsonParse(cleaned);
     if (parsed) return normalizeParsedResult(parsed);
 
-    const match = findJsonObjectContainingHtml(cleaned);
+    const match = findJsonObjectCandidate(cleaned);
     if (match) {
         const fallback = safeJsonParse(match);
         if (fallback) return normalizeParsedResult(fallback);
@@ -397,11 +384,14 @@ function parseModelJson(content) {
     return {};
 }
 
-function findJsonObjectContainingHtml(text) {
+function findJsonObjectCandidate(text) {
     const content = String(text || '');
-    const htmlKeyIndex = content.indexOf('"html"');
-    if (htmlKeyIndex < 0) return '';
-    const start = content.lastIndexOf('{', htmlKeyIndex);
+    const markerIndexes = ['"html"', '"patches"', '"old"', '"code"', '"content"']
+        .map(marker => content.indexOf(marker))
+        .filter(index => index >= 0)
+        .sort((a, b) => a - b);
+    if (!markerIndexes.length) return '';
+    const start = content.lastIndexOf('{', markerIndexes[0]);
     const end = content.lastIndexOf('}');
     if (start < 0 || end <= start) return '';
     return content.slice(start, end + 1);
@@ -417,7 +407,36 @@ function normalizeParsedResult(parsed) {
         title: parsed.title || parsed.name || '编程小游戏',
         icon: parsed.icon || '🎮',
         description: parsed.description || parsed.desc || '这是一个由 VibeCoding 生成的小游戏。',
-        html
+        html,
+        patches: Array.isArray(parsed.patches) ? parsed.patches : []
+    };
+}
+
+function applyPatchResult(sourceCode, result) {
+    const patches = Array.isArray(result?.patches) ? result.patches : [];
+    if (!patches.length) return null;
+
+    let html = String(sourceCode || '');
+    const applied = [];
+    for (const patch of patches.slice(0, 8)) {
+        const oldText = String(patch?.old || '');
+        const newText = String(patch?.new || '');
+        if (!oldText || oldText === newText) continue;
+        if (!html.includes(oldText)) {
+            return null;
+        }
+        html = html.replace(oldText, newText);
+        applied.push({ oldLength: oldText.length, newLength: newText.length });
+    }
+
+    if (!applied.length || !isCompleteHtml(html)) return null;
+    return {
+        title: result.title,
+        icon: result.icon,
+        description: result.description || `已应用 ${applied.length} 个小修改。`,
+        html,
+        patchApplied: true,
+        appliedPatches: applied.length
     };
 }
 
