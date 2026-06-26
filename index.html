@@ -210,6 +210,11 @@
             padding: 12px 14px;
         }
 
+        .modify-card-btn {
+            background: linear-gradient(135deg, #22c55e, #14b8a6);
+            padding: 12px 14px;
+        }
+
         .vibecoding-shell {
             max-width: 1200px;
             margin: 0 auto 36px;
@@ -337,9 +342,33 @@
             box-shadow: 0 0 0 4px rgba(102,126,234,0.12);
         }
 
+        .prompt-content.collapsed .prompt-editor,
+        .prompt-content.collapsed .hint-list,
+        .prompt-content.collapsed .thinking-card,
+        .prompt-content.collapsed .model-output-wrap {
+            display: none !important;
+        }
+
+        .prompt-mode-title {
+            margin: 10px 0;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: #eef2ff;
+            color: #4338ca;
+            font-weight: 800;
+            line-height: 1.5;
+        }
+
+        .vibe-button.primary-wide {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #22c55e, #14b8a6);
+        }
+
         .vibe-actions {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 10px;
             margin-top: 12px;
         }
@@ -656,19 +685,24 @@
                             </div>
                         </div>
                         <iframe id="gamePreviewFrame" sandbox="allow-scripts allow-same-origin" style="display:none;"></iframe>
+                        <div class="trash-panel" id="trashPanel">
+                            <h3>回收站</h3>
+                            <div class="trash-list" id="trashList">回收站为空。</div>
+                        </div>
                     </div>
 
                     <div class="prompt-box">
                         <div class="box-title">
                             <span>自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！</span>
                         </div>
-                        <div class="prompt-content">
-                            <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
-                            <div class="vibe-actions">
-                                <button class="vibe-button secondary" id="createGameBtn" onclick="createVibeGame()" disabled>新建游戏</button>
-                                <button class="vibe-button" id="modifyGameBtn" onclick="modifySelectedGame()" disabled>修改选中游戏</button>
-                                <button class="vibe-button ghost" id="clearSelectBtn" onclick="clearSelectedGame()" disabled>取消选择</button>
-                                <button class="vibe-button ghost" id="fillExampleBtn" onclick="fillExamplePrompt()">填入示例</button>
+                        <div class="prompt-content collapsed" id="promptContent">
+                            <button class="vibe-button primary-wide" id="openNewGameBtn" onclick="openNewGamePrompt()" disabled>新建游戏</button>
+                            <div class="prompt-editor">
+                                <div class="prompt-mode-title" id="promptModeTitle">自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！</div>
+                                <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
+                                <div class="vibe-actions">
+                                    <button class="vibe-button secondary" id="submitPromptBtn" onclick="submitPrompt()" disabled>提交</button>
+                                </div>
                             </div>
                             <div class="status-area" id="vibeStatus">输入游戏密码即可同时解锁游戏和编程。</div>
                             <div class="thinking-card" id="thinkingCard">
@@ -696,10 +730,6 @@
    💀 碰到什么情况会导致游戏失败（Game Over）？
 
 试试把这些想清楚写下来，AI 就能帮你完美还原你脑海中的游戏世界啦！</div>
-                            <div class="trash-panel" id="trashPanel">
-                                <h3>回收站</h3>
-                                <div class="trash-list" id="trashList">回收站为空。</div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -738,6 +768,7 @@ let isGenerating = false;
 let generatingStartTime = 0;
 let generatingTimerId = null;
 let generatingStatusMessage = '';
+let promptMode = 'new';
 
 const builtInGames = [
     {
@@ -831,6 +862,7 @@ function renderGameCards() {
                     <p>${escapeHtml(game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续用提示词修改。')}</p>
                     <div class="card-actions">
                         <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation();">${playText}</a>
+                        <button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">修改游戏</button>
                         <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>
                     </div>
                 </div>
@@ -937,13 +969,11 @@ function applyUnlockState() {
 
     if (isVibeUnlocked) {
         document.getElementById('vibePrompt').disabled = false;
-        document.getElementById('createGameBtn').disabled = false;
-        document.getElementById('clearSelectBtn').disabled = false;
-        document.getElementById('fillExampleBtn').disabled = false;
-        setStatus('游戏和编程已解锁。可以选择上方游戏来修改，也可以直接新建游戏。', 'ok');
+        document.getElementById('openNewGameBtn').disabled = false;
+        document.getElementById('submitPromptBtn').disabled = false;
+        setStatus('游戏和编程已解锁。点击“新建游戏”，或在游戏卡片上点击“修改游戏”。', 'ok');
     }
 
-    document.getElementById('modifyGameBtn').disabled = !isVibeUnlocked || !selectedGame || isGenerating;
     renderGameCards();
     renderTrashList();
 }
@@ -973,7 +1003,12 @@ async function loadDynamicGames() {
     }
 }
 
-async function selectGame(gameId) {
+async function startModifyGame(gameId, event) {
+    if (event) event.stopPropagation();
+    await selectGame(gameId, { editMode: true });
+}
+
+async function selectGame(gameId, options = {}) {
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
         return;
@@ -1015,10 +1050,12 @@ async function selectGame(gameId) {
         selectedGame = { ...selectedMeta, html };
         selectedCardId = game.id;
         document.getElementById('selectedGameName').textContent = game.title;
-        document.getElementById('modifyGameBtn').disabled = false;
         renderGameCards();
         previewHtml(html);
-        setStatus(`已选择《${game.title}》。现在可以在提示词中描述你想怎么改。`, 'ok');
+        if (options.editMode) {
+            openModifyPrompt(game);
+        }
+        setStatus(options.editMode ? `已载入《${game.title}》。请在右侧提出你的优化修改方案。` : `已预览《${game.title}》。点击卡片上的“修改游戏”可继续优化。`, 'ok');
         document.getElementById('vibecoding').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
         setStatus(`加载失败：${error.message}`, 'error');
@@ -1032,10 +1069,48 @@ function clearSelectedGame() {
     }
     selectedGame = null;
     selectedCardId = null;
+    promptMode = 'new';
     document.getElementById('selectedGameName').textContent = '未选择';
-    document.getElementById('modifyGameBtn').disabled = true;
     renderGameCards();
-    setStatus('已取消选择。可以直接新建游戏。', 'ok');
+    setStatus('已回到新建游戏模式。', 'ok');
+}
+
+function openNewGamePrompt() {
+    if (!guardVibeReady()) return;
+    promptMode = 'new';
+    selectedGame = null;
+    selectedCardId = null;
+    document.getElementById('selectedGameName').textContent = '未选择';
+    document.getElementById('promptContent').classList.remove('collapsed');
+    document.getElementById('openNewGameBtn').style.display = 'none';
+    document.getElementById('promptModeTitle').textContent = '自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！';
+    const promptBox = document.getElementById('vibePrompt');
+    promptBox.placeholder = '请根据自己的想法或参考下方提示。';
+    promptBox.value = '';
+    promptBox.focus();
+    document.getElementById('submitPromptBtn').textContent = '提交新建游戏';
+    renderGameCards();
+    setStatus('请写下你想创建的新游戏。', 'ok');
+}
+
+function openModifyPrompt(game) {
+    promptMode = 'modify';
+    document.getElementById('promptContent').classList.remove('collapsed');
+    document.getElementById('openNewGameBtn').style.display = 'none';
+    document.getElementById('promptModeTitle').textContent = `正在修改《${game.title}》：提出你的优化修改方案`;
+    const promptBox = document.getElementById('vibePrompt');
+    promptBox.placeholder = '提出你的优化修改方案';
+    promptBox.value = '';
+    promptBox.focus();
+    document.getElementById('submitPromptBtn').textContent = '提交修改方案';
+}
+
+async function submitPrompt() {
+    if (promptMode === 'modify') {
+        await modifySelectedGame();
+    } else {
+        await createVibeGame();
+    }
 }
 
 async function createVibeGame() {
@@ -1136,6 +1211,7 @@ async function generateAndSave(payload) {
             };
             selectedCardId = builtinId;
             document.getElementById('selectedGameName').textContent = builtinGame ? builtinGame.title : savedGame.title;
+            if (promptMode === 'modify') openModifyPrompt(builtinGame || { title: savedGame.title });
         } else {
             selectedGame = {
                 id: savedGame.id,
@@ -1148,8 +1224,8 @@ async function generateAndSave(payload) {
             };
             selectedCardId = savedGame.id;
             document.getElementById('selectedGameName').textContent = savedGame.title;
+            if (promptMode === 'modify') openModifyPrompt({ title: savedGame.title });
         }
-        document.getElementById('modifyGameBtn').disabled = false;
         renderGameCards();
         setStatus(`已固定保存《${savedGame.title}》。它已经自动加入上方游戏卡片列表。`, 'ok');
         showThinkingState('success', '生成成功', '游戏已经保存，可以在上方卡片打开啦！');
@@ -1329,10 +1405,8 @@ function guardVibeReady() {
 function setBusy(isBusy) {
     isGenerating = isBusy;
     document.getElementById('vibePrompt').disabled = isBusy || !isVibeUnlocked;
-    document.getElementById('createGameBtn').disabled = isBusy || !isVibeUnlocked;
-    document.getElementById('modifyGameBtn').disabled = isBusy || !isVibeUnlocked || !selectedGame;
-    document.getElementById('clearSelectBtn').disabled = isBusy || !isVibeUnlocked;
-    document.getElementById('fillExampleBtn').disabled = isBusy;
+    document.getElementById('openNewGameBtn').disabled = isBusy || !isVibeUnlocked;
+    document.getElementById('submitPromptBtn').disabled = isBusy || !isVibeUnlocked;
     if (isBusy) {
         startGeneratingTimer();
     } else {
@@ -1426,19 +1500,6 @@ function clearDebugInfo() {
     const box = document.getElementById('debugBox');
     if (content) content.textContent = '暂无调试信息。';
     if (box) box.style.display = 'none';
-}
-
-function fillExamplePrompt() {
-    if (isGenerating) {
-        showToast('大模型正在工作，请耐心等待');
-        return;
-    }
-    const examples = [
-        '游戏规则：做一个接水果小游戏，水果从天上掉下来，玩家用篮子接住。\n图形形象：蓝天白云背景，篮子是彩色的，苹果、香蕉和草莓从上方落下。\n操作规则：电脑用左右方向键移动，平板用手指拖动篮子。\n使用设备：电脑和 iPad 都能玩。\n胜负与分数：接到水果加分，接到炸弹扣一条生命，30 秒后显示总分。',
-        '游戏规则：把当前游戏变得更适合小朋友，玩法保持不变。\n图形形象：颜色更鲜艳，角色更可爱，成功时有彩色庆祝效果。\n操作规则：保留原来的键盘、鼠标或触摸操作。\n使用设备：电脑和平板都要兼容。\n胜负与分数：保留原有胜负规则，结束后显示鼓励的话。',
-        '游戏规则：给这个游戏增加 30 秒倒计时和重新开始按钮。\n图形形象：加入可爱的星星和鼓励文字。\n操作规则：保留原来的控制方式。\n使用设备：电脑和手机平板都能玩。\n胜负与分数：时间结束显示最终得分，失败时可以一键重来。'
-    ];
-    document.getElementById('vibePrompt').value = examples[Math.floor(Math.random() * examples.length)];
 }
 
 async function moveGameToTrash(gameId, event) {
