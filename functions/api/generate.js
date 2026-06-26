@@ -67,8 +67,8 @@ export async function onRequestPost(context) {
 
         const llmText = await llmRes.text();
         const llmData = safeJsonParse(llmText);
-        const content = llmData?.choices?.[0]?.message?.content || '';
-        const result = parseModelOutput(content);
+        const content = extractAssistantContent(llmData, llmText);
+        const result = parseModelOutput(content || llmText);
         const html = cleanHtml(result.html || '');
 
         if (!isCompleteHtml(html)) {
@@ -78,7 +78,8 @@ export async function onRequestPost(context) {
                 debug: {
                     rawResponseLength: llmText.length,
                     contentLength: content.length,
-                    contentPreview: content.slice(0, 1200),
+                    rawResponsePreview: llmText.slice(0, 1200),
+                    responseShape: describeResponseShape(llmData),
                     parsedKeys: result && typeof result === 'object' ? Object.keys(result) : []
                 }
             }, 502);
@@ -205,13 +206,93 @@ function extractContentFromNonStreamResponse(rawContent) {
     if (!text) return '';
 
     const parsed = safeJsonParse(text);
-    const content = parsed?.choices?.[0]?.message?.content || parsed?.choices?.[0]?.delta?.content || parsed?.output_text || parsed?.content || '';
+    const content = extractAssistantContent(parsed, text);
     if (content) return String(content);
 
     const html = extractHtml(text);
     if (html) return html;
 
     return '';
+}
+
+function extractAssistantContent(parsed, rawText = '') {
+    if (!parsed || typeof parsed !== 'object') {
+        const html = extractHtml(rawText);
+        return html || '';
+    }
+
+    const candidates = [
+        parsed?.choices?.[0]?.message?.content,
+        parsed?.choices?.[0]?.delta?.content,
+        parsed?.choices?.[0]?.text,
+        parsed?.output_text,
+        parsed?.content,
+        parsed?.text,
+        parsed?.result,
+        parsed?.data,
+        parsed?.message,
+        parsed?.answer,
+        parsed?.response,
+        parsed?.output
+    ];
+
+    for (const candidate of candidates) {
+        const value = flattenTextCandidate(candidate);
+        if (value) return value;
+    }
+
+    const deep = findDeepTextWithHtml(parsed);
+    if (deep) return deep;
+
+    const html = extractHtml(rawText);
+    return html || '';
+}
+
+function flattenTextCandidate(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+        return value.map(flattenTextCandidate).filter(Boolean).join('\n');
+    }
+    if (typeof value === 'object') {
+        const nested = value.text || value.content || value.output_text || value.html || value.code;
+        if (nested) return flattenTextCandidate(nested);
+    }
+    return '';
+}
+
+function findDeepTextWithHtml(value, depth = 0) {
+    if (!value || depth > 5) return '';
+    if (typeof value === 'string') {
+        return extractHtml(value) ? value : '';
+    }
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = findDeepTextWithHtml(item, depth + 1);
+            if (found) return found;
+        }
+        return '';
+    }
+    if (typeof value === 'object') {
+        for (const key of Object.keys(value)) {
+            const found = findDeepTextWithHtml(value[key], depth + 1);
+            if (found) return found;
+        }
+    }
+    return '';
+}
+
+function describeResponseShape(value, depth = 0) {
+    if (!value || typeof value !== 'object' || depth > 2) return typeof value;
+    if (Array.isArray(value)) {
+        return value.length ? [`Array(${value.length})`, describeResponseShape(value[0], depth + 1)] : ['Array(0)'];
+    }
+    const shape = {};
+    for (const key of Object.keys(value).slice(0, 20)) {
+        const child = value[key];
+        shape[key] = child && typeof child === 'object' ? describeResponseShape(child, depth + 1) : typeof child;
+    }
+    return shape;
 }
 
 function buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }) {
@@ -303,7 +384,7 @@ function findJsonObjectContainingHtml(text) {
 
 function normalizeParsedResult(parsed) {
     if (!parsed || typeof parsed !== 'object') return {};
-    let html = parsed.html || parsed.HTML || parsed.code || parsed.content || '';
+    let html = parsed.html || parsed.HTML || parsed.code || parsed.content || parsed.result || parsed.data || parsed.output || '';
     if (typeof html !== 'string') html = String(html || '');
     html = cleanHtml(unescapeLikelyJsonString(html));
     if (!html && typeof parsed.output === 'string') html = cleanHtml(unescapeLikelyJsonString(parsed.output));
