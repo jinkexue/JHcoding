@@ -696,12 +696,13 @@
                         </div>
                         <div class="prompt-content collapsed" id="promptContent">
                             <button class="vibe-button primary-wide" id="openNewGameBtn" onclick="openNewGamePrompt()" disabled>新建游戏</button>
-                            <button class="vibe-button ghost" id="backToNewBtn" onclick="resetToNewGameMode()" style="display:none;">取消修改，改为新建游戏</button>
                             <div class="prompt-editor">
                                 <div class="prompt-mode-title" id="promptModeTitle">自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦，发挥你的想象力吧！</div>
                                 <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
                                 <div class="vibe-actions">
                                     <button class="vibe-button secondary" id="submitPromptBtn" onclick="submitPrompt()" disabled>提交</button>
+                                    <button class="vibe-button ghost" id="backToNewBtn" onclick="resetToNewGameMode()" style="display:none;">取消修改，改为新建游戏</button>
+                                    <button class="vibe-button ghost" id="toggleHintBtn" onclick="toggleHintList()">提示</button>
                                 </div>
                             </div>
                             <div class="status-area" id="vibeStatus">输入游戏密码即可同时解锁游戏和编程。</div>
@@ -717,7 +718,7 @@
                                 </div>
                                 <div class="model-output" id="modelOutput">等待开始生成...</div>
                             </div>
-                            <div class="hint-list">🚀 仔细构思你的新游戏！请按照下面这 5 个魔法小步骤，详细描述你的游戏想法：
+                            <div class="hint-list" id="hintList" style="display:none;">🚀 仔细构思你的新游戏！请按照下面这 5 个魔法小步骤，详细描述你的游戏想法：
 
 1. 🎮 游戏规则：这是一个什么类型的游戏？在里面要干什么？
 2. 🎨 图形形象：背景是什么样子的？主角、怪兽、道具分别长什么样？
@@ -747,7 +748,7 @@
     </main>
 
     <footer>
-        <p>景绘AI编程乐园 &copy; 2024 | 用代码创造快乐</p>
+        <p>景绘AI编程乐园 &copy; 2015 | 用代码创造快乐</p>
     </footer>
 
 <script>
@@ -972,6 +973,7 @@ function applyUnlockState() {
         document.getElementById('openNewGameBtn').disabled = false;
         document.getElementById('submitPromptBtn').disabled = false;
         document.getElementById('backToNewBtn').disabled = false;
+        document.getElementById('toggleHintBtn').disabled = false;
         setStatus('游戏和编程已解锁。点击“新建游戏”，或在游戏卡片上点击“修改游戏”。', 'ok');
     }
 
@@ -1072,6 +1074,7 @@ function clearSelectedGame() {
     selectedCardId = null;
     promptMode = 'new';
     document.getElementById('selectedGameName').textContent = '未选择';
+    clearPreviewFrame();
     renderGameCards();
     setStatus('已回到新建游戏模式。', 'ok');
 }
@@ -1090,6 +1093,7 @@ function resetToNewGameMode(options = {}) {
     selectedGame = null;
     selectedCardId = null;
     document.getElementById('selectedGameName').textContent = '未选择';
+    clearPreviewFrame();
     document.getElementById('promptContent').classList.remove('collapsed');
     document.getElementById('openNewGameBtn').style.display = 'none';
     document.getElementById('backToNewBtn').style.display = 'none';
@@ -1372,6 +1376,14 @@ function previewHtml(html) {
     frame.srcdoc = injectErrorReporter(html);
 }
 
+function clearPreviewFrame() {
+    const frame = document.getElementById('gamePreviewFrame');
+    const empty = document.getElementById('previewEmpty');
+    frame.srcdoc = '';
+    frame.style.display = 'none';
+    empty.style.display = 'flex';
+}
+
 function injectErrorReporter(html) {
     const reporter = `
 <script>
@@ -1419,6 +1431,7 @@ function setBusy(isBusy) {
     document.getElementById('openNewGameBtn').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('submitPromptBtn').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('backToNewBtn').disabled = isBusy || !isVibeUnlocked;
+    document.getElementById('toggleHintBtn').disabled = isBusy || !isVibeUnlocked;
     if (isBusy) {
         startGeneratingTimer();
     } else {
@@ -1512,6 +1525,15 @@ function clearDebugInfo() {
     const box = document.getElementById('debugBox');
     if (content) content.textContent = '暂无调试信息。';
     if (box) box.style.display = 'none';
+}
+
+function toggleHintList() {
+    const hint = document.getElementById('hintList');
+    const btn = document.getElementById('toggleHintBtn');
+    if (!hint || !btn) return;
+    const shouldShow = hint.style.display === 'none' || !hint.style.display;
+    hint.style.display = shouldShow ? 'block' : 'none';
+    btn.textContent = shouldShow ? '收起提示' : '提示';
 }
 
 async function moveGameToTrash(gameId, event) {
