@@ -32,10 +32,13 @@ export async function onRequestPost(context) {
         }
 
         const messages = buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon });
+        const requestedMaxTokens = Number(env.OPENAI_MAX_TOKENS || env.OPENAI_MAX_COMPLETION_TOKENS || 12000);
         const requestBody = {
             model,
             messages,
-            temperature: 0.35
+            temperature: 0.2,
+            max_tokens: requestedMaxTokens,
+            max_completion_tokens: requestedMaxTokens
         };
 
         if (stream) {
@@ -79,6 +82,8 @@ export async function onRequestPost(context) {
                     rawResponseLength: llmText.length,
                     contentLength: content.length,
                     rawResponsePreview: llmText.slice(0, 1200),
+                    finishReason: llmData?.choices?.[0]?.finish_reason || '',
+                    reasoningLength: String(llmData?.choices?.[0]?.message?.reasoning_content || '').length,
                     responseShape: describeResponseShape(llmData),
                     parsedKeys: result && typeof result === 'object' ? Object.keys(result) : []
                 }
@@ -92,7 +97,9 @@ export async function onRequestPost(context) {
 }
 
 function buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon }) {
-    const system = `你是儿童 HTML5 小游戏编程助手，目标用户是 6-12 岁儿童。你必须只返回 JSON 对象，不要返回 Markdown，不要解释。
+    const system = `你是儿童 HTML5 小游戏编程助手，目标用户是 6-12 岁儿童。
+重要：不要输出推理过程、思考过程、analysis、reasoning_content、解释、计划、对比或 Markdown。直接输出最终结果。
+你必须只返回 JSON 对象，不要返回 Markdown，不要解释。
 JSON 格式：{"title":"游戏名","icon":"一个emoji","description":"一句中文简介","html":"完整HTML源码"}
 HTML 要求：
 1. 必须返回完整单文件 HTML，必须包含 <html>、<head>、<body>，建议包含 <!DOCTYPE html>。
@@ -106,6 +113,7 @@ HTML 要求：
 9. 如果你无法严格返回 JSON，可以直接返回完整 HTML，不要返回说明文字、差异补丁或片段。`;
 
     const userParts = [
+        '请直接给出最终可运行代码，不要先思考，不要输出 reasoning_content，不要解释。',
         `任务类型：${action === 'modify' ? '修改已有游戏' : '新建游戏'}`,
         `默认游戏名：${baseTitle}`,
         `默认图标：${baseIcon}`,
