@@ -116,6 +116,7 @@ function streamModelResponse(llmRes, meta) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let fullContent = '';
+    let rawContent = '';
     let buffer = '';
 
     const readable = new ReadableStream({
@@ -128,13 +129,20 @@ function streamModelResponse(llmRes, meta) {
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
+                    const chunk = decoder.decode(value, { stream: true });
+                    rawContent += chunk;
+                    buffer += chunk;
                     const lines = buffer.split('\n');
                     buffer = lines.pop() || '';
 
                     for (const rawLine of lines) {
                         const line = rawLine.trim();
-                        if (!line || !line.startsWith('data:')) continue;
+                        if (!line) continue;
+
+                        if (!line.startsWith('data:')) {
+                            continue;
+                        }
+
                         const data = line.slice(5).trim();
                         if (!data || data === '[DONE]') continue;
                         const parsed = safeJsonParse(data);
@@ -143,6 +151,14 @@ function streamModelResponse(llmRes, meta) {
                             fullContent += delta;
                             send({ type: 'delta', text: delta });
                         }
+                    }
+                }
+
+                if (!fullContent.trim()) {
+                    const fallbackContent = extractContentFromNonStreamResponse(rawContent);
+                    if (fallbackContent) {
+                        fullContent = fallbackContent;
+                        send({ type: 'delta', text: fallbackContent });
                     }
                 }
 
@@ -173,6 +189,20 @@ function streamModelResponse(llmRes, meta) {
             'Cache-Control': 'no-store'
         }
     });
+}
+
+function extractContentFromNonStreamResponse(rawContent) {
+    const text = String(rawContent || '').trim();
+    if (!text) return '';
+
+    const parsed = safeJsonParse(text);
+    const content = parsed?.choices?.[0]?.message?.content || parsed?.choices?.[0]?.delta?.content || parsed?.output_text || parsed?.content || '';
+    if (content) return String(content);
+
+    const html = extractHtml(text);
+    if (html) return html;
+
+    return '';
 }
 
 function buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }) {
