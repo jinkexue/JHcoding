@@ -68,7 +68,7 @@ export async function onRequestPost(context) {
         const llmText = await llmRes.text();
         const llmData = safeJsonParse(llmText);
         const content = llmData?.choices?.[0]?.message?.content || '';
-        const result = parseModelJson(content);
+        const result = parseModelOutput(content);
         const html = cleanHtml(result.html || '');
 
         if (!isCompleteHtml(html)) {
@@ -85,14 +85,15 @@ function buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon }) {
     const system = `你是儿童 HTML5 小游戏编程助手，目标用户是 6-12 岁儿童。你必须只返回 JSON 对象，不要返回 Markdown，不要解释。
 JSON 格式：{"title":"游戏名","icon":"一个emoji","description":"一句中文简介","html":"完整HTML源码"}
 HTML 要求：
-1. 必须是完整单文件 HTML，包含 <!DOCTYPE html>、<html>、<head>、<body>。
+1. 必须返回完整单文件 HTML，必须包含 <html>、<head>、<body>，建议包含 <!DOCTYPE html>。
 2. CSS 和 JavaScript 必须全部内联，不能依赖外部库、CDN、远程图片或远程音频。
 3. 游戏适合儿童，画面友好，操作简单，必须支持键盘或鼠标，尽量兼容触摸。
 4. 页面内要有中文标题、玩法说明、开始/重新开始按钮。
 5. 不要使用 alert 作为主要游戏流程；可以用页面元素显示状态。
 6. 不能生成任何网络请求、登录、支付、隐私采集、跳转外站、下载文件、eval/new Function。
 7. 如果是修改已有游戏，尽量保留原游戏玩法和结构，只根据提示词修改。
-8. JavaScript 必须避免语法错误；变量名不要和浏览器保留对象冲突。`;
+8. JavaScript 必须避免语法错误；变量名不要和浏览器保留对象冲突。
+9. 如果你无法严格返回 JSON，可以直接返回完整 HTML，不要返回说明文字、差异补丁或片段。`;
 
     const userParts = [
         `任务类型：${action === 'modify' ? '修改已有游戏' : '新建游戏'}`,
@@ -145,10 +146,13 @@ function streamModelResponse(llmRes, meta) {
                     }
                 }
 
-                const result = parseModelJson(fullContent);
+                const result = parseModelOutput(fullContent);
                 const html = cleanHtml(result.html || '');
                 if (!isCompleteHtml(html)) {
-                    send({ type: 'error', error: '模型输出完成，但没有得到完整 HTML 文件。可以让模型“只返回完整 HTML 或 JSON”。' });
+                    send({
+                        type: 'error',
+                        error: '模型输出完成，但没有得到完整 HTML 文件。已收到输出 ' + fullContent.length + ' 字，请让模型只返回完整 HTML。'
+                    });
                     controller.close();
                     return;
                 }
@@ -210,6 +214,22 @@ function safeJsonParse(text) {
     try { return JSON.parse(text); } catch { return null; }
 }
 
+function parseModelOutput(content) {
+    const text = String(content || '').trim();
+
+    const parsedResult = parseModelJson(text);
+    if (parsedResult.html) return parsedResult;
+
+    const rawHtml = extractHtml(text);
+    if (rawHtml) return fallbackHtmlResult(rawHtml);
+
+    const unescapedText = unescapeLikelyJsonString(text);
+    const unescapedHtml = extractHtml(unescapedText);
+    if (unescapedHtml) return fallbackHtmlResult(unescapedHtml);
+
+    return parsedResult;
+}
+
 function parseModelJson(content) {
     const cleaned = String(content || '').trim()
         .replace(/^```json\s*/i, '')
@@ -218,25 +238,64 @@ function parseModelJson(content) {
         .trim();
 
     const parsed = safeJsonParse(cleaned);
-    if (parsed) return parsed;
+    if (parsed) return normalizeParsedResult(parsed);
 
-    const match = cleaned.match(/\{[\s\S]*\}/);
+    const match = findJsonObjectContainingHtml(cleaned);
     if (match) {
-        const fallback = safeJsonParse(match[0]);
-        if (fallback) return fallback;
+        const fallback = safeJsonParse(match);
+        if (fallback) return normalizeParsedResult(fallback);
     }
 
     const html = extractHtml(cleaned);
-    if (html) {
-        return {
-            title: '编程小游戏',
-            icon: '🎮',
-            description: '这是一个由 VibeCoding 生成的小游戏。',
-            html
-        };
-    }
+    if (html) return fallbackHtmlResult(html);
 
     return {};
+}
+
+function findJsonObjectContainingHtml(text) {
+    const content = String(text || '');
+    const htmlKeyIndex = content.indexOf('"html"');
+    if (htmlKeyIndex < 0) return '';
+    const start = content.lastIndexOf('{', htmlKeyIndex);
+    const end = content.lastIndexOf('}');
+    if (start < 0 || end <= start) return '';
+    return content.slice(start, end + 1);
+}
+
+function normalizeParsedResult(parsed) {
+    if (!parsed || typeof parsed !== 'object') return {};
+    let html = parsed.html || parsed.HTML || parsed.code || parsed.content || '';
+    if (typeof html !== 'string') html = String(html || '');
+    html = cleanHtml(unescapeLikelyJsonString(html));
+    if (!html && typeof parsed.output === 'string') html = cleanHtml(unescapeLikelyJsonString(parsed.output));
+    return {
+        title: parsed.title || parsed.name || '编程小游戏',
+        icon: parsed.icon || '🎮',
+        description: parsed.description || parsed.desc || '这是一个由 VibeCoding 生成的小游戏。',
+        html
+    };
+}
+
+function fallbackHtmlResult(html) {
+    return {
+        title: '编程小游戏',
+        icon: '🎮',
+        description: '这是一个由 VibeCoding 生成的小游戏。',
+        html
+    };
+}
+
+function unescapeLikelyJsonString(value) {
+    const text = String(value || '');
+    if (!text.includes('\\n') && !text.includes('\\"') && !text.includes('\\/')) return text;
+    const parsed = safeJsonParse(`"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
+    if (parsed) return parsed;
+    return text
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\//g, '/');
 }
 
 function extractHtml(content) {
@@ -253,7 +312,7 @@ function extractHtml(content) {
 }
 
 function cleanHtml(html) {
-    return String(html || '')
+    return unescapeLikelyJsonString(String(html || ''))
         .replace(/^```html\s*/i, '')
         .replace(/^```\s*/i, '')
         .replace(/```$/i, '')
@@ -261,7 +320,7 @@ function cleanHtml(html) {
 }
 
 function isCompleteHtml(html) {
-    return /<!doctype html>/i.test(html) && /<html[\s>]/i.test(html) && /<body[\s>]/i.test(html) && /<script[\s>]/i.test(html);
+    return /<html[\s>]/i.test(html) && /<body[\s>]/i.test(html);
 }
 
 function sanitizeText(value, maxLength) {
