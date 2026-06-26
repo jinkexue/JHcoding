@@ -545,6 +545,45 @@
             flex-wrap: wrap;
         }
 
+        .debug-panel {
+            max-width: 1200px;
+            margin: 0 auto 28px;
+            padding: 0 40px;
+        }
+
+        .debug-box {
+            display: none;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #111827;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+
+        .debug-title {
+            padding: 10px 14px;
+            background: #1f2937;
+            color: #fde68a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .debug-content {
+            max-height: 260px;
+            overflow: auto;
+            padding: 12px;
+            color: #d1d5db;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
         footer {
             text-align: center;
             padding: 20px;
@@ -621,8 +660,7 @@
 
                     <div class="prompt-box">
                         <div class="box-title">
-                            <span>提示词区域</span>
-                            <span id="vibeModeText">已锁定</span>
+                            <span>自然语言编程：说出你的思考过程，最好分步骤1，2，3... 等待片刻将自动编程，可持续修改优化哦</span>
                         </div>
                         <div class="prompt-content">
                             <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
@@ -667,6 +705,15 @@
                 </div>
             </div>
         </section>
+        <div class="debug-panel">
+            <div class="debug-box" id="debugBox">
+                <div class="debug-title">
+                    <span>调试信息</span>
+                    <button class="vibe-button ghost" onclick="clearDebugInfo()">清空</button>
+                </div>
+                <div class="debug-content" id="debugContent">暂无调试信息。</div>
+            </div>
+        </div>
     </main>
 
     <footer>
@@ -893,7 +940,6 @@ function applyUnlockState() {
         document.getElementById('createGameBtn').disabled = false;
         document.getElementById('clearSelectBtn').disabled = false;
         document.getElementById('fillExampleBtn').disabled = false;
-        document.getElementById('vibeModeText').textContent = '可编程';
         setStatus('游戏和编程已解锁。可以选择上方游戏来修改，也可以直接新建游戏。', 'ok');
     }
 
@@ -1033,15 +1079,28 @@ async function modifySelectedGame() {
 async function generateAndSave(payload) {
     setBusy(true);
     resetModelOutput();
-    updateGeneratingStatus('正在生成游戏代码，下方会实时显示模型输出...');
+    updateGeneratingStatus('正在生成游戏代码，本次使用非流式模式，请等待模型完整返回...');
 
     try {
-        const generateData = await generateWithStream({ ...payload, stream: true });
+        addDebugInfo('开始生成', {
+            mode: 'non-stream',
+            action: payload.action,
+            promptLength: payload.prompt ? payload.prompt.length : 0,
+            sourceLength: payload.sourceCode ? payload.sourceCode.length : 0,
+            baseTitle: payload.baseTitle
+        });
+        const generateData = await generateWithoutStream({ ...payload, stream: false });
         if (!generateData || !generateData.success) {
             throw new Error((generateData && generateData.error) || '生成失败');
         }
 
         const html = generateData.html;
+        appendModelOutput(`非流式模式已返回结果。\n标题：${generateData.title || payload.baseTitle}\n简介：${generateData.description || ''}\nHTML 长度：${html.length} 字`);
+        addDebugInfo('生成接口返回成功', {
+            title: generateData.title,
+            htmlLength: html.length,
+            description: generateData.description
+        });
         previewHtml(html);
         setStatus('代码已生成，正在固定保存最新版本...', 'warn');
 
@@ -1097,10 +1156,48 @@ async function generateAndSave(payload) {
     } catch (error) {
         setStatus(`生成或保存失败：${error.message}\n可以修改提示词后继续提交。`, 'error');
         showThinkingState('error', '生成失败', '别着急，改一改提示词后可以继续提交。');
+        addDebugInfo('生成或保存失败', {
+            message: error.message,
+            stack: error.stack || '',
+            time: new Date().toISOString()
+        });
         appendModelOutput(`\n\n[错误] ${error.message}`);
     } finally {
         setBusy(false);
     }
+}
+
+async function generateWithoutStream(payload) {
+    const startedAt = Date.now();
+    const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (error) {
+        addDebugInfo('生成接口返回非 JSON', {
+            status: res.status,
+            contentType: res.headers.get('Content-Type') || '',
+            responsePreview: text.slice(0, 1200)
+        });
+        throw new Error(`生成接口返回格式异常：${text.slice(0, 300)}`);
+    }
+
+    addDebugInfo('生成接口响应', {
+        status: res.status,
+        ok: res.ok,
+        elapsedMs: Date.now() - startedAt,
+        success: data.success,
+        error: data.error || '',
+        debug: data.debug || null
+    });
+
+    if (!res.ok || !data.success) throw new Error(data.error || '生成失败');
+    return data;
 }
 
 async function generateWithStream(payload) {
@@ -1311,6 +1408,24 @@ function appendModelOutput(text) {
     output.textContent += text;
     count.textContent = `${output.textContent.length} 字`;
     output.scrollTop = output.scrollHeight;
+}
+
+function addDebugInfo(title, details) {
+    const box = document.getElementById('debugBox');
+    const content = document.getElementById('debugContent');
+    if (!box || !content) return;
+    box.style.display = 'block';
+    const time = new Date().toLocaleString();
+    const detailText = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+    const block = `[${time}] ${title}\n${detailText}\n`;
+    content.textContent = content.textContent === '暂无调试信息。' ? block : `${block}\n${content.textContent}`;
+}
+
+function clearDebugInfo() {
+    const content = document.getElementById('debugContent');
+    const box = document.getElementById('debugBox');
+    if (content) content.textContent = '暂无调试信息。';
+    if (box) box.style.display = 'none';
 }
 
 function fillExamplePrompt() {

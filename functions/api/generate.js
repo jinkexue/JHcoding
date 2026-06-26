@@ -72,7 +72,16 @@ export async function onRequestPost(context) {
         const html = cleanHtml(result.html || '');
 
         if (!isCompleteHtml(html)) {
-            return json({ success: false, error: '模型没有返回完整 HTML 文件，请换一种提示词再试。' }, 502);
+            return json({
+                success: false,
+                error: '模型没有返回完整 HTML 文件，请换一种提示词再试。',
+                debug: {
+                    rawResponseLength: llmText.length,
+                    contentLength: content.length,
+                    contentPreview: content.slice(0, 1200),
+                    parsedKeys: result && typeof result === 'object' ? Object.keys(result) : []
+                }
+            }, 502);
         }
 
         return json(buildSuccessResult(result, html, { baseTitle, baseIcon, prompt }));
