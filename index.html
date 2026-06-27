@@ -84,9 +84,17 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 30px;
-            padding: 20px 40px 45px;
+            padding: 20px 40px 20px;
             max-width: 1200px;
             margin: 0 auto;
+        }
+
+        .card-toolbar {
+            max-width: 1200px;
+            margin: 0 auto 20px;
+            padding: 0 40px;
+            display: flex;
+            justify-content: flex-end;
         }
 
         .game-card {
@@ -170,16 +178,62 @@
             position: absolute;
             top: 12px;
             left: 12px;
-            width: 34px;
+            min-width: 34px;
             height: 34px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.9);
+            gap: 5px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.92);
             color: #4338ca;
             font-weight: 900;
             box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+            padding: 0 10px;
+        }
+
+        .drag-hint {
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+        }
+
+        .game-grid.compact .game-card {
+            display: grid;
+            grid-template-columns: 86px 1fr;
+            min-height: 96px;
+        }
+
+        .game-grid.compact .game-preview {
+            height: 100%;
+            min-height: 96px;
+            font-size: 42px;
+        }
+
+        .game-grid.compact .game-info {
+            padding: 12px;
+        }
+
+        .game-grid.compact .game-info h2 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .game-grid.compact .game-info p {
+            min-height: 0;
+            max-height: 42px;
+            overflow: hidden;
+            font-size: 12px;
+        }
+
+        .game-grid.compact .card-actions {
+            margin-top: 8px;
+        }
+
+        .game-grid.compact .play-btn,
+        .game-grid.compact .trash-btn {
+            padding: 8px 10px;
+            font-size: 13px;
         }
 
         .card-actions {
@@ -669,6 +723,18 @@
             color: #6b7280;
         }
 
+        .ask-ai-box.collapsed .ask-ai-content {
+            display: none;
+        }
+
+        .ask-ai-box.collapsed {
+            background: #eef2ff;
+        }
+
+        .ask-ai-toggle {
+            margin-left: auto;
+        }
+
         .debug-box {
             display: none;
             border-radius: 18px;
@@ -709,6 +775,43 @@
             font-size: 14px;
         }
 
+        @media (min-width: 768px) and (max-width: 1180px) {
+            .game-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 18px;
+                padding: 18px 24px;
+            }
+            .card-toolbar,
+            .vibecoding-shell,
+            .debug-panel {
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+            .vibe-workspace {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            #gamePreviewFrame,
+            .preview-empty {
+                height: 520px;
+                min-height: 520px;
+            }
+            #vibePrompt {
+                min-height: 260px;
+            }
+            .ask-ai-actions {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+            .card-actions {
+                gap: 6px;
+            }
+            .play-btn,
+            .trash-btn {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+        }
+
         @media (max-width: 900px) {
             .vibe-workspace {
                 grid-template-columns: 1fr;
@@ -723,6 +826,8 @@
         @media (max-width: 600px) {
             header h1 { font-size: 36px; }
             .game-grid { grid-template-columns: 1fr; padding: 20px; }
+            .card-toolbar { padding: 0 20px; justify-content: stretch; }
+            .card-toolbar .vibe-button { width: 100%; }
             .vibecoding-shell { padding: 0 20px; }
             .vibe-header h2 { font-size: 24px; }
             .vibe-actions { grid-template-columns: 1fr; }
@@ -751,6 +856,9 @@
 
     <main>
         <div class="game-grid" id="gameGrid"></div>
+        <div class="card-toolbar">
+            <button class="vibe-button ghost" id="compactToggleBtn" onclick="toggleCompactCards()">批量收拢卡片</button>
+        </div>
 
         <section class="vibecoding-shell" id="vibecoding">
             <div class="vibecoding-panel">
@@ -820,9 +928,10 @@
    💀 碰到什么情况会导致游戏失败（Game Over）？
 
 试试把这些想清楚写下来，AI 就能帮你完美还原你脑海中的游戏世界啦！</div>
-                            <div class="ask-ai-box">
+                            <div class="ask-ai-box collapsed" id="askAiBox">
                                 <div class="box-title">
                                     <span>不懂就问 AI</span>
+                                    <button class="vibe-button ghost ask-ai-toggle" id="askAiToggleBtn" onclick="toggleAskAiBox()">展开问答</button>
                                     <button class="vibe-button ghost" onclick="newAskAiQuestion()">新建提问</button>
                                 </div>
                                 <div class="ask-ai-content">
@@ -881,6 +990,7 @@ let promptMode = 'new';
 let askAiHistory = [];
 let askAiSpeakingEnabled = true;
 let askAiRecognition = null;
+let cardsCompact = false;
 
 const builtInGames = [
     {
@@ -951,6 +1061,7 @@ const builtInGames = [
 
 function renderGameCards() {
     const grid = document.getElementById('gameGrid');
+    grid.classList.toggle('compact', cardsCompact);
     const allGames = sortGamesByOrder([
         ...builtInGames.filter(game => !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
         ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)
@@ -966,7 +1077,7 @@ function renderGameCards() {
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
         return `
             <div class="game-card${lockedClass}${selectedClass}" draggable="true" data-game-id="${escapeAttr(game.id)}" onclick="selectGame('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
-                <div class="card-number">${index + 1}</div>
+                <div class="card-number"><span>${index + 1}</span><span class="drag-hint">拖动排序</span></div>
                 ${tag}
                 <div class="game-preview">${game.icon || '🎮'}</div>
                 <div class="game-info">
@@ -1037,6 +1148,14 @@ function handleCardDragEnd(event) {
     draggedGameId = null;
 }
 
+function toggleCompactCards() {
+    cardsCompact = !cardsCompact;
+    localStorage.setItem('cardsCompact', cardsCompact ? 'true' : 'false');
+    const btn = document.getElementById('compactToggleBtn');
+    if (btn) btn.textContent = cardsCompact ? '批量展开卡片' : '批量收拢卡片';
+    renderGameCards();
+}
+
 function saveLocalLayoutState() {
     localStorage.setItem('hiddenBuiltinIds', JSON.stringify(hiddenBuiltinIds));
     localStorage.setItem('deletedBuiltinIds', JSON.stringify(deletedBuiltinIds));
@@ -1047,6 +1166,9 @@ function loadLocalLayoutState() {
     hiddenBuiltinIds = safeJsonArray(localStorage.getItem('hiddenBuiltinIds'));
     deletedBuiltinIds = safeJsonArray(localStorage.getItem('deletedBuiltinIds'));
     cardOrder = safeJsonArray(localStorage.getItem('cardOrder'));
+    cardsCompact = localStorage.getItem('cardsCompact') === 'true';
+    const btn = document.getElementById('compactToggleBtn');
+    if (btn) btn.textContent = cardsCompact ? '批量展开卡片' : '批量收拢卡片';
 }
 
 function safeJsonArray(value) {
@@ -1650,6 +1772,14 @@ function toggleHintList() {
     btn.textContent = shouldShow ? '收起提示' : '提示';
 }
 
+function toggleAskAiBox() {
+    const box = document.getElementById('askAiBox');
+    const btn = document.getElementById('askAiToggleBtn');
+    if (!box || !btn) return;
+    const isCollapsed = box.classList.toggle('collapsed');
+    btn.textContent = isCollapsed ? '展开问答' : '收起问答';
+}
+
 function setupAskAiInputShortcuts() {
     const input = document.getElementById('askAiInput');
     if (!input) return;
@@ -1662,6 +1792,10 @@ function setupAskAiInputShortcuts() {
 }
 
 function newAskAiQuestion() {
+    const box = document.getElementById('askAiBox');
+    const toggleBtn = document.getElementById('askAiToggleBtn');
+    if (box) box.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.textContent = '收起问答';
     askAiHistory = [];
     stopAskAiSpeaking();
     const messages = document.getElementById('askAiMessages');
