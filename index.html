@@ -731,8 +731,14 @@
             background: #eef2ff;
         }
 
-        .ask-ai-toggle {
-            margin-left: auto;
+        .vibe-button.ask-ai-toggle {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            color: white;
+        }
+
+        .vibe-button.voice-btn {
+            background: linear-gradient(135deg, #8b5cf6, #ec4899);
+            color: white;
         }
 
         .debug-box {
@@ -898,6 +904,7 @@
                                 <textarea id="vibePrompt" placeholder="请根据自己的想法或参考下方提示。" disabled></textarea>
                                 <div class="vibe-actions">
                                     <button class="vibe-button secondary" id="submitPromptBtn" onclick="submitPrompt()" disabled>提交</button>
+                                    <button class="vibe-button voice-btn" id="vibeVoiceBtn" onclick="startVibeVoiceInput()" disabled>语音输入</button>
                                     <button class="vibe-button ghost" id="backToNewBtn" onclick="resetToNewGameMode()" style="display:none;">取消修改，改为新建游戏</button>
                                     <button class="vibe-button ghost" id="toggleHintBtn" onclick="toggleHintList()">提示</button>
                                 </div>
@@ -931,7 +938,7 @@
                             <div class="ask-ai-box collapsed" id="askAiBox">
                                 <div class="box-title">
                                     <span>不懂就问 AI</span>
-                                    <button class="vibe-button ghost ask-ai-toggle" id="askAiToggleBtn" onclick="toggleAskAiBox()">展开问答</button>
+                                    <button class="vibe-button ghost ask-ai-toggle" id="askAiToggleBtn" onclick="toggleAskAiBox()">展开提问</button>
                                     <button class="vibe-button ghost" onclick="newAskAiQuestion()">新建提问</button>
                                 </div>
                                 <div class="ask-ai-content">
@@ -990,7 +997,8 @@ let promptMode = 'new';
 let askAiHistory = [];
 let askAiSpeakingEnabled = true;
 let askAiRecognition = null;
-let cardsCompact = false;
+let cardsCompact = true;
+let vibeRecognition = null;
 
 const builtInGames = [
     {
@@ -1076,7 +1084,7 @@ function renderGameCards() {
         const lockedClass = (!isUnlocked && !isVibeUnlocked) ? ' locked' : '';
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
         return `
-            <div class="game-card${lockedClass}${selectedClass}" draggable="true" data-game-id="${escapeAttr(game.id)}" onclick="selectGame('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
+            <div class="game-card${lockedClass}${selectedClass}" draggable="true" data-game-id="${escapeAttr(game.id)}" onclick="openGameFromCard('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
                 <div class="card-number"><span>${index + 1}</span><span class="drag-hint">拖动排序</span></div>
                 ${tag}
                 <div class="game-preview">${game.icon || '🎮'}</div>
@@ -1148,6 +1156,20 @@ function handleCardDragEnd(event) {
     draggedGameId = null;
 }
 
+async function openGameFromCard(gameId) {
+    if (!isUnlocked && !isVibeUnlocked) {
+        showToast('请先输入密码解锁游戏');
+        return;
+    }
+    const game = getGameMetaById(gameId);
+    if (!game) return;
+    const hasOverride = game.type === 'builtin' && Boolean(getBuiltinOverride(game.id));
+    const playUrl = hasOverride ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}&view=1` : (game.url || '#');
+    if (playUrl && playUrl !== '#') {
+        window.open(playUrl, '_blank');
+    }
+}
+
 function toggleCompactCards() {
     cardsCompact = !cardsCompact;
     localStorage.setItem('cardsCompact', cardsCompact ? 'true' : 'false');
@@ -1166,7 +1188,7 @@ function loadLocalLayoutState() {
     hiddenBuiltinIds = safeJsonArray(localStorage.getItem('hiddenBuiltinIds'));
     deletedBuiltinIds = safeJsonArray(localStorage.getItem('deletedBuiltinIds'));
     cardOrder = safeJsonArray(localStorage.getItem('cardOrder'));
-    cardsCompact = localStorage.getItem('cardsCompact') === 'true';
+    cardsCompact = localStorage.getItem('cardsCompact') !== 'false';
     const btn = document.getElementById('compactToggleBtn');
     if (btn) btn.textContent = cardsCompact ? '批量展开卡片' : '批量收拢卡片';
 }
@@ -1207,6 +1229,7 @@ function applyUnlockState() {
         document.getElementById('submitPromptBtn').disabled = false;
         document.getElementById('backToNewBtn').disabled = false;
         document.getElementById('toggleHintBtn').disabled = false;
+        document.getElementById('vibeVoiceBtn').disabled = false;
         document.getElementById('askAiInput').disabled = false;
         document.getElementById('askAiSendBtn').disabled = false;
         document.getElementById('askAiVoiceBtn').disabled = false;
@@ -1668,6 +1691,7 @@ function setBusy(isBusy) {
     document.getElementById('submitPromptBtn').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('backToNewBtn').disabled = isBusy || !isVibeUnlocked;
     document.getElementById('toggleHintBtn').disabled = isBusy || !isVibeUnlocked;
+    document.getElementById('vibeVoiceBtn').disabled = isBusy || !isVibeUnlocked;
     if (isBusy) {
         startGeneratingTimer();
     } else {
@@ -1772,12 +1796,45 @@ function toggleHintList() {
     btn.textContent = shouldShow ? '收起提示' : '提示';
 }
 
+function startVibeVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const promptBox = document.getElementById('vibePrompt');
+    if (!SpeechRecognition) {
+        setStatus('当前浏览器不支持语音输入，请使用文字输入。Chrome/Edge 通常支持语音识别。', 'warn');
+        return;
+    }
+    if (vibeRecognition) {
+        vibeRecognition.stop();
+        vibeRecognition = null;
+        setStatus('已停止语音输入。', 'warn');
+        return;
+    }
+    vibeRecognition = new SpeechRecognition();
+    vibeRecognition.lang = 'zh-CN';
+    vibeRecognition.interimResults = false;
+    vibeRecognition.continuous = false;
+    setStatus('正在听你说话，请说出游戏想法或修改方案...', 'warn');
+    vibeRecognition.onresult = (event) => {
+        const text = Array.from(event.results).map(result => result[0].transcript).join('');
+        const prefix = promptBox.value.trim() ? '\n' : '';
+        promptBox.value = `${promptBox.value}${prefix}${text}`.trim();
+        setStatus('语音已输入到提示词框，可以继续编辑或提交。', 'ok');
+    };
+    vibeRecognition.onerror = (event) => {
+        setStatus(`语音输入失败：${event.error || '未知错误'}。请改用文字输入。`, 'error');
+    };
+    vibeRecognition.onend = () => {
+        vibeRecognition = null;
+    };
+    vibeRecognition.start();
+}
+
 function toggleAskAiBox() {
     const box = document.getElementById('askAiBox');
     const btn = document.getElementById('askAiToggleBtn');
     if (!box || !btn) return;
     const isCollapsed = box.classList.toggle('collapsed');
-    btn.textContent = isCollapsed ? '展开问答' : '收起问答';
+    btn.textContent = isCollapsed ? '展开提问' : '收起提问';
 }
 
 function setupAskAiInputShortcuts() {
@@ -1795,7 +1852,7 @@ function newAskAiQuestion() {
     const box = document.getElementById('askAiBox');
     const toggleBtn = document.getElementById('askAiToggleBtn');
     if (box) box.classList.remove('collapsed');
-    if (toggleBtn) toggleBtn.textContent = '收起问答';
+    if (toggleBtn) toggleBtn.textContent = '收起提问';
     askAiHistory = [];
     stopAskAiSpeaking();
     const messages = document.getElementById('askAiMessages');
