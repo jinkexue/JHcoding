@@ -580,6 +580,95 @@
             padding: 0 40px;
         }
 
+        .ask-ai-box {
+            margin-top: 16px;
+            border: 1px solid #dbeafe;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #f8fbff;
+        }
+
+        .ask-ai-content {
+            padding: 14px;
+        }
+
+        .ask-ai-messages {
+            min-height: 120px;
+            max-height: 280px;
+            overflow: auto;
+            display: grid;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 14px;
+            background: white;
+            border: 1px solid #e5e7eb;
+        }
+
+        .ask-ai-message {
+            padding: 10px 12px;
+            border-radius: 14px;
+            line-height: 1.55;
+            font-size: 14px;
+            white-space: pre-wrap;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .ask-ai-message.user {
+            justify-self: end;
+            max-width: 86%;
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+
+        .ask-ai-message.assistant {
+            justify-self: start;
+            max-width: 92%;
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .ask-ai-message.system {
+            justify-self: center;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 13px;
+        }
+
+        #askAiInput {
+            width: 100%;
+            min-height: 78px;
+            margin-top: 10px;
+            resize: vertical;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        #askAiInput:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 4px rgba(96,165,250,0.12);
+        }
+
+        .ask-ai-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .ask-ai-note {
+            margin-top: 8px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #6b7280;
+        }
+
         .debug-box {
             display: none;
             border-radius: 18px;
@@ -731,6 +820,25 @@
    💀 碰到什么情况会导致游戏失败（Game Over）？
 
 试试把这些想清楚写下来，AI 就能帮你完美还原你脑海中的游戏世界啦！</div>
+                            <div class="ask-ai-box">
+                                <div class="box-title">
+                                    <span>不懂就问 AI</span>
+                                    <button class="vibe-button ghost" onclick="newAskAiQuestion()">新建提问</button>
+                                </div>
+                                <div class="ask-ai-content">
+                                    <div class="ask-ai-messages" id="askAiMessages">
+                                        <div class="ask-ai-message system">可以问编程、游戏、学习、创意等问题。文字模式一定可用；语音输入和朗读会根据浏览器支持情况自动启用。</div>
+                                    </div>
+                                    <textarea id="askAiInput" placeholder="输入你的问题，比如：这个游戏怎么加倒计时？或者：什么是变量？"></textarea>
+                                    <div class="ask-ai-actions">
+                                        <button class="vibe-button secondary" id="askAiSendBtn" onclick="sendAskAiQuestion()">提问</button>
+                                        <button class="vibe-button ghost" id="askAiVoiceBtn" onclick="startAskAiVoiceInput()">语音提问</button>
+                                        <button class="vibe-button ghost" id="askAiSpeakBtn" onclick="toggleAskAiSpeak()">朗读回答：开</button>
+                                        <button class="vibe-button ghost" onclick="stopAskAiSpeaking()">停止朗读</button>
+                                    </div>
+                                    <div class="ask-ai-note" id="askAiNote">语音功能优先使用浏览器内置语音识别和朗读；如果设备不支持，请使用文字提问。后续可接入 Cloudflare Workers AI 语音识别/朗读模型。</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -770,6 +878,9 @@ let generatingStartTime = 0;
 let generatingTimerId = null;
 let generatingStatusMessage = '';
 let promptMode = 'new';
+let askAiHistory = [];
+let askAiSpeakingEnabled = true;
+let askAiRecognition = null;
 
 const builtInGames = [
     {
@@ -974,6 +1085,9 @@ function applyUnlockState() {
         document.getElementById('submitPromptBtn').disabled = false;
         document.getElementById('backToNewBtn').disabled = false;
         document.getElementById('toggleHintBtn').disabled = false;
+        document.getElementById('askAiInput').disabled = false;
+        document.getElementById('askAiSendBtn').disabled = false;
+        document.getElementById('askAiVoiceBtn').disabled = false;
         setStatus('游戏和编程已解锁。点击“新建游戏”，或在游戏卡片上点击“修改游戏”。', 'ok');
     }
 
@@ -1536,6 +1650,143 @@ function toggleHintList() {
     btn.textContent = shouldShow ? '收起提示' : '提示';
 }
 
+function setupAskAiInputShortcuts() {
+    const input = document.getElementById('askAiInput');
+    if (!input) return;
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            sendAskAiQuestion();
+        }
+    });
+}
+
+function newAskAiQuestion() {
+    askAiHistory = [];
+    stopAskAiSpeaking();
+    const messages = document.getElementById('askAiMessages');
+    const input = document.getElementById('askAiInput');
+    if (messages) {
+        messages.innerHTML = '<div class="ask-ai-message system">新的提问已经开始。你可以问编程、游戏、学习、创意等问题。</div>';
+    }
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+}
+
+async function sendAskAiQuestion() {
+    const input = document.getElementById('askAiInput');
+    const button = document.getElementById('askAiSendBtn');
+    const question = (input?.value || '').trim();
+    if (!question) {
+        addAskAiMessage('system', '请先输入一个问题。');
+        return;
+    }
+    input.value = '';
+    addAskAiMessage('user', question);
+    askAiHistory.push({ role: 'user', content: question });
+    if (button) button.disabled = true;
+    addAskAiMessage('system', 'AI 正在思考，请稍等...');
+
+    try {
+        const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, history: askAiHistory.slice(-8) })
+        });
+        const data = await res.json();
+        removeLastAskAiSystemThinking();
+        if (!res.ok || !data.success) throw new Error(data.error || 'AI 回答失败');
+        const answer = String(data.answer || '').trim();
+        addAskAiMessage('assistant', answer);
+        askAiHistory.push({ role: 'assistant', content: answer });
+        if (askAiSpeakingEnabled) speakAskAiText(answer);
+    } catch (error) {
+        removeLastAskAiSystemThinking();
+        addAskAiMessage('system', `提问失败：${error.message}`);
+        addDebugInfo('AI 对话失败', { message: error.message, time: new Date().toISOString() });
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
+function addAskAiMessage(role, text) {
+    const messages = document.getElementById('askAiMessages');
+    if (!messages) return;
+    const node = document.createElement('div');
+    node.className = `ask-ai-message ${role}`;
+    node.textContent = text;
+    messages.appendChild(node);
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function removeLastAskAiSystemThinking() {
+    const messages = document.getElementById('askAiMessages');
+    if (!messages) return;
+    const items = Array.from(messages.querySelectorAll('.ask-ai-message.system'));
+    const last = items[items.length - 1];
+    if (last && last.textContent.includes('AI 正在思考')) last.remove();
+}
+
+function startAskAiVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const input = document.getElementById('askAiInput');
+    const note = document.getElementById('askAiNote');
+    if (!SpeechRecognition) {
+        if (note) note.textContent = '当前浏览器不支持语音识别，请使用文字提问。Chrome/Edge 通常支持浏览器语音识别。';
+        addAskAiMessage('system', '当前浏览器不支持语音识别，请使用文字提问。');
+        return;
+    }
+    if (askAiRecognition) {
+        askAiRecognition.stop();
+        askAiRecognition = null;
+        return;
+    }
+    askAiRecognition = new SpeechRecognition();
+    askAiRecognition.lang = 'zh-CN';
+    askAiRecognition.interimResults = false;
+    askAiRecognition.continuous = false;
+    if (note) note.textContent = '正在听你说话，请说出问题...';
+    askAiRecognition.onresult = (event) => {
+        const text = Array.from(event.results).map(result => result[0].transcript).join('');
+        if (input) input.value = `${input.value || ''}${text}`.trim();
+        if (note) note.textContent = '语音已识别，可以继续编辑或点击“提问”。';
+    };
+    askAiRecognition.onerror = (event) => {
+        if (note) note.textContent = `语音识别失败：${event.error || '未知错误'}。请改用文字提问。`;
+    };
+    askAiRecognition.onend = () => {
+        askAiRecognition = null;
+    };
+    askAiRecognition.start();
+}
+
+function toggleAskAiSpeak() {
+    askAiSpeakingEnabled = !askAiSpeakingEnabled;
+    const btn = document.getElementById('askAiSpeakBtn');
+    if (btn) btn.textContent = askAiSpeakingEnabled ? '朗读回答：开' : '朗读回答：关';
+    if (!askAiSpeakingEnabled) stopAskAiSpeaking();
+}
+
+function speakAskAiText(text) {
+    if (!('speechSynthesis' in window)) {
+        const note = document.getElementById('askAiNote');
+        if (note) note.textContent = '当前浏览器不支持朗读功能。';
+        return;
+    }
+    stopAskAiSpeaking();
+    const utterance = new SpeechSynthesisUtterance(text.slice(0, 800));
+    utterance.lang = 'zh-CN';
+    utterance.rate = 0.95;
+    utterance.pitch = 1.05;
+    window.speechSynthesis.speak(utterance);
+}
+
+function stopAskAiSpeaking() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
 async function moveGameToTrash(gameId, event) {
     if (event) event.stopPropagation();
     if (isGenerating) {
@@ -1680,6 +1931,10 @@ function escapeAttr(value) {
 
 function boot() {
     loadLocalLayoutState();
+    document.getElementById('askAiInput').disabled = false;
+    document.getElementById('askAiSendBtn').disabled = false;
+    document.getElementById('askAiVoiceBtn').disabled = false;
+    setupAskAiInputShortcuts();
     if (localStorage.getItem('gameUnlocked') === 'true') {
         isUnlocked = true;
         isVibeUnlocked = true;
