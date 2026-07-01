@@ -56,6 +56,8 @@ export async function onRequestPost(context) {
         if (action === 'saveRechargeAccount') return requireSystemAdmin(session, () => saveRechargeAccount(db, body));
         if (action === 'deleteRechargeAccount') return requireSystemAdmin(session, () => deleteRechargeAccount(db, body));
         if (action === 'adjustPoints') return requireSystemAdmin(session, () => adjustPoints(db, body, session.user));
+        if (action === 'setUserRole') return requireSystemAdmin(session, () => setUserRole(db, body));
+        if (action === 'deleteMember') return requireSystemAdmin(session, () => deleteMember(db, body));
         if (action === 'pointLogs') return getPointLogs(db, session.user);
         if (action === 'myProfile') return requireMember(session, () => getMyProfile(db, session.user));
         if (action === 'saveCard') return requireMember(session, () => saveCard(db, session.user, body));
@@ -282,8 +284,7 @@ function requireMember(session, fn) {
 }
 
 async function listMembers(db) {
-    const result = await db.prepare(`SELECT id, username, role, display_name, points, created_at, updated_at, last_login_at FROM users ORDER BY role, created_at DESC`).all();
-    return json({ success: true, members: (result.results || []).map(publicUser) });
+    return json({ success: true, members: (await listMembersData(db)).map(publicUser) });
 }
 
 async function saveMember(db, body) {
@@ -291,15 +292,31 @@ async function saveMember(db, body) {
     const password = String(body.password || '').trim();
     const displayName = sanitizeText(body.displayName || username, 32) || username;
     const points = Math.max(0, Number(body.points || 0));
-    if (!username || !password) return json({ success: false, error: '账号和密码不能为空。' }, 400);
+    const role = sanitizeRole(body.role || 'member');
+    if (!username) return json({ success: false, error: '账号不能为空。' }, 400);
     if ([GAME_ADMIN_USERNAME, SYSTEM_ADMIN_USERNAME].includes(username)) return json({ success: false, error: '内置管理员不能在这里修改。' }, 400);
+    const existing = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
+    if (!existing && !password) return json({ success: false, error: '新增用户必须填写密码。' }, 400);
     const now = new Date().toISOString();
-    await db.prepare(`INSERT INTO users (username, password, role, display_name, points, created_at, updated_at)
-        VALUES (?, ?, 'member', ?, ?, ?, ?)
-        ON CONFLICT(username) DO UPDATE SET password = excluded.password, display_name = excluded.display_name, points = excluded.points, updated_at = excluded.updated_at`)
-        .bind(username, password, displayName, points, now, now).run();
+    if (existing) {
+        if (password) {
+            await db.prepare('UPDATE users SET password = ?, role = ?, display_name = ?, points = ?, updated_at = ? WHERE username = ?')
+                .bind(password, role, displayName, points, now, username).run();
+        } else {
+            await db.prepare('UPDATE users SET role = ?, display_name = ?, points = ?, updated_at = ? WHERE username = ?')
+                .bind(role, displayName, points, now, username).run();
+        }
+    } else {
+        await db.prepare('INSERT INTO users (username, password, role, display_name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .bind(username, password, role, displayName, points, now, now).run();
+    }
     const user = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
-    return json({ success: true, member: publicUser(user) });
+    return json({ success: true, member: publicUser(user), members: (await listMembersData(db)).map(publicUser) });
+}
+
+async function listMembersData(db) {
+    const result = await db.prepare(`SELECT id, username, role, display_name, points, created_at, updated_at, last_login_at FROM users ORDER BY role, created_at DESC`).all();
+    return result.results || [];
 }
 
 async function listInviteCodes(db) {
@@ -402,10 +419,34 @@ async function adjustPoints(db, body, admin) {
     const delta = Number(body.delta || 0);
     const reason = sanitizeText(body.reason || '系统管理员调整积分', 80);
     if (!username || !Number.isFinite(delta) || delta === 0) return json({ success: false, error: '请输入会员账号和非 0 积分变化。' }, 400);
-    const user = await db.prepare('SELECT * FROM users WHERE username = ? AND role = ?').bind(username, 'member').first();
-    if (!user) return json({ success: false, error: '会员不存在。' }, 404);
+    const user = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
+    if (!user) return json({ success: false, error: '用户不存在。' }, 404);
+    if ([GAME_ADMIN_USERNAME, SYSTEM_ADMIN_USERNAME].includes(user.username)) return json({ success: false, error: '内置管理员积分不能在这里调整。' }, 400);
     if (Number(user.points || 0) + delta < 0) return json({ success: false, error: '扣减后积分不能小于 0。' }, 400);
     await changePoints(db, user.id, delta, reason, 'admin_adjust', String(admin.id), { admin: admin.username });
+    return listMembers(db);
+}
+
+async function setUserRole(db, body) {
+    const username = sanitizeUsername(body.username || '');
+    const role = sanitizeRole(body.role || 'member');
+    if (!username) return json({ success: false, error: '缺少用户账号。' }, 400);
+    if ([GAME_ADMIN_USERNAME, SYSTEM_ADMIN_USERNAME].includes(username)) return json({ success: false, error: '内置管理员角色不能切换。' }, 400);
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE users SET role = ?, updated_at = ? WHERE username = ?').bind(role, now, username).run();
+    return listMembers(db);
+}
+
+async function deleteMember(db, body) {
+    const username = sanitizeUsername(body.username || '');
+    if (!username) return json({ success: false, error: '缺少用户账号。' }, 400);
+    if ([GAME_ADMIN_USERNAME, SYSTEM_ADMIN_USERNAME].includes(username)) return json({ success: false, error: '内置管理员不能删除。' }, 400);
+    const user = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+    if (!user) return json({ success: false, error: '用户不存在。' }, 404);
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM member_cards WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM ratings WHERE rater_user_id = ? OR owner_user_id = ?').bind(user.id, user.id).run();
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
     return listMembers(db);
 }
 
@@ -416,7 +457,6 @@ async function getPointLogs(db, user) {
 }
 
 async function getMyProfile(db, user) {
-    await ensureCards(db, user.id);
     const cards = await getCards(db, user.id);
     const fresh = await db.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first();
     return json({ success: true, profile: { ...publicUser(fresh), cards } });
@@ -424,24 +464,23 @@ async function getMyProfile(db, user) {
 
 async function saveCard(db, user, body) {
     const card = body.card || {};
-    const cardId = sanitizeCardId(card.id || 'card-1');
-    if (!cardId) return json({ success: false, error: '个人卡片不存在。' }, 400);
-    await ensureCards(db, user.id);
+    const cardId = sanitizeCardId(card.id || '');
+    if (!cardId) return json({ success: false, error: '游戏不存在。' }, 400);
     const now = new Date().toISOString();
-    await db.prepare(`UPDATE member_cards SET title = ?, icon = ?, description = ?, url = ?, updated_at = ? WHERE user_id = ? AND card_id = ?`)
-        .bind(sanitizeText(card.title || '', 40), sanitizeText(card.icon || '🎮', 4) || '🎮', sanitizeText(card.description || '', 160), sanitizeUrl(card.url || ''), now, user.id, cardId).run();
+    await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
+        ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, updated_at = excluded.updated_at`)
+        .bind(user.id, cardId, sanitizeText(card.title || '', 40), sanitizeText(card.icon || '🎮', 4) || '🎮', sanitizeText(card.description || '', 160), sanitizeUrl(card.url || ''), now).run();
     return getMyProfile(db, user);
 }
 
 async function setRecommendState(db, user, body) {
     const cardId = sanitizeCardId(body.cardId || '');
     const recommended = body.recommended === true;
-    if (!cardId) return json({ success: false, error: '个人卡片不存在。' }, 400);
-    await ensureCards(db, user.id);
+    if (!cardId) return json({ success: false, error: '游戏不存在。' }, 400);
     const card = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ?').bind(user.id, cardId).first();
-    if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先填写游戏标题和游戏地址。' }, 400);
-    const count = await db.prepare('SELECT COUNT(*) AS count FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).first();
-    if (recommended && !card.recommended && Number(count?.count || 0) >= MAX_MEMBER_CARDS) return json({ success: false, error: '每个会员最多推荐 3 个游戏，请先撤销一个旧推荐。' }, 400);
+    if (!card) return json({ success: false, error: '请先保存这个编程游戏后再推荐。' }, 400);
+    if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
         .bind(recommended ? 1 : 0, recommended ? (card.recommended_at || now) : '', now, user.id, cardId).run();
@@ -533,17 +572,19 @@ async function ensureCards(db, userId) {
 }
 
 async function getCards(db, userId) {
-    const result = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? ORDER BY card_id').bind(userId).all();
-    return (result.results || []).map(card => ({
-        id: card.card_id,
-        title: card.title || '',
-        icon: card.icon || '🎮',
-        description: card.description || '',
-        url: card.url || '',
-        recommended: Boolean(card.recommended),
-        recommendedAt: card.recommended_at || '',
-        updatedAt: card.updated_at || ''
-    }));
+    const result = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? ORDER BY updated_at DESC').bind(userId).all();
+    return (result.results || [])
+        .filter(card => card.title || card.url || card.description)
+        .map(card => ({
+            id: card.card_id,
+            title: card.title || '',
+            icon: card.icon || '🎮',
+            description: card.description || '',
+            url: card.url || '',
+            recommended: Boolean(card.recommended),
+            recommendedAt: card.recommended_at || '',
+            updatedAt: card.updated_at || ''
+        }));
 }
 
 async function getProfileObject(db, userId) {
@@ -595,6 +636,10 @@ function sanitizeUsername(value) {
     return String(value || '').toLowerCase().trim().replace(/[^a-z0-9_@.\-]/g, '').slice(0, 80);
 }
 
+function sanitizeRole(value) {
+    return ['member', 'game_admin'].includes(String(value || '')) ? String(value) : 'member';
+}
+
 function sanitizeInviteCode(value) {
     return String(value || '').toUpperCase().trim().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
 }
@@ -604,8 +649,7 @@ function sanitizePlayKey(value) {
 }
 
 function sanitizeCardId(value) {
-    const id = String(value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24);
-    return /^card-[1-3]$/.test(id) ? id : '';
+    return String(value || '').toLowerCase().replace(/[^a-z0-9_-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 64);
 }
 
 function sanitizeText(value, maxLength) {

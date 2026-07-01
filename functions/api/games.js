@@ -97,7 +97,7 @@ export async function onRequestPost(context) {
 
         if (session.user.role === 'member') {
             if (isBuiltinOverride) return json({ success: false, error: '会员不能修改首页内置榜单游戏。' }, 403);
-            if (existing && existing.owner && existing.owner !== session.user.username) return json({ success: false, error: '只能编辑自己的 AI 编程作品。' }, 403);
+            if (existing && existing.owner !== session.user.username) return json({ success: false, error: '只能编辑自己的 AI 编程作品。' }, 403);
             const settings = await getSettings(db);
             const cost = Number(settings[isCreate ? 'ai_create_cost' : 'ai_edit_cost'] || DEFAULT_COSTS[isCreate ? 'ai_create_cost' : 'ai_edit_cost']);
             const fresh = await db.prepare('SELECT points FROM users WHERE id = ?').bind(session.user.id).first();
@@ -124,6 +124,13 @@ export async function onRequestPost(context) {
         await kv.put(`game:${id}`, JSON.stringify(game), {
             metadata: { title, icon, description, owner, ownerName, updatedAt: now, trashed: false, trashedAt: '' }
         });
+
+        if (session.user.role === 'member') {
+            await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
+                ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, updated_at = excluded.updated_at`)
+                .bind(session.user.id, id, title, icon, description, `/api/games?id=${encodeURIComponent(id)}&view=1`, now).run();
+        }
 
         const freshUser = await db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user.id).first();
         return json({ success: true, game: summarizeGame(game), user: publicUser(freshUser) });
