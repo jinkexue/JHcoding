@@ -774,6 +774,275 @@
             -webkit-user-select: text;
         }
 
+        .auth-panel,
+        .member-zone,
+        .admin-zone,
+        .system-zone,
+        .invite-banner,
+        .hero-section {
+            max-width: 1200px;
+            margin: 0 auto 20px;
+            padding: 0 40px;
+        }
+
+        .auth-card,
+        .member-card,
+        .admin-card,
+        .system-card,
+        .invite-card,
+        .hero-card,
+        .recharge-card {
+            background: rgba(255,255,255,0.96);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 38px rgba(0,0,0,0.22);
+        }
+
+        .auth-form,
+        .member-form,
+        .admin-form,
+        .system-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            align-items: end;
+            margin-top: 12px;
+        }
+
+        .auth-form input,
+        .member-form input,
+        .member-form textarea,
+        .admin-form input,
+        .system-form input,
+        .system-form textarea,
+        .system-form select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            outline: none;
+            font-size: 14px;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .member-form textarea,
+        .system-form textarea {
+            min-height: 72px;
+            resize: vertical;
+        }
+
+        .login-status,
+        .auth-hint,
+        .panel-note,
+        .points-badge {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 8px;
+        }
+
+        .user-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            color: white;
+            font-weight: 700;
+        }
+
+        .member-card-grid,
+        .leaderboard-grid,
+        .member-list,
+        .invite-list,
+        .recharge-list,
+        .settings-grid {
+            display: grid;
+            gap: 14px;
+            margin-top: 14px;
+        }
+
+        .personal-game-card,
+        .leaderboard-card,
+        .member-list-item,
+        .invite-item,
+        .recharge-item,
+        .setting-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            padding: 14px;
+            background: #f8fafc;
+        }
+
+        .personal-game-card.recommended {
+            border-color: #22c55e;
+            background: #ecfdf5;
+        }
+
+        .leaderboard-card {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .leaderboard-title {
+            font-weight: 900;
+            color: #1f2937;
+            font-size: 18px;
+        }
+
+        .score-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 800;
+            margin-top: 6px;
+        }
+
+        .rating-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .star-btn {
+            border: 0;
+            border-radius: 999px;
+            padding: 7px 10px;
+            cursor: pointer;
+            background: #eef2ff;
+            color: #4338ca;
+            font-weight: 800;
+        }
+
+        .star-btn.active,
+        .star-btn:hover {
+            background: #facc15;
+            color: #713f12;
+        }
+
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .section-title h2,
+        .section-title h3 {
+            color: #1f2937;
+        }
+
+        .invite-card {
+            background: linear-gradient(135deg, #fff7ed, #ecfeff);
+            border: 2px solid rgba(251,146,60,0.35);
+        }
+
+        .hero-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,254,255,0.96));
+            overflow: hidden;
+            position: relative;
+        }
+
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            inset: -80px -80px auto auto;
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99,102,241,0.22), transparent 68%);
+        }
+
+        .hero-title {
+            font-size: clamp(36px, 7vw, 76px);
+            line-height: 1.05;
+            color: #111827;
+            letter-spacing: -2px;
+            margin-bottom: 14px;
+        }
+
+        .hero-title span {
+            background: linear-gradient(135deg, #2563eb, #9333ea, #f97316);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .hero-copy {
+            max-width: 780px;
+            color: #374151;
+            font-size: 18px;
+            line-height: 1.8;
+        }
+
+        .hero-points,
+        .public-recharge-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .hero-point {
+            background: rgba(255,255,255,0.8);
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            padding: 14px;
+            color: #1f2937;
+            font-weight: 800;
+        }
+
+        .tab-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }
+
+        .tab-row button.active {
+            background: linear-gradient(135deg, #f97316, #ef4444);
+        }
+
+        .points-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(254,243,199,0.95);
+            color: #92400e;
+            font-weight: 900;
+            margin-left: 8px;
+        }
+
+        .qr-preview {
+            max-width: 150px;
+            max-height: 150px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            margin-top: 8px;
+        }
+
+        .invite-card a {
+            color: #2563eb;
+            font-weight: 900;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
         footer {
             text-align: center;
             padding: 20px;
@@ -834,11 +1103,18 @@
             .game-grid { grid-template-columns: 1fr; padding: 20px; }
             .card-toolbar { padding: 0 20px; justify-content: stretch; }
             .card-toolbar .vibe-button { width: 100%; }
-            .vibecoding-shell { padding: 0 20px; }
+            .vibecoding-shell,
+            .auth-panel,
+            .member-zone,
+            .admin-zone,
+            .system-zone,
+            .invite-banner,
+            .hero-section { padding: 0 20px; }
             .vibe-header h2 { font-size: 24px; }
             .vibe-actions { grid-template-columns: 1fr; }
             .password-row input { width: 220px; margin-bottom: 8px; }
             .password-row button { margin-left: 0; }
+            .leaderboard-card { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 400px) {
@@ -853,14 +1129,165 @@
 
     <header>
         <h1>景绘AI编程乐园</h1>
-        <p id="headerSubtitle">在这里，用代码创造快乐</p>
-        <div class="password-row" id="gamePasswordRow">
-            <input type="password" id="globalPassword" placeholder="输入密码解锁所有游戏" maxlength="10">
-            <button onclick="checkGlobalPassword()">进入</button>
+        <p id="headerSubtitle">AI编程改变未来：让孩子把想象力变成真正能玩的作品。</p>
+        <div class="user-bar hidden" id="userBar">
+            <span id="currentUserText"></span>
+            <span class="points-badge" id="pointsBadge">积分 0</span>
+            <button class="vibe-button ghost" onclick="logout()">退出登录</button>
         </div>
     </header>
 
     <main>
+        <section class="hero-section" id="heroSection">
+            <div class="hero-card">
+                <div class="hero-title">AI编程<br><span>改变未来</span></div>
+                <p class="hero-copy">从“我想做一个游戏”开始，让 AI 陪孩子把创意变成作品。学生在创造中理解逻辑、表达和问题解决；家长能看到孩子从玩游戏走向设计游戏、修改游戏、分享游戏。</p>
+                <div class="hero-points">
+                    <div class="hero-point">🎮 注册送 <span id="heroBonusPoints">100</span> 积分，可新建 1 个 AI 游戏</div>
+                    <div class="hero-point">🛠️ 编辑游戏每次扣积分，鼓励认真思考</div>
+                    <div class="hero-point">🏆 推荐作品上榜，被别人玩可获得积分</div>
+                    <div class="hero-point">👨‍👩‍👧 家长可用充值积分支持持续学习</div>
+                </div>
+                <div class="public-recharge-list" id="publicRechargeList"></div>
+            </div>
+        </section>
+
+        <section class="auth-panel" id="authPanel">
+            <div class="auth-card">
+                <div class="section-title">
+                    <div>
+                        <h2>登录 / 邀请码注册</h2>
+                        <p class="auth-hint" id="publicRuleText">陌生人需要邀请码注册；注册成功默认赠送 100 积分。</p>
+                    </div>
+                    <div class="tab-row">
+                        <button class="vibe-button active" id="loginTabBtn" onclick="showAuthTab('login')">登录</button>
+                        <button class="vibe-button ghost" id="registerTabBtn" onclick="showAuthTab('register')">注册</button>
+                    </div>
+                </div>
+                <div id="loginBox">
+                    <div class="auth-form">
+                        <input id="loginUsername" placeholder="账号 / 邮箱" autocomplete="username">
+                        <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
+                        <button class="vibe-button" onclick="login()">登录</button>
+                    </div>
+                    <div class="tab-row">
+                        <button class="vibe-button ghost" onclick="fillGameAdminLogin()">游戏管理员入口</button>
+                        <button class="vibe-button ghost" onclick="fillSystemAdminLogin()">系统管理员入口</button>
+                    </div>
+                </div>
+                <div id="registerBox" class="hidden">
+                    <div class="auth-form">
+                        <input id="registerUsername" placeholder="注册账号 / 邮箱">
+                        <input id="registerDisplayName" placeholder="昵称">
+                        <input type="password" id="registerPassword" placeholder="设置密码">
+                        <input id="registerInviteCode" placeholder="邀请码">
+                        <button class="vibe-button" onclick="registerAccount()">注册并领取积分</button>
+                    </div>
+                </div>
+                <div class="login-status" id="loginStatus">请登录或凭邀请码注册后进入 AI 编程乐园。</div>
+            </div>
+        </section>
+
+        <section class="invite-banner hidden" id="inviteBanner">
+            <div class="invite-card">
+                <strong>邀请朋友一起来编程：</strong>
+                <span>把这个网址分享给朋友：</span>
+                <a href="https://yjh.sivani.net/" target="_blank" rel="noopener">https://yjh.sivani.net/</a>
+            </div>
+        </section>
+
+        <section class="admin-zone hidden" id="adminZone">
+            <div class="admin-card">
+                <div class="section-title">
+                    <div>
+                        <h2>游戏管理员后台：邀请码管理</h2>
+                        <p class="panel-note">游戏管理员可新增、修改、删除邀请码，并设置有效期和每个邀请码的使用次数。</p>
+                    </div>
+                    <button class="vibe-button ghost" onclick="loadInviteCodes()">刷新邀请码</button>
+                </div>
+                <div class="admin-form">
+                    <input id="inviteCode" placeholder="邀请码，留空自动生成">
+                    <input id="inviteExpiresAt" type="datetime-local" placeholder="有效期">
+                    <input id="inviteMaxUses" type="number" min="1" value="1" placeholder="可使用次数">
+                    <select id="inviteActive">
+                        <option value="1">启用</option>
+                        <option value="0">停用</option>
+                    </select>
+                    <button class="vibe-button" onclick="saveInviteCode()">保存邀请码</button>
+                </div>
+                <div class="invite-list" id="inviteList">暂无邀请码。</div>
+            </div>
+        </section>
+
+        <section class="system-zone hidden" id="systemZone">
+            <div class="system-card">
+                <div class="section-title">
+                    <div>
+                        <h2>系统管理员后台：平台设置</h2>
+                        <p class="panel-note">可设置微信二维码、充值微信账户、积分扣费/赠送规则、注册频率限制，并为会员调整积分。</p>
+                    </div>
+                    <button class="vibe-button ghost" onclick="loadSystemAdminData()">刷新后台</button>
+                </div>
+                <div class="settings-grid" id="settingsGrid"></div>
+                <div class="system-form">
+                    <textarea id="wechatQrImage" placeholder="微信二维码图片地址，或粘贴 base64 图片数据"></textarea>
+                    <textarea id="rechargeNotice" placeholder="充值说明"></textarea>
+                    <button class="vibe-button" onclick="saveSystemSettings()">保存平台设置</button>
+                </div>
+                <h3 style="margin-top:18px;">充值微信账户</h3>
+                <div class="system-form">
+                    <input id="rechargeAccountId" type="hidden">
+                    <input id="rechargeName" placeholder="名称，如：学习充值微信">
+                    <input id="rechargeAccount" placeholder="微信号 / 联系方式">
+                    <input id="rechargeQrUrl" placeholder="二维码图片地址（可选）">
+                    <select id="rechargeActive"><option value="1">启用</option><option value="0">停用</option></select>
+                    <button class="vibe-button" onclick="saveRechargeAccount()">保存充值账户</button>
+                </div>
+                <div class="recharge-list" id="rechargeList">暂无充值账户。</div>
+                <h3 style="margin-top:18px;">会员与积分</h3>
+                <div class="system-form">
+                    <input id="memberUsername" placeholder="会员账号">
+                    <input id="memberDisplayName" placeholder="会员昵称">
+                    <input id="memberPassword" placeholder="会员密码">
+                    <input id="memberPoints" type="number" min="0" value="100" placeholder="初始积分">
+                    <button class="vibe-button" onclick="saveMember()">新增/修改会员</button>
+                </div>
+                <div class="system-form">
+                    <input id="pointUsername" placeholder="会员账号">
+                    <input id="pointDelta" type="number" placeholder="积分变化，如 100 或 -10">
+                    <input id="pointReason" placeholder="原因，如 充值赠送积分">
+                    <button class="vibe-button" onclick="adjustPoints()">调整积分</button>
+                </div>
+                <div class="member-list" id="memberList">暂无会员。</div>
+            </div>
+        </section>
+
+        <section class="member-zone hidden" id="memberZone">
+            <div class="member-card">
+                <div class="section-title">
+                    <div>
+                        <h2>我的游戏个人卡片</h2>
+                        <p class="panel-note">每位会员最多有 3 张个人游戏卡片。填写后可推荐到榜单，也可以撤销旧推荐再推荐新的游戏。</p>
+                    </div>
+                    <button class="vibe-button ghost" onclick="loadMyProfile()">刷新卡片</button>
+                </div>
+                <div class="member-card-grid" id="myCards"></div>
+            </div>
+        </section>
+
+        <section class="member-zone hidden" id="leaderboardZone">
+            <div class="member-card">
+                <div class="section-title">
+                    <div>
+                        <h2>会员游戏榜单</h2>
+                        <p class="panel-note">会员可以玩榜单上的游戏，并给他人的榜单游戏打分；榜单按平均分从高到低排序。</p>
+                    </div>
+                    <button class="vibe-button ghost" onclick="loadLeaderboard()">刷新榜单</button>
+                </div>
+                <div class="leaderboard-grid" id="leaderboardList">暂无推荐游戏。</div>
+            </div>
+        </section>
+
         <div class="game-grid" id="gameGrid"></div>
         <div class="card-toolbar">
             <button class="vibe-button ghost" id="compactToggleBtn" onclick="toggleCompactCards()">批量收拢卡片</button>
@@ -871,7 +1298,7 @@
                 <div class="vibe-header">
                     <div>
                         <h2>AI编程Vibecoding</h2>
-                        <p>输入游戏密码后会同时解锁游戏和编程。选择上面的游戏继续修改，或直接新建小游戏；游戏会在独立预览框里运行，出错也可以继续修。</p>
+                        <p>会员可用积分新建和编辑自己的 AI 游戏；游戏管理员可新建和修改首页榜单内置游戏。把想法写成一句话，AI 会帮你生成可玩的作品。</p>
                     </div>
                 </div>
 
@@ -909,7 +1336,7 @@
                                     <button class="vibe-button ghost" id="toggleHintBtn" onclick="toggleHintList()">提示</button>
                                 </div>
                             </div>
-                            <div class="status-area" id="vibeStatus">输入游戏密码即可同时解锁游戏和编程。</div>
+                            <div class="status-area" id="vibeStatus">请先登录。会员可用积分 AI 编程，游戏管理员可管理内置游戏。</div>
                             <div class="thinking-card" id="thinkingCard">
                                 <div class="thinking-face" id="thinkingFace">🤔</div>
                                 <div class="thinking-title" id="thinkingTitle">等待你的创意</div>
@@ -976,11 +1403,26 @@
     </footer>
 
 <script>
-const GLOBAL_PASSWORD = '150113';
-const VIBE_PASSWORD = '311051';
+const ADMIN_INVITE_URL = 'https://yjh.sivani.net/';
+const SYSTEM_SETTING_FIELDS = [
+    ['signup_bonus_points', '注册赠送积分'],
+    ['ai_create_cost', 'AI 新建游戏扣积分'],
+    ['ai_edit_cost', 'AI 编辑游戏扣积分'],
+    ['leaderboard_play_cost', '玩别人榜单游戏扣积分'],
+    ['leaderboard_owner_reward', '推荐游戏被玩奖励积分'],
+    ['recharge_min_yuan', '最低充值金额'],
+    ['recharge_points_per_10_yuan', '每 10 元赠送积分'],
+    ['register_ip_limit_per_hour', '每 IP 每小时注册次数']
+];
 
 let isUnlocked = false;
 let isVibeUnlocked = false;
+let currentUser = null;
+let authToken = localStorage.getItem('authToken') || '';
+let myProfile = null;
+let leaderboardGames = [];
+let platformSettings = {};
+let rechargeAccounts = [];
 let selectedGame = null;
 let selectedCardId = null;
 let dynamicGames = [];
@@ -1070,9 +1512,14 @@ const builtInGames = [
 function renderGameCards() {
     const grid = document.getElementById('gameGrid');
     grid.classList.toggle('compact', cardsCompact);
+    const canSeeGames = currentUser && currentUser.role !== 'system_admin';
+    if (!canSeeGames) {
+        grid.innerHTML = currentUser && currentUser.role === 'system_admin' ? '' : '<div class="auth-card"><strong>请先登录或注册。</strong><p class="panel-note">登录后即可玩游戏、AI 编程、推荐作品和参与榜单。</p></div>';
+        return;
+    }
     const allGames = sortGamesByOrder([
         ...builtInGames.filter(game => !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)
+        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed && (isAdminRole() || !game.owner || game.owner === currentUser.username))
     ]);
 
     grid.innerHTML = allGames.map((game, index) => {
@@ -1081,20 +1528,24 @@ function renderGameCards() {
         const tag = isDynamic ? '<span class="card-tag">编程作品</span>' : (hasOverride ? '<span class="card-tag">已改版</span>' : '');
         const playText = isDynamic ? '打开作品' : (game.id === 'english' ? '开始学习' : '开始游戏');
         const playUrl = hasOverride ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}&view=1` : (game.url || '#');
-        const lockedClass = (!isUnlocked && !isVibeUnlocked) ? ' locked' : '';
+        const isOwner = !game.owner || !currentUser || game.owner === currentUser.username;
+        const lockedClass = !currentUser ? ' locked' : '';
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
+        const adminActions = currentUser && ['game_admin', 'system_admin'].includes(currentUser.role)
+            ? `<button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">修改游戏</button>
+               <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>`
+            : (currentUser && currentUser.role === 'member' && isDynamic && isOwner ? `<button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">编辑自己的游戏</button>` : '');
         return `
-            <div class="game-card${lockedClass}${selectedClass}" draggable="true" data-game-id="${escapeAttr(game.id)}" onclick="openGameFromCard('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
-                <div class="card-number"><span>${index + 1}</span><span class="drag-hint">拖动排序</span></div>
+            <div class="game-card${lockedClass}${selectedClass}" draggable="${currentUser && ['game_admin', 'system_admin'].includes(currentUser.role) ? 'true' : 'false'}" data-game-id="${escapeAttr(game.id)}" onclick="openGameFromCard('${escapeAttr(game.id)}')" ondragstart="handleCardDragStart(event, '${escapeAttr(game.id)}')" ondragover="handleCardDragOver(event)" ondrop="handleCardDrop(event, '${escapeAttr(game.id)}')" ondragend="handleCardDragEnd(event)">
+                <div class="card-number"><span>${index + 1}</span>${currentUser && ['game_admin', 'system_admin'].includes(currentUser.role) ? '<span class="drag-hint">拖动排序</span>' : ''}</div>
                 ${tag}
                 <div class="game-preview">${game.icon || '🎮'}</div>
                 <div class="game-info">
                     <h2>${escapeHtml(game.title)}</h2>
                     <p>${escapeHtml(game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续用提示词修改。')}</p>
                     <div class="card-actions">
-                        <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation();">${playText}</a>
-                        <button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">修改游戏</button>
-                        <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>
+                        <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation(); if (!currentUser) { event.preventDefault(); showToast('请先登录'); }">${playText}</a>
+                        ${adminActions}
                     </div>
                 </div>
             </div>
@@ -1113,6 +1564,11 @@ function sortGamesByOrder(games) {
 }
 
 function handleCardDragStart(event, gameId) {
+    if (!isAdminRole()) {
+        event.preventDefault();
+        showToast('只有管理员可以调整榜单卡片');
+        return;
+    }
     if (isGenerating) {
         event.preventDefault();
         showToast('大模型正在工作，请耐心等待');
@@ -1157,8 +1613,8 @@ function handleCardDragEnd(event) {
 }
 
 async function openGameFromCard(gameId) {
-    if (!isUnlocked && !isVibeUnlocked) {
-        showToast('请先输入密码解锁游戏');
+    if (!currentUser) {
+        showToast('请先登录');
         return;
     }
     const game = getGameMetaById(gameId);
@@ -1203,41 +1659,645 @@ function safeJsonArray(value) {
 }
 
 function checkGlobalPassword() {
-    const input = document.getElementById('globalPassword');
-    if (input.value.trim() === GLOBAL_PASSWORD) {
-        isUnlocked = true;
-        isVibeUnlocked = true;
-        localStorage.setItem('gameUnlocked', 'true');
-        localStorage.setItem('vibeCodingUnlocked', 'true');
-        showToast('游戏和编程已解锁');
-        applyUnlockState();
-    } else {
-        showToast('密码错误');
-        input.value = '';
-    }
+    showToast('原密码进入方式已取消，请使用登录或邀请码注册。');
+}
+
+function isAdminRole() {
+    return currentUser && ['game_admin', 'system_admin'].includes(currentUser.role);
+}
+
+function isGameAdminRole() {
+    return currentUser && currentUser.role === 'game_admin';
+}
+
+function isSystemAdminRole() {
+    return currentUser && currentUser.role === 'system_admin';
 }
 
 function applyUnlockState() {
-    if (isUnlocked) {
-        document.getElementById('gamePasswordRow').style.display = 'none';
-        document.getElementById('headerSubtitle').textContent = '已解锁 - 在这里，用代码创造快乐';
+    const loggedIn = Boolean(currentUser);
+    const isGameAdmin = isGameAdminRole();
+    const isSystemAdmin = isSystemAdminRole();
+    const isMember = currentUser && currentUser.role === 'member';
+    const isAdmin = isGameAdmin || isSystemAdmin;
+    const vibeEl = document.getElementById('vibecoding');
+    isUnlocked = loggedIn;
+    isVibeUnlocked = Boolean(isMember || isGameAdmin);
+
+    document.getElementById('heroSection').classList.toggle('hidden', loggedIn);
+    document.getElementById('authPanel').classList.toggle('hidden', loggedIn);
+    document.getElementById('userBar').classList.toggle('hidden', !loggedIn);
+    document.getElementById('memberZone').classList.toggle('hidden', !isMember);
+    document.getElementById('leaderboardZone').classList.toggle('hidden', !isMember);
+    document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
+    document.getElementById('systemZone').classList.toggle('hidden', !isSystemAdmin);
+    document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
+    if (vibeEl) vibeEl.classList.toggle('hidden', !isVibeUnlocked || isSystemAdmin);
+    document.getElementById('compactToggleBtn').style.display = isGameAdmin ? '' : 'none';
+    if (isSystemAdmin) {
+        clearSelectedGame({ silent: true });
     }
 
-    if (isVibeUnlocked) {
-        document.getElementById('vibePrompt').disabled = false;
-        document.getElementById('openNewGameBtn').disabled = false;
-        document.getElementById('submitPromptBtn').disabled = false;
-        document.getElementById('backToNewBtn').disabled = false;
-        document.getElementById('toggleHintBtn').disabled = false;
-        document.getElementById('vibeVoiceBtn').disabled = false;
-        document.getElementById('askAiInput').disabled = false;
-        document.getElementById('askAiSendBtn').disabled = false;
-        document.getElementById('askAiVoiceBtn').disabled = false;
-        setStatus('游戏和编程已解锁。点击“新建游戏”，或在游戏卡片上点击“修改游戏”。', 'ok');
+    if (loggedIn) {
+        const roleText = isSystemAdmin ? '系统管理员' : (isGameAdmin ? '游戏管理员' : '会员');
+        document.getElementById('currentUserText').textContent = `${roleText}：${currentUser.displayName || currentUser.username}`;
+        document.getElementById('pointsBadge').textContent = `积分 ${currentUser.points || 0}`;
+        document.getElementById('pointsBadge').classList.toggle('hidden', !isMember);
+        document.getElementById('headerSubtitle').textContent = isSystemAdmin ? '系统管理员后台' : (isGameAdmin ? '游戏管理员后台 - 可管理邀请码和编程作品' : '会员已登录 - 可以 AI 编程、玩游戏、推荐游戏和评分');
+    } else {
+        document.getElementById('currentUserText').textContent = '';
+        document.getElementById('headerSubtitle').textContent = 'AI编程改变未来：让孩子把想象力变成真正能玩的作品。';
     }
 
+    document.getElementById('vibePrompt').disabled = !isVibeUnlocked;
+    document.getElementById('openNewGameBtn').disabled = !isVibeUnlocked;
+    document.getElementById('submitPromptBtn').disabled = !isVibeUnlocked;
+    document.getElementById('backToNewBtn').disabled = !isVibeUnlocked;
+    document.getElementById('toggleHintBtn').disabled = !isVibeUnlocked;
+    document.getElementById('vibeVoiceBtn').disabled = !isVibeUnlocked;
+    document.getElementById('askAiInput').disabled = false;
+    document.getElementById('askAiSendBtn').disabled = false;
+    document.getElementById('askAiVoiceBtn').disabled = false;
+
+    setStatus(isVibeUnlocked ? (isMember ? `会员 AI 编程已开启：新建 ${platformSettings.ai_create_cost || 100} 积分，编辑 ${platformSettings.ai_edit_cost || 10} 积分。` : `游戏管理员已解锁编程。邀请朋友一起来编程：${ADMIN_INVITE_URL}`) : '请登录会员或游戏管理员账号使用 AI 编程。', isVibeUnlocked ? 'ok' : 'warn');
     renderGameCards();
     renderTrashList();
+}
+
+async function loadPublicSettings() {
+    try {
+        const data = await apiAuth('publicSettings');
+        platformSettings = data.settings || platformSettings;
+        rechargeAccounts = data.rechargeAccounts || [];
+        updatePublicRuleText();
+        renderPublicRecharge();
+    } catch (error) {
+        console.warn('加载公开设置失败：', error);
+    }
+}
+
+function updatePublicRuleText() {
+    const bonus = platformSettings.signup_bonus_points || 100;
+    const createCost = platformSettings.ai_create_cost || 100;
+    const editCost = platformSettings.ai_edit_cost || 10;
+    const playCost = platformSettings.leaderboard_play_cost || 2;
+    const reward = platformSettings.leaderboard_owner_reward || 1;
+    const rule = `陌生人需要邀请码注册；注册成功赠送 ${bonus} 积分。AI 新建 ${createCost} 积分，编辑 ${editCost} 积分；玩他人榜单游戏 -${playCost} 积分，被玩 +${reward} 积分。`;
+    const text = document.getElementById('publicRuleText');
+    if (text) text.textContent = rule;
+    const heroBonus = document.getElementById('heroBonusPoints');
+    if (heroBonus) heroBonus.textContent = bonus;
+}
+
+function renderPublicRecharge() {
+    const list = document.getElementById('publicRechargeList');
+    if (!list) return;
+    const notice = platformSettings.recharge_notice || '';
+    const qr = platformSettings.wechat_qr_image || '';
+    const accounts = rechargeAccounts || [];
+    if (!notice && !qr && !accounts.length) {
+        list.innerHTML = '';
+        return;
+    }
+    list.innerHTML = `
+        <div class="hero-point">💳 ${escapeHtml(notice || `充值 ${platformSettings.recharge_min_yuan || 10} 元起，10 元 ${platformSettings.recharge_points_per_10_yuan || 100} 积分`)}</div>
+        ${accounts.map(account => `<div class="hero-point">微信：${escapeHtml(account.name || '充值微信')} ${escapeHtml(account.account || '')}${account.qr_url ? `<br><img class="qr-preview" src="${escapeAttr(account.qr_url)}" alt="充值二维码">` : ''}</div>`).join('')}
+        ${qr ? `<div class="hero-point">平台二维码<br><img class="qr-preview" src="${escapeAttr(qr)}" alt="微信二维码"></div>` : ''}
+    `;
+}
+
+function authHeaders() {
+    return authToken ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` } : { 'Content-Type': 'application/json' };
+}
+
+async function apiAuth(action, payload = {}) {
+    const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ action, token: authToken, ...payload })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || '操作失败');
+    return data;
+}
+
+function fillGameAdminLogin() {
+    document.getElementById('loginUsername').value = 'yjh';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+    document.getElementById('loginStatus').textContent = '请输入游戏管理员密码 150113 后登录。';
+}
+
+function fillSystemAdminLogin() {
+    document.getElementById('loginUsername').value = 'yqcw@qq.com';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPassword').focus();
+    document.getElementById('loginStatus').textContent = '请输入系统管理员密码 123456 后登录。';
+}
+
+function fillAdminLogin() {
+    fillGameAdminLogin();
+}
+
+function showAuthTab(tab) {
+    const isLogin = tab !== 'register';
+    document.getElementById('loginBox').classList.toggle('hidden', !isLogin);
+    document.getElementById('registerBox').classList.toggle('hidden', isLogin);
+    document.getElementById('loginTabBtn').classList.toggle('active', isLogin);
+    document.getElementById('registerTabBtn').classList.toggle('active', !isLogin);
+}
+
+async function registerAccount() {
+    const username = document.getElementById('registerUsername').value.trim();
+    const displayName = document.getElementById('registerDisplayName').value.trim();
+    const password = document.getElementById('registerPassword').value.trim();
+    const inviteCode = document.getElementById('registerInviteCode').value.trim();
+    const status = document.getElementById('loginStatus');
+    if (!username || !password || !inviteCode) {
+        status.textContent = '注册需要账号、密码和邀请码。';
+        return;
+    }
+    status.textContent = '正在注册...';
+    try {
+        const data = await apiAuth('register', { username, displayName, password, inviteCode });
+        authToken = data.token;
+        currentUser = data.user;
+        platformSettings = data.settings || platformSettings;
+        localStorage.setItem('authToken', authToken);
+        status.textContent = data.message || '注册成功。';
+        applyUnlockState();
+        await afterLoginLoad();
+    } catch (error) {
+        status.textContent = `注册失败：${error.message}`;
+    }
+}
+
+async function login() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const status = document.getElementById('loginStatus');
+    if (!username || !password) {
+        status.textContent = '请输入账号和密码。';
+        return;
+    }
+    status.textContent = '正在登录...';
+    try {
+        const data = await apiAuth('login', { username, password });
+        authToken = data.token;
+        currentUser = data.user;
+        platformSettings = data.settings || platformSettings;
+        localStorage.setItem('authToken', authToken);
+        localStorage.removeItem('gameUnlocked');
+        localStorage.removeItem('vibeCodingUnlocked');
+        status.textContent = '登录成功。';
+        applyUnlockState();
+        await afterLoginLoad();
+        if (currentUser.role === 'game_admin') showToast(`欢迎游戏管理员！邀请朋友一起来编程：${ADMIN_INVITE_URL}`);
+        if (currentUser.role === 'system_admin') showToast('欢迎系统管理员，已进入后台。');
+    } catch (error) {
+        status.textContent = `登录失败：${error.message}`;
+    }
+}
+
+function logout() {
+    authToken = '';
+    currentUser = null;
+    myProfile = null;
+    leaderboardGames = [];
+    localStorage.removeItem('authToken');
+    selectedGame = null;
+    selectedCardId = null;
+    clearPreviewFrame();
+    applyUnlockState();
+    document.getElementById('myCards').innerHTML = '';
+    document.getElementById('leaderboardList').textContent = '暂无推荐游戏。';
+    document.getElementById('memberList').textContent = '暂无会员。';
+    document.getElementById('inviteList').textContent = '暂无邀请码。';
+    document.getElementById('rechargeList').textContent = '暂无充值账户。';
+    showToast('已退出登录');
+}
+
+async function restoreSession() {
+    if (!authToken) return;
+    try {
+        const data = await apiAuth('me');
+        currentUser = data.user;
+        platformSettings = data.settings || platformSettings;
+        applyUnlockState();
+        await afterLoginLoad();
+    } catch (error) {
+        localStorage.removeItem('authToken');
+        authToken = '';
+        currentUser = null;
+        applyUnlockState();
+    }
+}
+
+async function afterLoginLoad() {
+    if (!currentUser) return;
+    if (isAdminRole()) {
+        await loadInviteCodes();
+        if (isSystemAdminRole()) await loadSystemAdminData();
+    } else {
+        await loadMyProfile();
+        await loadLeaderboard();
+    }
+}
+
+async function loadInviteCodes() {
+    if (!isAdminRole()) return;
+    const list = document.getElementById('inviteList');
+    list.textContent = '正在加载邀请码...';
+    try {
+        const data = await apiAuth('listInviteCodes');
+        renderInviteCodes(data.inviteCodes || []);
+    } catch (error) {
+        list.textContent = `加载邀请码失败：${error.message}`;
+    }
+}
+
+function renderInviteCodes(codes) {
+    const list = document.getElementById('inviteList');
+    if (!codes.length) {
+        list.textContent = '暂无邀请码，请在上方新增。';
+        return;
+    }
+    list.innerHTML = codes.map(item => `
+        <div class="invite-item">
+            <strong>${escapeHtml(item.code)}</strong>
+            <div class="panel-note">状态：${item.active ? '启用' : '停用'} | 已用 ${item.used_count || 0}/${item.max_uses || 1} | 有效期：${item.expires_at ? new Date(item.expires_at).toLocaleString() : '长期有效'}</div>
+            <div class="rating-row">
+                <button class="vibe-button ghost" onclick="editInviteCode('${escapeAttr(item.code)}','${escapeAttr(item.expires_at || '')}',${Number(item.max_uses || 1)},${Number(item.active || 0)})">填入修改</button>
+                <button class="trash-btn" onclick="deleteInviteCode('${escapeAttr(item.code)}')">删除邀请码</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function editInviteCode(code, expiresAt, maxUses, active) {
+    document.getElementById('inviteCode').value = code;
+    document.getElementById('inviteMaxUses').value = maxUses || 1;
+    document.getElementById('inviteActive').value = active ? '1' : '0';
+    document.getElementById('inviteExpiresAt').value = expiresAt ? new Date(expiresAt).toISOString().slice(0,16) : '';
+}
+
+async function saveInviteCode() {
+    try {
+        const data = await apiAuth('saveInviteCode', {
+            code: document.getElementById('inviteCode').value.trim(),
+            expiresAt: document.getElementById('inviteExpiresAt').value,
+            maxUses: Number(document.getElementById('inviteMaxUses').value || 1),
+            active: document.getElementById('inviteActive').value === '1'
+        });
+        renderInviteCodes(data.inviteCodes || []);
+        document.getElementById('inviteCode').value = '';
+        showToast('邀请码已保存');
+    } catch (error) {
+        showToast(`保存邀请码失败：${error.message}`);
+    }
+}
+
+async function deleteInviteCode(code) {
+    if (!confirm(`确定删除邀请码 ${code} 吗？`)) return;
+    try {
+        const data = await apiAuth('deleteInviteCode', { code });
+        renderInviteCodes(data.inviteCodes || []);
+        showToast('邀请码已删除');
+    } catch (error) {
+        showToast(`删除邀请码失败：${error.message}`);
+    }
+}
+
+async function loadSystemAdminData() {
+    if (!isSystemAdminRole()) return;
+    await Promise.all([loadMembers(), loadInviteCodes(), loadSettings(), loadRechargeAccounts()]);
+}
+
+async function loadSettings() {
+    const data = await apiAuth('getSettings');
+    platformSettings = data.settings || {};
+    renderSettings();
+}
+
+function renderSettings() {
+    const grid = document.getElementById('settingsGrid');
+    grid.innerHTML = SYSTEM_SETTING_FIELDS.map(([key, label]) => `
+        <div class="setting-item">
+            <label><strong>${label}</strong></label>
+            <input id="setting-${key}" type="number" value="${escapeAttr(platformSettings[key] || '')}" placeholder="${escapeAttr(label)}">
+        </div>
+    `).join('');
+    document.getElementById('wechatQrImage').value = platformSettings.wechat_qr_image || '';
+    document.getElementById('rechargeNotice').value = platformSettings.recharge_notice || '';
+}
+
+async function saveSystemSettings() {
+    const settings = {};
+    SYSTEM_SETTING_FIELDS.forEach(([key]) => settings[key] = document.getElementById(`setting-${key}`).value);
+    settings.wechat_qr_image = document.getElementById('wechatQrImage').value.trim();
+    settings.recharge_notice = document.getElementById('rechargeNotice').value.trim();
+    try {
+        const data = await apiAuth('saveSettings', { settings });
+        platformSettings = data.settings || {};
+        renderSettings();
+        updatePublicRuleText();
+        applyUnlockState();
+        showToast('平台设置已保存');
+    } catch (error) {
+        showToast(`保存平台设置失败：${error.message}`);
+    }
+}
+
+async function loadRechargeAccounts() {
+    const data = await apiAuth('listRechargeAccounts');
+    rechargeAccounts = data.accounts || [];
+    renderRechargeAccounts();
+}
+
+function renderRechargeAccounts() {
+    const list = document.getElementById('rechargeList');
+    if (!rechargeAccounts.length) {
+        list.textContent = '暂无充值账户。';
+        return;
+    }
+    list.innerHTML = rechargeAccounts.map(account => `
+        <div class="recharge-item">
+            <strong>${escapeHtml(account.name)}：${escapeHtml(account.account)}</strong>
+            <div class="panel-note">状态：${account.active ? '启用' : '停用'}</div>
+            ${account.qr_url ? `<img class="qr-preview" src="${escapeAttr(account.qr_url)}" alt="二维码">` : ''}
+            <div class="rating-row">
+                <button class="vibe-button ghost" onclick="editRechargeAccount(${account.id}, '${escapeAttr(account.name)}', '${escapeAttr(account.account)}', '${escapeAttr(account.qr_url || '')}', ${Number(account.active || 0)})">填入修改</button>
+                <button class="trash-btn" onclick="deleteRechargeAccount(${account.id})">删除账户</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function editRechargeAccount(id, name, account, qrUrl, active) {
+    document.getElementById('rechargeAccountId').value = id;
+    document.getElementById('rechargeName').value = name;
+    document.getElementById('rechargeAccount').value = account;
+    document.getElementById('rechargeQrUrl').value = qrUrl;
+    document.getElementById('rechargeActive').value = active ? '1' : '0';
+}
+
+async function saveRechargeAccount() {
+    try {
+        const data = await apiAuth('saveRechargeAccount', {
+            id: Number(document.getElementById('rechargeAccountId').value || 0),
+            name: document.getElementById('rechargeName').value.trim(),
+            account: document.getElementById('rechargeAccount').value.trim(),
+            qrUrl: document.getElementById('rechargeQrUrl').value.trim(),
+            active: document.getElementById('rechargeActive').value === '1'
+        });
+        rechargeAccounts = data.accounts || [];
+        renderRechargeAccounts();
+        ['rechargeAccountId','rechargeName','rechargeAccount','rechargeQrUrl'].forEach(id => document.getElementById(id).value = '');
+        showToast('充值账户已保存');
+    } catch (error) {
+        showToast(`保存充值账户失败：${error.message}`);
+    }
+}
+
+async function deleteRechargeAccount(id) {
+    if (!confirm('确定删除这个充值微信账户吗？')) return;
+    try {
+        const data = await apiAuth('deleteRechargeAccount', { id });
+        rechargeAccounts = data.accounts || [];
+        renderRechargeAccounts();
+        showToast('充值账户已删除');
+    } catch (error) {
+        showToast(`删除充值账户失败：${error.message}`);
+    }
+}
+
+async function loadMembers() {
+    if (!isSystemAdminRole()) return;
+    const list = document.getElementById('memberList');
+    list.textContent = '正在加载会员...';
+    try {
+        const data = await apiAuth('listMembers');
+        if (!data.members.length) {
+            list.textContent = '暂无会员，请在上方新增。';
+            return;
+        }
+        list.innerHTML = data.members.map(member => `
+            <div class="member-list-item">
+                <strong>${escapeHtml(member.displayName)}（${escapeHtml(member.username)}）</strong>
+                <div class="panel-note">角色：${escapeHtml(roleLabel(member.role))} | 积分：${member.points || 0} | 注册：${member.createdAt ? new Date(member.createdAt).toLocaleString() : '-'}</div>
+                <div class="rating-row">
+                    ${member.role === 'member' ? `<button class="vibe-button ghost" onclick="editMemberFromList('${escapeAttr(member.username)}','${escapeAttr(member.displayName)}', ${Number(member.points || 0)})">填入修改</button>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        list.textContent = `加载会员失败：${error.message}`;
+    }
+}
+
+function roleLabel(role) {
+    return role === 'system_admin' ? '系统管理员' : (role === 'game_admin' ? '游戏管理员' : '会员');
+}
+
+function editMemberFromList(username, displayName, points = 100) {
+    document.getElementById('memberUsername').value = username;
+    document.getElementById('memberDisplayName').value = displayName;
+    document.getElementById('memberPoints').value = points;
+    document.getElementById('pointUsername').value = username;
+    document.getElementById('memberPassword').focus();
+    showToast('已填入会员账号，请输入新密码后保存');
+}
+
+async function saveMember() {
+    if (!isSystemAdminRole()) {
+        showToast('只有系统管理员可以新增或修改会员');
+        return;
+    }
+    const username = document.getElementById('memberUsername').value.trim();
+    const displayName = document.getElementById('memberDisplayName').value.trim();
+    const password = document.getElementById('memberPassword').value.trim();
+    const points = Number(document.getElementById('memberPoints').value || 0);
+    if (!username || !password) {
+        showToast('会员账号和密码不能为空');
+        return;
+    }
+    try {
+        await apiAuth('saveMember', { username, displayName, password, points });
+        document.getElementById('memberPassword').value = '';
+        showToast('会员已保存');
+        await loadMembers();
+    } catch (error) {
+        showToast(`保存会员失败：${error.message}`);
+    }
+}
+
+async function adjustPoints() {
+    const username = document.getElementById('pointUsername').value.trim();
+    const delta = Number(document.getElementById('pointDelta').value || 0);
+    const reason = document.getElementById('pointReason').value.trim() || '系统管理员调整积分';
+    if (!username || !delta) {
+        showToast('请输入会员账号和非 0 积分变化');
+        return;
+    }
+    try {
+        await apiAuth('adjustPoints', { username, delta, reason });
+        document.getElementById('pointDelta').value = '';
+        showToast('积分已调整');
+        await loadMembers();
+    } catch (error) {
+        showToast(`调整积分失败：${error.message}`);
+    }
+}
+
+async function loadMyProfile() {
+    if (!currentUser || currentUser.role !== 'member') return;
+    const wrap = document.getElementById('myCards');
+    wrap.textContent = '正在加载个人卡片...';
+    try {
+        const data = await apiAuth('myProfile');
+        myProfile = data.profile;
+        renderMyCards();
+    } catch (error) {
+        wrap.textContent = `加载个人卡片失败：${error.message}`;
+    }
+}
+
+function renderMyCards() {
+    const wrap = document.getElementById('myCards');
+    const cards = myProfile && Array.isArray(myProfile.cards) ? myProfile.cards : [];
+    if (!cards.length) {
+        wrap.textContent = '暂无个人卡片。';
+        return;
+    }
+    wrap.innerHTML = cards.map((card, index) => `
+        <div class="personal-game-card ${card.recommended ? 'recommended' : ''}">
+            <div class="section-title">
+                <h3>个人卡片 ${index + 1} ${card.recommended ? '✅ 已推荐' : ''}</h3>
+                <button class="vibe-button ${card.recommended ? 'ghost' : ''}" onclick="toggleRecommend('${escapeAttr(card.id)}', ${card.recommended ? 'false' : 'true'})">${card.recommended ? '撤销推荐' : '推荐到游戏榜单'}</button>
+            </div>
+            <div class="member-form">
+                <input id="${card.id}-icon" value="${escapeAttr(card.icon || '🎮')}" placeholder="图标">
+                <input id="${card.id}-title" value="${escapeAttr(card.title || '')}" placeholder="游戏标题">
+                <input id="${card.id}-url" value="${escapeAttr(card.url || '')}" placeholder="游戏地址，如 snake-game.html 或 /api/games?id=...&view=1">
+                <textarea id="${card.id}-desc" placeholder="游戏简介">${escapeHtml(card.description || '')}</textarea>
+            </div>
+            <div class="rating-row">
+                <button class="vibe-button" onclick="saveMyCard('${escapeAttr(card.id)}')">保存卡片</button>
+                ${card.url ? `<button class="play-btn" onclick="playPersonalCard('${escapeAttr(card.url)}')">玩这个游戏</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function playPersonalCard(url) {
+    if (url) window.open(url, '_blank');
+}
+
+async function saveMyCard(cardId) {
+    if (!currentUser || currentUser.role !== 'member') return;
+    if (leaderboardGames.length) {
+        const card = leaderboardGames.find(game => game.owner === currentUser.username && game.cardId === cardId);
+        if (card) {
+            const fieldIds = { icon: 'icon', title: 'title', url: 'url', description: 'desc' };
+            const changed = ['icon', 'title', 'url', 'description'].some(field => String(card[field] || '') !== String(document.getElementById(`${cardId}-${fieldIds[field]}`).value || ''));
+            if (changed && !confirm('这张卡片已经推荐到榜单。修改内容会同步影响榜单展示，确定保存吗？')) return;
+        }
+    }
+    const card = {
+        id: cardId,
+        icon: document.getElementById(`${cardId}-icon`).value,
+        title: document.getElementById(`${cardId}-title`).value,
+        url: document.getElementById(`${cardId}-url`).value,
+        description: document.getElementById(`${cardId}-desc`).value
+    };
+    try {
+        const data = await apiAuth('saveCard', { card });
+        myProfile = data.profile;
+        renderMyCards();
+        await loadLeaderboard();
+        showToast('个人卡片已保存');
+    } catch (error) {
+        showToast(`保存卡片失败：${error.message}`);
+    }
+}
+
+async function toggleRecommend(cardId, recommended) {
+    try {
+        const data = await apiAuth('recommend', { cardId, recommended });
+        myProfile = data.profile;
+        leaderboardGames = data.leaderboard || [];
+        renderMyCards();
+        renderLeaderboard();
+        showToast(recommended ? '已推荐到游戏榜单' : '已撤销推荐');
+    } catch (error) {
+        showToast(`推荐操作失败：${error.message}`);
+    }
+}
+
+async function loadLeaderboard() {
+    if (!currentUser || currentUser.role !== 'member') return;
+    const list = document.getElementById('leaderboardList');
+    list.textContent = '正在加载榜单...';
+    try {
+        const data = await apiAuth('leaderboard');
+        leaderboardGames = data.leaderboard || [];
+        renderLeaderboard();
+    } catch (error) {
+        list.textContent = `加载榜单失败：${error.message}`;
+    }
+}
+
+function renderLeaderboard() {
+    const list = document.getElementById('leaderboardList');
+    if (!leaderboardGames.length) {
+        list.textContent = '暂无推荐游戏。';
+        return;
+    }
+    list.innerHTML = leaderboardGames.map((game, index) => {
+        const mine = currentUser && game.owner === currentUser.username;
+        return `
+            <div class="leaderboard-card">
+                <div>
+                    <div class="leaderboard-title">${index + 1}. ${escapeHtml(game.icon || '🎮')} ${escapeHtml(game.title)}</div>
+                    <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
+                    <span class="score-pill">⭐ ${game.averageScore || 0} 分 / ${game.ratingCount || 0} 人评分</span>
+                    <div class="rating-row">
+                        ${mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('')}
+                    </div>
+                </div>
+                <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${mine ? '' : `-${platformSettings.leaderboard_play_cost || 2}积分`}</button>
+            </div>
+        `;
+    }).join('');
+}
+
+async function playLeaderboardGame(owner, cardId) {
+    if (!currentUser || currentUser.role !== 'member') {
+        showToast('请先登录会员账号');
+        return;
+    }
+    try {
+        const playKey = `${owner}_${cardId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const data = await apiAuth('playLeaderboardGame', { owner, cardId, playKey });
+        if (data.user) currentUser = data.user;
+        leaderboardGames = data.leaderboard || leaderboardGames;
+        applyUnlockState();
+        renderLeaderboard();
+        if (data.url) window.open(data.url, '_blank');
+    } catch (error) {
+        showToast(`无法打开榜单游戏：${error.message}`);
+    }
+}
+
+async function rateLeaderboardGame(owner, cardId, score) {
+    try {
+        const data = await apiAuth('rateGame', { owner, cardId, score });
+        leaderboardGames = data.leaderboard || [];
+        renderLeaderboard();
+        showToast('评分成功，榜单已重新排序');
+    } catch (error) {
+        showToast(`评分失败：${error.message}`);
+    }
 }
 
 async function loadDynamicGames() {
@@ -1252,6 +2312,8 @@ async function loadDynamicGames() {
             icon: game.icon || '🎮',
             description: game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续修改。',
             url: `/api/games?id=${encodeURIComponent(game.id)}&view=1`,
+            owner: game.owner || '',
+            ownerName: game.ownerName || game.owner || '',
             updatedAt: game.updatedAt,
             trashed: Boolean(game.trashed),
             trashedAt: game.trashedAt || '',
@@ -1267,6 +2329,10 @@ async function loadDynamicGames() {
 
 async function startModifyGame(gameId, event) {
     if (event) event.stopPropagation();
+    if (!isAdminRole() && !(currentUser && currentUser.role === 'member')) {
+        showToast('请先登录后再修改游戏');
+        return;
+    }
     await selectGame(gameId, { editMode: true });
 }
 
@@ -1276,13 +2342,18 @@ async function selectGame(gameId, options = {}) {
         return;
     }
     if (!isVibeUnlocked) {
-        showToast('请先输入游戏密码解锁编程');
-        document.getElementById('globalPassword').focus();
+        showToast('请登录会员或游戏管理员账号使用 AI 编程');
         return;
     }
 
     const game = [...builtInGames, ...dynamicGames].find(item => item.id === gameId);
     if (!game) return;
+    if (currentUser && currentUser.role === 'member') {
+        if (game.type !== 'vibe' || game.owner !== currentUser.username) {
+            showToast('会员只能编辑自己的 AI 编程作品');
+            return;
+        }
+    }
 
     setStatus(`正在加载《${game.title}》...`, 'warn');
     try {
@@ -1318,13 +2389,14 @@ async function selectGame(gameId, options = {}) {
             openModifyPrompt(game);
         }
         setStatus(options.editMode ? `已载入《${game.title}》。请在右侧提出你的优化修改方案。` : `已预览《${game.title}》。点击卡片上的“修改游戏”可继续优化。`, 'ok');
-        document.getElementById('vibecoding').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const vibeTarget = document.getElementById('vibecoding');
+        if (vibeTarget) vibeTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
         setStatus(`加载失败：${error.message}`, 'error');
     }
 }
 
-function clearSelectedGame() {
+function clearSelectedGame(options = {}) {
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
         return;
@@ -1332,10 +2404,11 @@ function clearSelectedGame() {
     selectedGame = null;
     selectedCardId = null;
     promptMode = 'new';
-    document.getElementById('selectedGameName').textContent = '未选择';
+    const selectedName = document.getElementById('selectedGameName');
+    if (selectedName) selectedName.textContent = '未选择';
     clearPreviewFrame();
     renderGameCards();
-    setStatus('已回到新建游戏模式。', 'ok');
+    if (!options.silent) setStatus('已回到新建游戏模式。', 'ok');
 }
 
 function openNewGamePrompt() {
@@ -1455,8 +2528,9 @@ async function generateAndSave(payload) {
 
         const saveRes = await fetch('/api/games', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({
+                token: authToken,
                 id: getSaveId(payload),
                 title: generateData.title || payload.baseTitle,
                 icon: generateData.icon || payload.baseIcon || '🎮',
@@ -1467,7 +2541,11 @@ async function generateAndSave(payload) {
         });
         const saveData = await saveRes.json();
         if (!saveRes.ok || !saveData.success) {
-            throw new Error(saveData.error || '保存失败，请确认 Cloudflare KV 已绑定为 GAMES_KV');
+            throw new Error(saveData.error || '保存失败，请确认 Cloudflare KV 和 D1 已绑定');
+        }
+        if (saveData.user) {
+            currentUser = saveData.user;
+            applyUnlockState();
         }
 
         await loadDynamicGames();
@@ -1521,7 +2599,7 @@ async function generateWithoutStream(payload) {
     const startedAt = Date.now();
     const res = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
     });
     const text = await res.text();
@@ -1553,7 +2631,7 @@ async function generateWithoutStream(payload) {
 async function generateWithStream(payload) {
     const res = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
     });
 
@@ -1604,7 +2682,7 @@ function getSaveId(payload) {
     if (payload.action === 'modify' && selectedGame && selectedGame.type === 'vibe') {
         return selectedGame.id;
     }
-    if (payload.action === 'modify' && selectedGame) {
+    if (payload.action === 'modify' && selectedGame && isAdminRole()) {
         return getBuiltinOverrideId(selectedGame.id);
     }
     return '';
@@ -1678,7 +2756,7 @@ function guardVibeReady() {
         return false;
     }
     if (!isVibeUnlocked) {
-        setStatus('请先输入游戏密码解锁编程。', 'warn');
+        setStatus('请登录会员或游戏管理员账号使用自然语言编程。', 'warn');
         return false;
     }
     return true;
@@ -1883,7 +2961,7 @@ async function sendAskAiQuestion() {
     try {
         const res = await fetch('/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ question, history: askAiHistory.slice(-8) })
         });
         const data = await res.json();
@@ -1980,6 +3058,10 @@ function stopAskAiSpeaking() {
 
 async function moveGameToTrash(gameId, event) {
     if (event) event.stopPropagation();
+    if (!isAdminRole()) {
+        showToast('只有管理员可以移动榜单游戏');
+        return;
+    }
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
         return;
@@ -1988,7 +3070,7 @@ async function moveGameToTrash(gameId, event) {
     if (builtin) {
         if (!hiddenBuiltinIds.includes(gameId)) hiddenBuiltinIds.push(gameId);
         saveLocalLayoutState();
-        if (selectedGame && selectedGame.id === gameId) clearSelectedGame();
+        if (selectedGame && selectedGame.id === gameId) clearSelectedGame({ silent: true });
         renderGameCards();
         renderTrashList();
         showToast('已放入回收站');
@@ -1998,6 +3080,10 @@ async function moveGameToTrash(gameId, event) {
 }
 
 async function restoreGameFromTrash(gameId) {
+    if (!isAdminRole()) {
+        showToast('只有管理员可以恢复榜单游戏');
+        return;
+    }
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
         return;
@@ -2017,14 +3103,14 @@ async function updateGameTrash(gameId, action) {
     try {
         const res = await fetch('/api/games', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, id: gameId })
+            headers: authHeaders(),
+            body: JSON.stringify({ action, id: gameId, token: authToken })
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || '操作失败');
         await loadDynamicGames();
         if (selectedGame && selectedGame.id === gameId && action === 'trash') {
-            clearSelectedGame();
+            clearSelectedGame({ silent: true });
         }
         showToast(action === 'trash' ? '已放入回收站' : '已恢复到卡片');
     } catch (error) {
@@ -2033,14 +3119,18 @@ async function updateGameTrash(gameId, action) {
 }
 
 async function deleteGameForever(gameId) {
+    if (!isAdminRole()) {
+        showToast('只有管理员可以删除榜单游戏');
+        return;
+    }
     if (isGenerating) {
         showToast('大模型正在工作，请耐心等待');
         return;
     }
-    const password = prompt('删除游戏需要输入密码 311051。此操作不可恢复，请输入密码：');
+    const password = prompt('永久删除游戏会从服务器移除。请输入管理员密码确认：');
     if (password === null) return;
-    if (password !== VIBE_PASSWORD) {
-        setStatus('删除失败：删除密码错误', 'error');
+    if (!password) {
+        setStatus('删除失败：管理员密码不能为空', 'error');
         return;
     }
     const builtin = builtInGames.find(game => game.id === gameId);
@@ -2057,8 +3147,8 @@ async function deleteGameForever(gameId) {
     try {
         const res = await fetch('/api/games', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', id: gameId, password })
+            headers: authHeaders(),
+            body: JSON.stringify({ action: 'delete', id: gameId, password, token: authToken })
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || '删除失败');
@@ -2120,25 +3210,21 @@ function escapeAttr(value) {
     return escapeHtml(value).replace(/`/g, '&#096;');
 }
 
-function boot() {
+async function boot() {
     loadLocalLayoutState();
     document.getElementById('askAiInput').disabled = false;
     document.getElementById('askAiSendBtn').disabled = false;
     document.getElementById('askAiVoiceBtn').disabled = false;
     setupAskAiInputShortcuts();
-    if (localStorage.getItem('gameUnlocked') === 'true') {
-        isUnlocked = true;
-        isVibeUnlocked = true;
-        localStorage.setItem('vibeCodingUnlocked', 'true');
-    }
-    if (localStorage.getItem('vibeCodingUnlocked') === 'true') isVibeUnlocked = true;
-
-    document.getElementById('globalPassword').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') checkGlobalPassword();
+    await loadPublicSettings();
+    ['loginUsername', 'loginPassword'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
     });
     renderGameCards();
     applyUnlockState();
-    loadDynamicGames();
+    await loadDynamicGames();
+    await restoreSession();
 }
 
 boot();

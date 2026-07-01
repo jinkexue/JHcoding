@@ -1,7 +1,12 @@
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+
+const DEFAULT_COSTS = {
+    ai_create_cost: 100,
+    ai_edit_cost: 10
 };
 
 export async function onRequestOptions() {
@@ -39,6 +44,8 @@ export async function onRequestGet(context) {
                 title: meta.title || '编程小游戏',
                 icon: meta.icon || '🎮',
                 description: meta.description || '这是一个由 VibeCoding 生成的小游戏。',
+                owner: meta.owner || '',
+                ownerName: meta.ownerName || meta.owner || '',
                 updatedAt: meta.updatedAt || '',
                 trashed: Boolean(meta.trashed),
                 trashedAt: meta.trashedAt || ''
@@ -55,19 +62,21 @@ export async function onRequestPost(context) {
     try {
         const { request, env } = context;
         const kv = env.GAMES_KV;
-        if (!kv) {
-            return json({ success: false, error: '缺少 GAMES_KV 绑定，请在 Cloudflare Pages Functions 中绑定 KV 命名空间。' }, 500);
-        }
+        const db = env.DB || env.YJH_DB || env.D1_DATABASE;
+        if (!kv) return json({ success: false, error: '缺少 GAMES_KV 绑定，请在 Cloudflare Pages Functions 中绑定 KV 命名空间。' }, 500);
+        if (!db) return json({ success: false, error: '缺少 Cloudflare D1 绑定。请把 D1 数据库绑定名设置为 DB。' }, 500);
 
         const body = await request.json();
         const action = String(body.action || '').trim();
+        const session = await getSession(db, request, body);
+        if (!session) return json({ success: false, error: '请先登录。' }, 401);
 
         if (action === 'trash' || action === 'restore') {
-            return updateTrashState(kv, body, action === 'trash');
+            return requireGameAdmin(session, () => updateTrashState(kv, body, action === 'trash'));
         }
 
         if (action === 'delete') {
-            return deleteGame(kv, body);
+            return requireGameAdmin(session, () => deleteGame(kv, body, session.user));
         }
 
         const now = new Date().toISOString();
@@ -82,6 +91,22 @@ export async function onRequestPost(context) {
         }
 
         const id = sanitizeId(body.id || '') || createId(title);
+        const existing = await kv.get(`game:${id}`, { type: 'json' });
+        const isBuiltinOverride = /^mod-/.test(id);
+        const isCreate = !existing;
+
+        if (session.user.role === 'member') {
+            if (isBuiltinOverride) return json({ success: false, error: '会员不能修改首页内置榜单游戏。' }, 403);
+            if (existing && existing.owner && existing.owner !== session.user.username) return json({ success: false, error: '只能编辑自己的 AI 编程作品。' }, 403);
+            const settings = await getSettings(db);
+            const cost = Number(settings[isCreate ? 'ai_create_cost' : 'ai_edit_cost'] || DEFAULT_COSTS[isCreate ? 'ai_create_cost' : 'ai_edit_cost']);
+            const fresh = await db.prepare('SELECT points FROM users WHERE id = ?').bind(session.user.id).first();
+            if (Number(fresh?.points || 0) < cost) return json({ success: false, error: `积分不足，本次${isCreate ? '新建' : '编辑'}需要 ${cost} 积分。` }, 400);
+            await changePoints(db, session.user.id, -cost, isCreate ? 'AI 编程新建游戏' : 'AI 编程编辑游戏', isCreate ? 'ai_create' : 'ai_edit', id, { title });
+        }
+
+        const owner = existing?.owner || session.user.username;
+        const ownerName = existing?.ownerName || session.user.display_name || session.user.username;
         const game = {
             id,
             title,
@@ -89,19 +114,51 @@ export async function onRequestPost(context) {
             description,
             prompt,
             html: htmlCode,
+            owner,
+            ownerName,
             trashed: false,
             trashedAt: '',
             updatedAt: now
         };
 
         await kv.put(`game:${id}`, JSON.stringify(game), {
-            metadata: { title, icon, description, updatedAt: now, trashed: false, trashedAt: '' }
+            metadata: { title, icon, description, owner, ownerName, updatedAt: now, trashed: false, trashedAt: '' }
         });
 
-        return json({ success: true, game: { id, title, icon, description, updatedAt: now, trashed: false } });
+        const freshUser = await db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user.id).first();
+        return json({ success: true, game: summarizeGame(game), user: publicUser(freshUser) });
     } catch (error) {
         return json({ success: false, error: error.message || '保存游戏失败' }, 500);
     }
+}
+
+function requireGameAdmin(session, fn) {
+    if (!['game_admin', 'system_admin'].includes(session.user.role)) return json({ success: false, error: '只有管理员可以操作。' }, 403);
+    return fn();
+}
+
+async function getSession(db, request, body = {}) {
+    const auth = request.headers.get('Authorization') || '';
+    const token = String(body.token || auth.replace(/^Bearer\s+/i, '') || '').trim();
+    if (!token) return null;
+    const row = await db.prepare('SELECT s.token, s.expires_at, u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').bind(token).first();
+    if (!row || String(row.expires_at || '') < new Date().toISOString()) return null;
+    return { token, user: row };
+}
+
+async function getSettings(db) {
+    const result = await db.prepare('SELECT key, value FROM settings').all();
+    return Object.fromEntries((result.results || []).map(row => [row.key, row.value]));
+}
+
+async function changePoints(db, userId, delta, reason, refType = '', refId = '', meta = {}) {
+    const user = await db.prepare('SELECT points FROM users WHERE id = ?').bind(userId).first();
+    const next = Number(user?.points || 0) + Number(delta || 0);
+    if (next < 0) throw new Error('积分不足。');
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE users SET points = ?, updated_at = ? WHERE id = ?').bind(next, now, userId).run();
+    await db.prepare('INSERT INTO point_logs (user_id, delta, reason, ref_type, ref_id, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(userId, Number(delta || 0), reason, refType || '', refId || '', JSON.stringify(meta || {}), now).run();
 }
 
 async function updateTrashState(kv, body, trashed) {
@@ -124,6 +181,8 @@ async function updateTrashState(kv, body, trashed) {
             title: game.title || '编程小游戏',
             icon: game.icon || '🎮',
             description: game.description || '这是一个由 VibeCoding 生成的小游戏。',
+            owner: game.owner || '',
+            ownerName: game.ownerName || game.owner || '',
             updatedAt: now,
             trashed,
             trashedAt: game.trashedAt || ''
@@ -133,12 +192,12 @@ async function updateTrashState(kv, body, trashed) {
     return json({ success: true, game: summarizeGame(game) });
 }
 
-async function deleteGame(kv, body) {
+async function deleteGame(kv, body, user) {
     const id = sanitizeId(body.id || '');
     const password = String(body.password || '').trim();
     if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
-    if (password !== '311051') return json({ success: false, error: '删除密码错误' }, 403);
-
+    if (!password) return json({ success: false, error: '管理员密码不能为空' }, 403);
+    if (String(user.password || '') !== password) return json({ success: false, error: '管理员密码错误' }, 403);
     await kv.delete(`game:${id}`);
     return json({ success: true, id });
 }
@@ -149,9 +208,20 @@ function summarizeGame(game) {
         title: game.title || '编程小游戏',
         icon: game.icon || '🎮',
         description: game.description || '这是一个由 VibeCoding 生成的小游戏。',
+        owner: game.owner || '',
+        ownerName: game.ownerName || game.owner || '',
         updatedAt: game.updatedAt || '',
         trashed: Boolean(game.trashed),
         trashedAt: game.trashedAt || ''
+    };
+}
+
+function publicUser(user) {
+    return {
+        username: user.username,
+        role: user.role || 'member',
+        displayName: user.display_name || user.username,
+        points: Number(user.points || 0)
     };
 }
 

@@ -147,9 +147,9 @@
 <div class="screen" id="passwordScreen">
     <div class="logo">⚫⚪</div>
     <div class="title">围棋对战</div>
-    <div class="subtitle">输入密码进入</div>
+    <div class="subtitle">请从首页会员登录后进入，或输入管理员密码</div>
     <div class="input-group">
-        <input type="password" id="passwordInput" placeholder="请输入密码" maxlength="10" autocomplete="off">
+        <input type="password" id="passwordInput" placeholder="管理员密码" maxlength="10" autocomplete="off">
         <div class="error-msg" id="passwordError"></div>
     </div>
     <button class="action-btn btn-create" onclick="checkPassword()">进入</button>
@@ -327,6 +327,7 @@
 
 <script>
 const ACCESS_CODE = '150113';
+const MEMBER_TOKEN = localStorage.getItem('authToken') || '';
 let ws = null;
 let myRole = null;
 let myChar = null;
@@ -512,6 +513,7 @@ function handleMessage(msg) {
 }
 
 function handleCodeVerified(msg) {
+    localStorage.setItem('gameUnlocked', 'true');
     showScreen('roomListScreen');
     renderRoomList(msg.availableRooms || []);
     window._availableRooms = msg.availableRooms || [];
@@ -1481,9 +1483,41 @@ let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 300) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.getElementById('passwordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkPassword(); });
 
+async function verifyMemberAccess() {
+    if (!MEMBER_TOKEN) return false;
+    try {
+        const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MEMBER_TOKEN}` },
+            body: JSON.stringify({ action: 'me', token: MEMBER_TOKEN })
+        });
+        const data = await res.json();
+        return res.ok && data.success && data.user;
+    } catch (error) {
+        console.warn('会员登录验证失败：', error);
+        return false;
+    }
+}
+
+async function bootGoGame() {
+    if (await verifyMemberAccess()) {
+        connectWebSocket();
+        window._pendingVerify = true;
+        return;
+    }
+    if (localStorage.getItem('gameUnlocked') === 'true') {
+        connectWebSocket();
+        window._pendingVerify = true;
+    } else {
+        showScreen('passwordScreen');
+    }
+}
+
+bootGoGame();
+
 // 页面可见性变化时重连
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && localStorage.getItem('gameUnlocked') === 'true') {
+    if (!document.hidden && (localStorage.getItem('gameUnlocked') === 'true' || MEMBER_TOKEN)) {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
             connectWebSocket();
             window._pendingVerify = true;
@@ -1491,12 +1525,6 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-if (localStorage.getItem('gameUnlocked') === 'true') {
-    connectWebSocket();
-    window._pendingVerify = true;
-} else {
-    showScreen('passwordScreen');
-}
 </script>
 </body>
 </html>

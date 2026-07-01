@@ -1,7 +1,7 @@
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
 };
 
 export async function onRequestOptions() {
@@ -11,6 +11,13 @@ export async function onRequestOptions() {
 export async function onRequestPost(context) {
     try {
         const { request, env } = context;
+        const db = env.DB || env.YJH_DB || env.D1_DATABASE;
+        if (db) {
+            const session = await getSession(db, request, {});
+            if (!session || !['member', 'game_admin'].includes(session.user.role)) {
+                return json({ success: false, error: '请先登录会员或游戏管理员账号。' }, 401);
+            }
+        }
         const body = await request.json();
         const prompt = String(body.prompt || '').trim();
         const action = body.action === 'modify' ? 'modify' : 'new';
@@ -96,6 +103,15 @@ export async function onRequestPost(context) {
     } catch (error) {
         return json({ success: false, error: error.message || '生成失败' }, 500);
     }
+}
+
+async function getSession(db, request, body = {}) {
+    const auth = request.headers.get('Authorization') || '';
+    const token = String(body.token || auth.replace(/^Bearer\s+/i, '') || '').trim();
+    if (!token) return null;
+    const row = await db.prepare('SELECT s.token, s.expires_at, u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').bind(token).first();
+    if (!row || String(row.expires_at || '') < new Date().toISOString()) return null;
+    return { token, user: row };
 }
 
 function buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon }) {
