@@ -515,10 +515,10 @@ async function saveCard(db, user, body) {
     const cardId = sanitizeCardId(card.id || '');
     if (!cardId) return json({ success: false, error: '游戏不存在。' }, 400);
     const now = new Date().toISOString();
-    await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
-        ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, updated_at = excluded.updated_at`)
-        .bind(user.id, cardId, sanitizeText(card.title || '', 40), sanitizeText(card.icon || '🎮', 4) || '🎮', sanitizeText(card.description || '', 160), sanitizeUrl(card.url || ''), now).run();
+    const existing = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ?').bind(user.id, cardId).first();
+    if (!existing) return json({ success: false, error: '请先创建这个编程游戏后再修改名称和简介。' }, 400);
+    await db.prepare('UPDATE member_cards SET title = ?, description = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
+        .bind(sanitizeText(card.title || '', 40), sanitizeText(card.description || '', 160), now, user.id, cardId).run();
     return getMyProfile(db, user);
 }
 
@@ -529,6 +529,10 @@ async function setRecommendState(db, user, body) {
     const card = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ?').bind(user.id, cardId).first();
     if (!card) return json({ success: false, error: '请先保存这个编程游戏后再推荐。' }, 400);
     if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
+    if (recommended && !card.recommended) {
+        const count = await db.prepare('SELECT COUNT(*) AS total FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).first();
+        if (Number(count?.total || 0) >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到公共游戏库。` }, 400);
+    }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
         .bind(recommended ? 1 : 0, recommended ? (card.recommended_at || now) : '', now, user.id, cardId).run();
