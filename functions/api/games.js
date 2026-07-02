@@ -72,11 +72,11 @@ export async function onRequestPost(context) {
         if (!session) return json({ success: false, error: '请先登录。' }, 401);
 
         if (action === 'trash' || action === 'restore') {
-            return requireGameAdmin(session, () => updateTrashState(kv, body, action === 'trash'));
+            return requireGameAdmin(session, () => updateTrashState(kv, db, body, action === 'trash'));
         }
 
         if (action === 'delete') {
-            return requireGameAdmin(session, () => deleteGame(kv, body, session.user));
+            return requireGameAdmin(session, () => deleteGame(kv, db, body, session.user));
         }
 
         const now = new Date().toISOString();
@@ -168,7 +168,7 @@ async function changePoints(db, userId, delta, reason, refType = '', refId = '',
         .bind(userId, Number(delta || 0), reason, refType || '', refId || '', JSON.stringify(meta || {}), now).run();
 }
 
-async function updateTrashState(kv, body, trashed) {
+async function updateTrashState(kv, db, body, trashed) {
     const id = sanitizeId(body.id || '');
     if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
 
@@ -196,15 +196,32 @@ async function updateTrashState(kv, body, trashed) {
         }
     });
 
+    if (trashed) {
+        const owner = sanitizeUsername(game.owner || '');
+        if (owner) {
+            const ownerUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(owner).first();
+            if (ownerUser) {
+                await db.prepare('UPDATE member_cards SET recommended = 0, recommended_at = \'\', updated_at = ? WHERE user_id = ? AND card_id = ?')
+                    .bind(now, ownerUser.id, id).run();
+            }
+        }
+    }
+
     return json({ success: true, game: summarizeGame(game) });
 }
 
-async function deleteGame(kv, body, user) {
+async function deleteGame(kv, db, body, user) {
     const id = sanitizeId(body.id || '');
     const password = String(body.password || '').trim();
     if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
     if (!password) return json({ success: false, error: '管理员密码不能为空' }, 403);
     if (String(user.password || '') !== password) return json({ success: false, error: '管理员密码错误' }, 403);
+    const stored = await kv.get(`game:${id}`, { type: 'json' });
+    const owner = sanitizeUsername(stored?.owner || '');
+    if (owner) {
+        const ownerUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(owner).first();
+        if (ownerUser) await db.prepare('DELETE FROM member_cards WHERE user_id = ? AND card_id = ?').bind(ownerUser.id, id).run();
+    }
     await kv.delete(`game:${id}`);
     return json({ success: true, id });
 }
@@ -259,6 +276,10 @@ function isCompleteHtml(value) {
 
 function sanitizeText(value, maxLength) {
     return String(value || '').replace(/[<>]/g, '').trim().slice(0, maxLength);
+}
+
+function sanitizeUsername(value) {
+    return String(value || '').toLowerCase().trim().replace(/[^a-z0-9_@.\-]/g, '').slice(0, 80);
 }
 
 function sanitizeId(value) {

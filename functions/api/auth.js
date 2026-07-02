@@ -11,7 +11,7 @@ const SYSTEM_ADMIN_PASSWORD = '123456';
 const MAX_MEMBER_CARDS = 3;
 
 const DEFAULT_SETTINGS = {
-    signup_bonus_points: '100',
+    signup_bonus_points: '200',
     ai_create_cost: '100',
     ai_edit_cost: '10',
     leaderboard_play_cost: '2',
@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
     recharge_min_yuan: '10',
     recharge_points_per_10_yuan: '100',
     register_ip_limit_per_hour: '3',
+    invite_required: '1',
+    wechat_account_name: '',
     wechat_qr_image: '',
     recharge_notice: '充值请添加系统管理员设置的微信账户，10 元起充。'
 };
@@ -238,21 +240,27 @@ async function register(db, body, request) {
     if (!username || !password) { await failLog(); return json({ success: false, error: '注册账号和密码不能为空。' }, 400); }
     if (username !== rawUsername.toLowerCase()) { await failLog(); return json({ success: false, error: '账号只能使用字母、数字、下划线、短横线、点号或邮箱格式。' }, 400); }
     if (password.length < 4) { await failLog(); return json({ success: false, error: '密码至少 4 位。' }, 400); }
-    if (!code) { await failLog(); return json({ success: false, error: '请输入邀请码。' }, 400); }
+    const inviteRequired = String(settings.invite_required ?? '1') !== '0';
+    if (inviteRequired && !code) { await failLog(); return json({ success: false, error: '请输入邀请码。' }, 400); }
     const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
     if (existing) { await failLog(); return json({ success: false, error: '账号已存在，请换一个。' }, 400); }
-    const invite = await db.prepare('SELECT * FROM invite_codes WHERE code = ?').bind(code).first();
-    if (!isInviteUsable(invite)) { await failLog(); return json({ success: false, error: '邀请码无效、已过期或使用次数已满。' }, 400); }
+    let invite = null;
+    if (inviteRequired) {
+        invite = await db.prepare('SELECT * FROM invite_codes WHERE code = ?').bind(code).first();
+        if (!isInviteUsable(invite)) { await failLog(); return json({ success: false, error: '邀请码无效、已过期或使用次数已满。' }, 400); }
+    }
 
     const now = new Date().toISOString();
-    const bonus = numberSetting(settings, 'signup_bonus_points', 100);
+    const bonus = numberSetting(settings, 'signup_bonus_points', 200);
     const insert = await db.prepare('INSERT INTO users (username, password, role, display_name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .bind(username, password, 'member', displayName, bonus, now, now).run();
     const userId = insert.meta.last_row_id;
-    await db.prepare('UPDATE invite_codes SET used_count = used_count + 1, updated_at = ? WHERE code = ?').bind(now, code).run();
-    await db.prepare('INSERT INTO invite_uses (code, user_id, ip, created_at) VALUES (?, ?, ?, ?)').bind(code, userId, ip, now).run();
+    if (inviteRequired) {
+        await db.prepare('UPDATE invite_codes SET used_count = used_count + 1, updated_at = ? WHERE code = ?').bind(now, code).run();
+        await db.prepare('INSERT INTO invite_uses (code, user_id, ip, created_at) VALUES (?, ?, ?, ?)').bind(code, userId, ip, now).run();
+    }
     await db.prepare('INSERT INTO register_attempts (ip, invite_code, success, created_at) VALUES (?, ?, 1, ?)').bind(ip, code, now).run();
-    await addPointLog(db, userId, bonus, '注册赠送积分', 'register', code, {});
+    await addPointLog(db, userId, bonus, '注册赠送积分', 'register', inviteRequired ? code : 'open_register', {});
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
     const loginResult = await login(db, { username, password });
     const data = await loginResult.json();
@@ -363,6 +371,9 @@ async function getPublicSettings(db) {
             leaderboard_owner_reward: settings.leaderboard_owner_reward,
             recharge_min_yuan: settings.recharge_min_yuan,
             recharge_points_per_10_yuan: settings.recharge_points_per_10_yuan,
+            register_ip_limit_per_hour: settings.register_ip_limit_per_hour,
+            invite_required: settings.invite_required ?? '1',
+            wechat_account_name: settings.wechat_account_name || '',
             wechat_qr_image: settings.wechat_qr_image,
             recharge_notice: settings.recharge_notice
         },
@@ -666,7 +677,7 @@ function sanitizeUrl(value) {
 function sanitizeDataOrUrl(value) {
     const text = String(value || '').trim();
     if (!text) return '';
-    if (/^data:image\//i.test(text)) return text.slice(0, 300000);
+    if (/^data:image\//i.test(text)) return text.replace(/\s+/g, '').slice(0, 300000);
     return sanitizeUrl(text);
 }
 

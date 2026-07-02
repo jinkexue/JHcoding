@@ -921,6 +921,77 @@
             margin-top: 14px;
         }
 
+        .settings-grid.compact-settings {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        .settings-grid.compact-settings .setting-item {
+            padding: 10px;
+            border-radius: 14px;
+        }
+
+        .settings-grid.compact-settings label {
+            display: block;
+            font-size: 12px;
+            color: #4b5563;
+            margin-bottom: 5px;
+        }
+
+        .settings-grid.compact-settings input,
+        .settings-grid.compact-settings select {
+            width: 100%;
+            padding: 8px 9px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            outline: none;
+            font-size: 13px;
+        }
+
+        .admin-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 14px 0;
+        }
+
+        .admin-tab-panel.hidden {
+            display: none !important;
+        }
+
+        .member-table-wrap {
+            overflow-x: auto;
+            margin-top: 14px;
+        }
+
+        .member-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            min-width: 760px;
+        }
+
+        .member-table th,
+        .member-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .member-table th {
+            background: #eef2ff;
+            color: #4338ca;
+            font-weight: 900;
+        }
+
+        .member-table .rating-row {
+            margin-top: 0;
+        }
+
         .personal-game-card,
         .leaderboard-card,
         .member-list-item,
@@ -940,9 +1011,10 @@
 
         .leaderboard-card {
             display: grid;
-            grid-template-columns: 1fr auto;
+            grid-template-columns: 1fr;
             gap: 12px;
-            align-items: center;
+            align-items: stretch;
+            background: linear-gradient(135deg, #fff7ed, #eef2ff);
         }
 
         .leaderboard-title {
@@ -1008,6 +1080,10 @@
             background: linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,254,255,0.96));
             overflow: hidden;
             position: relative;
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(240px, 320px);
+            gap: 22px;
+            align-items: center;
         }
 
         .hero-card::before {
@@ -1055,6 +1131,22 @@
             padding: 14px;
             color: #1f2937;
             font-weight: 800;
+        }
+
+        .hero-visual {
+            position: relative;
+            min-height: 240px;
+            border-radius: 28px;
+            background: radial-gradient(circle at 30% 20%, rgba(34,211,238,0.28), transparent 30%), linear-gradient(135deg, #0f172a, #312e81 58%, #7c3aed);
+            box-shadow: inset 0 0 42px rgba(255,255,255,0.12), 0 18px 42px rgba(79,70,229,0.28);
+            overflow: hidden;
+        }
+
+        .ai-orbit-svg {
+            width: 100%;
+            height: 100%;
+            min-height: 240px;
+            display: block;
         }
 
         .tab-row {
@@ -1147,6 +1239,12 @@
                 grid-template-columns: 1fr;
                 gap: 16px;
             }
+            .hero-card {
+                grid-template-columns: 1fr;
+            }
+            .hero-card {
+                grid-template-columns: 1fr;
+            }
             #gamePreviewFrame,
             .preview-empty {
                 height: 520px;
@@ -1224,15 +1322,38 @@
     <main>
         <section class="hero-section" id="heroSection">
             <div class="hero-card">
-                <div class="hero-title">AI编程<br><span>改变未来</span></div>
-                <p class="hero-copy">从“我想做一个游戏”开始，让 AI 陪孩子把创意变成作品。学生在创造中理解逻辑、表达和问题解决；家长能看到孩子从玩游戏走向设计游戏、迭代游戏、分享游戏。</p>
-                <div class="hero-points">
-                    <div class="hero-point">🎮 注册送 <span id="heroBonusPoints">100</span> 积分，可新建 1 个 AI 游戏</div>
-                    <div class="hero-point">🛠️ 编辑游戏每次扣积分，鼓励认真思考</div>
-                    <div class="hero-point">🏆 推荐作品上榜，被别人玩可获得积分</div>
-                    <div class="hero-point">👨‍👩‍👧 家长可用充值积分支持持续学习</div>
+                <div class="hero-content">
+                    <div class="hero-title">AI编程<br><span>改变未来</span></div>
+                    <p class="hero-copy">从“我想做一个游戏”开始，让 AI 陪孩子把创意变成作品。学生在创造中理解逻辑、表达和问题解决；家长能看到孩子从玩游戏走向设计游戏、迭代游戏、分享游戏。</p>
+                    <div class="hero-points">
+                        <div class="hero-point">🎮 注册送 <span id="heroBonusPoints">100</span> 积分，可创建和编辑游戏</div>
+                        <div class="hero-point">🛠️ 编辑游戏每次扣积分，鼓励认真思考</div>
+                        <div class="hero-point">🏆 推荐作品上榜，被别人玩可获得积分</div>
+                        <div class="hero-point">👨‍👩‍👧 家长可用充值积分支持持续学习</div>
+                    </div>
                 </div>
-
+                <div class="hero-visual" aria-label="AI 科技图形">
+                    <svg class="ai-orbit-svg" viewBox="0 0 320 260" role="img" aria-label="AI 编程科技图形">
+                        <defs>
+                            <linearGradient id="aiGlow" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="0.55" stop-color="#a78bfa"/><stop offset="1" stop-color="#facc15"/></linearGradient>
+                            <filter id="softGlow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                        </defs>
+                        <path d="M34 190 C84 110, 135 86, 288 58" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="2" stroke-dasharray="8 8"/>
+                        <path d="M48 74 C102 140, 174 162, 278 206" fill="none" stroke="rgba(34,211,238,.32)" stroke-width="2" stroke-dasharray="5 9"/>
+                        <circle cx="160" cy="132" r="64" fill="rgba(255,255,255,.08)" stroke="url(#aiGlow)" stroke-width="3" filter="url(#softGlow)"/>
+                        <circle cx="160" cy="132" r="36" fill="rgba(15,23,42,.72)" stroke="rgba(255,255,255,.35)"/>
+                        <text x="160" y="123" text-anchor="middle" fill="#fff" font-size="24" font-weight="900">AI</text>
+                        <text x="160" y="148" text-anchor="middle" fill="#bae6fd" font-size="13" font-weight="700">Coding</text>
+                        <g fill="url(#aiGlow)" filter="url(#softGlow)">
+                            <circle cx="62" cy="188" r="9"/><circle cx="82" cy="74" r="7"/><circle cx="248" cy="66" r="10"/><circle cx="270" cy="202" r="8"/><circle cx="206" cy="224" r="5"/>
+                        </g>
+                        <g stroke="rgba(255,255,255,.42)" stroke-width="2"><line x1="82" y1="74" x2="160" y2="132"/><line x1="62" y1="188" x2="160" y2="132"/><line x1="248" y1="66" x2="160" y2="132"/><line x1="270" y1="202" x2="160" y2="132"/><line x1="206" y1="224" x2="160" y2="132"/></g>
+                        <rect x="36" y="28" width="86" height="28" rx="14" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.24)"/>
+                        <text x="79" y="47" text-anchor="middle" fill="#e0f2fe" font-size="12" font-weight="800">想象力</text>
+                        <rect x="202" y="24" width="82" height="28" rx="14" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.24)"/>
+                        <text x="243" y="43" text-anchor="middle" fill="#fef3c7" font-size="12" font-weight="800">作品力</text>
+                    </svg>
+                </div>
             </div>
         </section>
 
@@ -1240,8 +1361,7 @@
             <div class="auth-card">
                 <div class="section-title">
                     <div>
-                        <h2>登录 / 邀请码注册</h2>
-                        <p class="auth-hint" id="publicRuleText">陌生人需要邀请码注册；注册成功默认赠送 100 积分。</p>
+                        <h2>登录 / 注册</h2>
                     </div>
                     <div class="tab-row">
                         <button class="vibe-button active" id="loginTabBtn" onclick="showAuthTab('login')">登录</button>
@@ -1252,11 +1372,7 @@
                     <div class="auth-form">
                         <input id="loginUsername" placeholder="账号 / 邮箱" autocomplete="username">
                         <input type="password" id="loginPassword" placeholder="密码" autocomplete="current-password">
-                        <button class="vibe-button" onclick="login()">登录</button>
-                    </div>
-                    <div class="tab-row admin-entry-row">
-                        <button class="vibe-button ghost" onclick="showAdminLoginHint('game')">游戏管理员入口</button>
-                        <button class="vibe-button ghost" onclick="showAdminLoginHint('system')">系统管理员入口</button>
+                        <button class="vibe-button" id="loginSubmitBtn" onclick="login()">登录</button>
                     </div>
                 </div>
                 <div id="registerBox" class="hidden">
@@ -1264,8 +1380,8 @@
                         <input id="registerUsername" placeholder="注册账号 / 邮箱">
                         <input id="registerDisplayName" placeholder="昵称">
                         <input type="password" id="registerPassword" placeholder="设置密码">
-                        <input id="registerInviteCode" placeholder="邀请码">
-                        <button class="vibe-button" onclick="registerAccount()">注册并领取积分</button>
+                        <input id="registerInviteCode" placeholder="邀请码（未开启时可不填）">
+                        <button class="vibe-button" id="registerSubmitBtn" onclick="registerAccount()">注册并领取积分</button>
                     </div>
                 </div>
                 <div class="login-status" id="loginStatus">请登录或凭邀请码注册后进入 AI 编程乐园。</div>
@@ -1284,57 +1400,77 @@
             <div class="admin-card">
                 <div class="section-title">
                     <div>
-                        <h2>游戏管理员后台：邀请码管理</h2>
-                        <p class="panel-note">游戏管理员可新增、修改、删除邀请码，并设置有效期和每个邀请码的使用次数。</p>
+                        <h2>管理员后台</h2>
+                        <p class="panel-note">邀请码管理可设置有效期和可用次数；系统管理员还可配置平台规则、充值信息和用户列表。</p>
                     </div>
-                    <button class="vibe-button ghost" onclick="loadInviteCodes()">刷新邀请码</button>
+                    <button class="vibe-button ghost" onclick="refreshCurrentAdminTab()">刷新当前页</button>
                 </div>
-                <div class="admin-form">
-                    <input id="inviteCode" placeholder="邀请码，留空自动生成">
-                    <input id="inviteExpiresAt" type="datetime-local" placeholder="有效期">
-                    <input id="inviteMaxUses" type="number" min="1" value="1" placeholder="可使用次数">
-                    <select id="inviteActive">
-                        <option value="1">启用</option>
-                        <option value="0">停用</option>
-                    </select>
-                    <button class="vibe-button" onclick="saveInviteCode()">保存邀请码</button>
+                <div class="admin-tabs">
+                    <button class="vibe-button active" id="tabInviteBtn" onclick="showAdminTab('invite')">邀请码管理</button>
+                    <button class="vibe-button ghost system-only-tab" id="tabSettingsBtn" onclick="showAdminTab('settings')">平台设置</button>
+                    <button class="vibe-button ghost system-only-tab" id="tabUsersBtn" onclick="showAdminTab('users')">用户管理</button>
                 </div>
-                <div class="invite-list" id="inviteList">暂无邀请码。</div>
-            </div>
-        </section>
 
-        <section class="system-zone hidden" id="systemZone">
-            <div class="system-card">
-                <div class="section-title">
-                    <div>
-                        <h2>系统管理员后台：平台设置</h2>
-                        <p class="panel-note">可设置微信二维码、充值提示、积分扣费/赠送规则、注册频率限制，并在用户管理中为用户充值积分。</p>
+                <div class="admin-tab-panel" id="adminTabInvite">
+                    <div class="section-title">
+                        <div>
+                            <h3>邀请码管理</h3>
+                            <p class="panel-note">发放邀请码时可设置有效期和最多使用次数；达到有效期或使用次数后自动失效。</p>
+                        </div>
                     </div>
-                    <button class="vibe-button ghost" onclick="loadSystemAdminData()">刷新后台</button>
+                    <div class="admin-form">
+                        <input id="inviteCode" placeholder="邀请码，留空自动生成">
+                        <input id="inviteExpiresAt" type="datetime-local" placeholder="有效期">
+                        <input id="inviteMaxUses" type="number" min="1" value="1" placeholder="可使用次数">
+                        <select id="inviteActive">
+                            <option value="1">启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                        <button class="vibe-button" onclick="saveInviteCode()">保存邀请码</button>
+                    </div>
+                    <p class="panel-note">提示：例如设置“可使用次数 5”，该邀请码被成功注册 5 次后就会失效；不填有效期则长期有效。</p>
+                    <div class="invite-list" id="inviteList">暂无邀请码。</div>
                 </div>
-                <div class="settings-grid" id="settingsGrid"></div>
-                <div class="system-form">
-                    <textarea id="wechatQrImage" placeholder="微信二维码图片地址，或粘贴 base64 图片数据"></textarea>
-                    <textarea id="rechargeNotice" placeholder="充值说明"></textarea>
-                    <button class="vibe-button" onclick="saveSystemSettings()">保存平台设置</button>
+
+                <div class="admin-tab-panel hidden" id="adminTabSettings">
+                    <div class="section-title">
+                        <div>
+                            <h3>平台设置</h3>
+                            <p class="panel-note">配置注册开关、积分规则、充值二维码链接/base64、微信账户名和充值提示。</p>
+                        </div>
+                    </div>
+                    <div class="settings-grid compact-settings" id="settingsGrid"></div>
+                    <div class="system-form">
+                        <input id="wechatAccountName" placeholder="微信账户名 / 收款账号">
+                        <textarea id="wechatQrImage" placeholder="微信二维码图片链接，或粘贴 data:image/...;base64,..."></textarea>
+                        <textarea id="rechargeNotice" placeholder="充值提示，例如：充值后请联系管理员确认到账"></textarea>
+                        <button class="vibe-button" onclick="saveSystemSettings()">保存平台设置</button>
+                    </div>
                 </div>
-                <h3 style="margin-top:18px;">用户管理</h3>
-                <p class="panel-note">在这里统一管理用户：新增、修改资料、切换角色、删除用户和充值积分。</p>
-                <div class="system-form">
-                    <input id="memberUsername" placeholder="用户账号">
-                    <input id="memberDisplayName" placeholder="昵称">
-                    <input id="memberPassword" placeholder="密码（新增必填，修改可留空）">
-                    <input id="memberPoints" type="number" min="0" value="100" placeholder="积分">
-                    <select id="memberRole"><option value="member">普通用户</option><option value="game_admin">游戏管理员</option></select>
-                    <button class="vibe-button" onclick="saveMember()">保存用户</button>
+
+                <div class="admin-tab-panel hidden" id="adminTabUsers">
+                    <div class="section-title">
+                        <div>
+                            <h3>用户管理</h3>
+                            <p class="panel-note">使用列表方式统一管理用户：新增、修改资料、切换角色、删除用户和充值积分。</p>
+                        </div>
+                    </div>
+                    <div class="system-form">
+                        <input id="memberUsername" placeholder="用户账号">
+                        <input id="memberDisplayName" placeholder="昵称">
+                        <input id="memberPassword" placeholder="密码（新增必填，修改可留空）">
+                        <input id="memberPoints" type="number" min="0" value="100" placeholder="积分">
+                        <select id="memberRole"><option value="member">普通用户</option><option value="game_admin">游戏管理员</option></select>
+                        <button class="vibe-button" onclick="saveMember()">保存用户</button>
+                    </div>
+                    <div class="system-form">
+                        <input id="pointUsername" placeholder="用户账号">
+                        <input id="pointDelta" type="number" placeholder="充值/扣减积分，如 100 或 -10">
+                        <input id="pointReason" placeholder="原因，如 充值赠送积分">
+                        <button class="vibe-button recharge-entry-btn" onclick="adjustPoints()">充值/调整积分</button>
+                    </div>
+                    <div class="member-list" id="memberList">暂无用户。</div>
                 </div>
-                <div class="system-form">
-                    <input id="pointUsername" placeholder="用户账号">
-                    <input id="pointDelta" type="number" placeholder="充值/扣减积分，如 100 或 -10">
-                    <input id="pointReason" placeholder="原因，如 充值赠送积分">
-                    <button class="vibe-button recharge-entry-btn" onclick="adjustPoints()">充值/调整积分</button>
-                </div>
-                <div class="member-list" id="memberList">暂无用户。</div>
             </div>
         </section>
 
@@ -1495,14 +1631,15 @@
 <script>
 const ADMIN_INVITE_URL = 'https://yjh.sivani.net/';
 const SYSTEM_SETTING_FIELDS = [
-    ['signup_bonus_points', '注册赠送积分'],
-    ['ai_create_cost', 'AI 新建游戏扣积分'],
-    ['ai_edit_cost', 'AI 编辑游戏扣积分'],
-    ['leaderboard_play_cost', '玩别人榜单游戏扣积分'],
-    ['leaderboard_owner_reward', '推荐游戏被玩奖励积分'],
-    ['recharge_min_yuan', '最低充值金额'],
-    ['recharge_points_per_10_yuan', '每 10 元赠送积分'],
-    ['register_ip_limit_per_hour', '每 IP 每小时注册次数']
+    ['signup_bonus_points', '注册赠送积分', 'number'],
+    ['ai_create_cost', 'AI 新建游戏扣积分', 'number'],
+    ['ai_edit_cost', 'AI 编辑游戏扣积分', 'number'],
+    ['leaderboard_play_cost', '玩别人榜单游戏扣积分', 'number'],
+    ['leaderboard_owner_reward', '推荐游戏被玩奖励积分', 'number'],
+    ['recharge_min_yuan', '最低充值金额', 'number'],
+    ['recharge_points_per_10_yuan', '每 10 元赠送积分', 'number'],
+    ['register_ip_limit_per_hour', '每 IP 每小时注册次数', 'number'],
+    ['invite_required', '注册是否开启邀请码', 'select']
 ];
 
 let isUnlocked = false;
@@ -1511,7 +1648,7 @@ let currentUser = null;
 let authToken = localStorage.getItem('authToken') || '';
 let myProfile = null;
 let leaderboardGames = [];
-let platformSettings = {};
+let platformSettings = { signup_bonus_points: '200', invite_required: '1' };
 let rechargeAccounts = [];
 let selectedGame = null;
 let selectedCardId = null;
@@ -1522,6 +1659,8 @@ let deletedBuiltinIds = [];
 let cardOrder = [];
 let draggedGameId = null;
 let isGenerating = false;
+let isLoggingIn = false;
+let currentAdminTab = 'invite';
 let generatingStartTime = 0;
 let generatingTimerId = null;
 let generatingStatusMessage = '';
@@ -1774,6 +1913,7 @@ function applyUnlockState() {
     const isSystemAdmin = isSystemAdminRole();
     const isMember = currentUser && currentUser.role === 'member';
     const isAdmin = isGameAdmin || isSystemAdmin;
+    const canAskAi = isAdmin;
     const vibeEl = document.getElementById('vibecoding');
     isUnlocked = loggedIn;
     isVibeUnlocked = Boolean(isMember || isGameAdmin);
@@ -1784,9 +1924,9 @@ function applyUnlockState() {
     document.getElementById('memberZone').classList.toggle('hidden', !isMember);
     document.getElementById('leaderboardZone').classList.toggle('hidden', !isMember);
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
-    document.getElementById('systemZone').classList.toggle('hidden', !isSystemAdmin);
+    document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
-    if (vibeEl) vibeEl.classList.toggle('hidden', !isVibeUnlocked || isSystemAdmin);
+    if (vibeEl) vibeEl.classList.toggle('hidden', !(isMember || isGameAdmin || isSystemAdmin));
     document.getElementById('compactToggleBtn').style.display = isGameAdmin ? '' : 'none';
     if (isSystemAdmin) {
         clearSelectedGame({ silent: true });
@@ -1811,11 +1951,12 @@ function applyUnlockState() {
     document.getElementById('backToNewBtn').disabled = !isVibeUnlocked;
     document.getElementById('toggleHintBtn').disabled = !isVibeUnlocked;
     document.getElementById('vibeVoiceBtn').disabled = !isVibeUnlocked;
-    document.getElementById('askAiInput').disabled = false;
-    document.getElementById('askAiSendBtn').disabled = false;
-    document.getElementById('askAiVoiceBtn').disabled = false;
+    document.getElementById('askAiBox').classList.toggle('hidden', !canAskAi);
+    document.getElementById('askAiInput').disabled = !canAskAi;
+    document.getElementById('askAiSendBtn').disabled = !canAskAi;
+    document.getElementById('askAiVoiceBtn').disabled = !canAskAi;
 
-    setStatus(isVibeUnlocked ? (isMember ? `会员 AI 编程已开启：新建 ${platformSettings.ai_create_cost || 100} 积分，编辑 ${platformSettings.ai_edit_cost || 10} 积分。` : `游戏管理员已解锁编程。邀请朋友一起来编程：${ADMIN_INVITE_URL}`) : '请登录会员或游戏管理员账号使用 AI 编程。', isVibeUnlocked ? 'ok' : 'warn');
+    setStatus(isVibeUnlocked ? (isMember ? `会员 AI 编程已开启：新建 ${platformSettings.ai_create_cost || 100} 积分，编辑 ${platformSettings.ai_edit_cost || 10} 积分。` : `游戏管理员已解锁编程。邀请朋友一起来编程：${ADMIN_INVITE_URL}`) : (canAskAi ? '系统管理员可使用“不懂就问 AI”，AI 编程创作区仅会员和游戏管理员可用。' : '请登录会员或游戏管理员账号使用 AI 编程。'), (isVibeUnlocked || canAskAi) ? 'ok' : 'warn');
     renderGameCards();
     renderTrashList();
 }
@@ -1834,13 +1975,9 @@ async function loadPublicSettings() {
 
 function updatePublicRuleText() {
     const bonus = platformSettings.signup_bonus_points || 100;
-    const createCost = platformSettings.ai_create_cost || 100;
-    const editCost = platformSettings.ai_edit_cost || 10;
-    const playCost = platformSettings.leaderboard_play_cost || 2;
-    const reward = platformSettings.leaderboard_owner_reward || 1;
-    const rule = `陌生人需要邀请码注册；注册成功赠送 ${bonus} 积分。AI 新建 ${createCost} 积分，编辑 ${editCost} 积分；玩他人榜单游戏 -${playCost} 积分，被玩 +${reward} 积分。`;
-    const text = document.getElementById('publicRuleText');
-    if (text) text.textContent = rule;
+    const inviteRequired = String(platformSettings.invite_required ?? '1') !== '0';
+    const inviteInput = document.getElementById('registerInviteCode');
+    if (inviteInput) inviteInput.placeholder = inviteRequired ? '邀请码' : '邀请码（未开启时可不填）';
     const heroBonus = document.getElementById('heroBonusPoints');
     if (heroBonus) heroBonus.textContent = bonus;
 }
@@ -1849,15 +1986,20 @@ function renderRechargeModalContent() {
     const list = document.getElementById('rechargeModalContent');
     if (!list) return;
     const notice = platformSettings.recharge_notice || `充值 ${platformSettings.recharge_min_yuan || 10} 元起，10 元 ${platformSettings.recharge_points_per_10_yuan || 100} 积分。`;
-    const qr = platformSettings.wechat_qr_image || '';
+    const qr = normalizeImageSource(platformSettings.wechat_qr_image || '');
+    const accountName = platformSettings.wechat_account_name || '';
     const accounts = rechargeAccounts || [];
-    if (!notice && !qr && !accounts.length) {
+    if (!notice && !qr && !accountName && !accounts.length) {
         list.innerHTML = '<div class="member-list-item">系统管理员还没有设置充值信息，请稍后再试。</div>';
         return;
     }
     list.innerHTML = `
         <div class="member-list-item"><strong>充值提示</strong><div class="panel-note">${escapeHtml(notice)}</div></div>
-        ${accounts.map(account => `<div class="member-list-item"><strong>${escapeHtml(account.name || '充值微信')}：${escapeHtml(account.account || '')}</strong>${account.qr_url ? `<br><img class="qr-preview" src="${escapeAttr(account.qr_url)}" alt="充值二维码">` : ''}</div>`).join('')}
+        ${accountName ? `<div class="member-list-item"><strong>微信账户名：</strong>${escapeHtml(accountName)}</div>` : ''}
+        ${accounts.map(account => {
+            const accountQr = normalizeImageSource(account.qr_url || '');
+            return `<div class="member-list-item"><strong>${escapeHtml(account.name || '充值微信')}：${escapeHtml(account.account || '')}</strong>${accountQr ? `<br><img class="qr-preview" src="${escapeAttr(accountQr)}" alt="充值二维码">` : ''}</div>`;
+        }).join('')}
         ${qr ? `<div class="member-list-item"><strong>平台二维码</strong><br><img class="qr-preview" src="${escapeAttr(qr)}" alt="微信二维码"></div>` : ''}
     `;
 }
@@ -1885,6 +2027,7 @@ async function copyRechargeInfo() {
 function buildRechargeText() {
     const lines = [];
     if (platformSettings.recharge_notice) lines.push(platformSettings.recharge_notice);
+    if (platformSettings.wechat_account_name) lines.push(`微信账户名：${platformSettings.wechat_account_name}`);
     (rechargeAccounts || []).forEach(account => lines.push(`${account.name || '充值微信'}：${account.account || ''}${account.qr_url ? ` ${account.qr_url}` : ''}`));
     if (platformSettings.wechat_qr_image) lines.push(`平台二维码：${platformSettings.wechat_qr_image}`);
     return lines.join('\n') || '暂无充值信息';
@@ -1913,6 +2056,14 @@ function showAdminLoginHint(type) {
     document.getElementById('loginStatus').textContent = type === 'system' ? '请输入系统管理员账号和密码登录。' : '请输入游戏管理员账号和密码登录。';
 }
 
+function normalizeImageSource(value) {
+    const text = String(value || '').trim().replace(/\s+/g, '');
+    if (!text) return '';
+    if (/^data:image\//i.test(text)) return text;
+    if (/^[A-Za-z0-9+/=]+$/.test(text) && text.length > 120) return `data:image/png;base64,${text}`;
+    return String(value || '').trim();
+}
+
 function fillAdminLogin() {
     showAdminLoginHint('game');
 }
@@ -1931,11 +2082,14 @@ async function registerAccount() {
     const password = document.getElementById('registerPassword').value.trim();
     const inviteCode = document.getElementById('registerInviteCode').value.trim();
     const status = document.getElementById('loginStatus');
-    if (!username || !password || !inviteCode) {
-        status.textContent = '注册需要账号、密码和邀请码。';
+    const inviteRequired = String(platformSettings.invite_required ?? '1') !== '0';
+    const btn = document.getElementById('registerSubmitBtn');
+    if (!username || !password || (inviteRequired && !inviteCode)) {
+        status.textContent = inviteRequired ? '注册需要账号、密码和邀请码。' : '注册需要账号和密码。';
         return;
     }
     status.textContent = '正在注册...';
+    if (btn) btn.disabled = true;
     try {
         const data = await apiAuth('register', { username, displayName, password, inviteCode });
         authToken = data.token;
@@ -1947,18 +2101,27 @@ async function registerAccount() {
         await afterLoginLoad();
     } catch (error) {
         status.textContent = `注册失败：${error.message}`;
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
 async function login() {
+    if (isLoggingIn) return;
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
     const status = document.getElementById('loginStatus');
+    const btn = document.getElementById('loginSubmitBtn');
     if (!username || !password) {
         status.textContent = '请输入账号和密码。';
         return;
     }
-    status.textContent = '正在登录...';
+    isLoggingIn = true;
+    status.textContent = '登录中，请稍候...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '登录中...';
+    }
     try {
         const data = await apiAuth('login', { username, password });
         authToken = data.token;
@@ -1974,6 +2137,12 @@ async function login() {
         if (currentUser.role === 'system_admin') showToast('欢迎系统管理员，已进入后台。');
     } catch (error) {
         status.textContent = `登录失败：${error.message}`;
+    } finally {
+        isLoggingIn = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '登录';
+        }
     }
 }
 
@@ -2013,12 +2182,34 @@ async function restoreSession() {
 async function afterLoginLoad() {
     if (!currentUser) return;
     if (isAdminRole()) {
+        showAdminTab(isSystemAdminRole() ? currentAdminTab : 'invite');
         await loadInviteCodes();
         if (isSystemAdminRole()) await loadSystemAdminData();
     } else {
         await loadMyProfile();
         await loadLeaderboard();
     }
+}
+
+function showAdminTab(tab) {
+    if (!isSystemAdminRole() && tab !== 'invite') tab = 'invite';
+    currentAdminTab = tab || 'invite';
+    const map = { invite: 'adminTabInvite', settings: 'adminTabSettings', users: 'adminTabUsers' };
+    Object.entries(map).forEach(([key, id]) => {
+        const panel = document.getElementById(id);
+        const btn = document.getElementById(`tab${key[0].toUpperCase()}${key.slice(1)}Btn`);
+        if (panel) panel.classList.toggle('hidden', key !== currentAdminTab);
+        if (btn) {
+            btn.classList.toggle('active', key === currentAdminTab);
+            btn.classList.toggle('ghost', key !== currentAdminTab);
+        }
+    });
+}
+
+async function refreshCurrentAdminTab() {
+    if (currentAdminTab === 'settings') return loadSettings();
+    if (currentAdminTab === 'users') return loadMembers();
+    return loadInviteCodes();
 }
 
 async function loadInviteCodes() {
@@ -2099,12 +2290,15 @@ async function loadSettings() {
 
 function renderSettings() {
     const grid = document.getElementById('settingsGrid');
-    grid.innerHTML = SYSTEM_SETTING_FIELDS.map(([key, label]) => `
+    grid.innerHTML = SYSTEM_SETTING_FIELDS.map(([key, label, type]) => `
         <div class="setting-item">
             <label><strong>${label}</strong></label>
-            <input id="setting-${key}" type="number" value="${escapeAttr(platformSettings[key] || '')}" placeholder="${escapeAttr(label)}">
+            ${type === 'select'
+                ? `<select id="setting-${key}"><option value="1" ${String(platformSettings[key] ?? '1') !== '0' ? 'selected' : ''}>开启邀请码注册</option><option value="0" ${String(platformSettings[key] ?? '1') === '0' ? 'selected' : ''}>关闭邀请码，直接注册</option></select>`
+                : `<input id="setting-${key}" type="number" value="${escapeAttr(platformSettings[key] || '')}" placeholder="${escapeAttr(label)}">`}
         </div>
     `).join('');
+    document.getElementById('wechatAccountName').value = platformSettings.wechat_account_name || '';
     document.getElementById('wechatQrImage').value = platformSettings.wechat_qr_image || '';
     document.getElementById('rechargeNotice').value = platformSettings.recharge_notice || '';
 }
@@ -2112,6 +2306,7 @@ function renderSettings() {
 async function saveSystemSettings() {
     const settings = {};
     SYSTEM_SETTING_FIELDS.forEach(([key]) => settings[key] = document.getElementById(`setting-${key}`).value);
+    settings.wechat_account_name = document.getElementById('wechatAccountName').value.trim();
     settings.wechat_qr_image = document.getElementById('wechatQrImage').value.trim();
     settings.recharge_notice = document.getElementById('rechargeNotice').value.trim();
     try {
@@ -2161,20 +2356,33 @@ async function loadMembers() {
             list.textContent = '暂无用户，请在上方新增。';
             return;
         }
-        list.innerHTML = data.members.map(member => `
-            <div class="member-list-item">
-                <strong>${escapeHtml(member.displayName)}（${escapeHtml(member.username)}）</strong>
-                <div class="panel-note">角色：${escapeHtml(roleLabel(member.role))} | 积分：${member.points || 0} | 注册：${member.createdAt ? new Date(member.createdAt).toLocaleString() : '-'}</div>
-                <div class="rating-row">
-                    ${member.role === 'system_admin' ? '<span class="panel-note">内置系统管理员不可修改</span>' : `
-                        <button class="vibe-button ghost" onclick="editMemberFromList('${escapeAttr(member.username)}','${escapeAttr(member.displayName)}', ${Number(member.points || 0)}, '${escapeAttr(member.role)}')">修改</button>
-                        <button class="vibe-button recharge-entry-btn" onclick="prepareRecharge('${escapeAttr(member.username)}')">充值</button>
-                        <button class="vibe-button ghost" onclick="switchUserRole('${escapeAttr(member.username)}', '${member.role === 'game_admin' ? 'member' : 'game_admin'}')">切换为${member.role === 'game_admin' ? '普通用户' : '游戏管理员'}</button>
-                        <button class="trash-btn" onclick="deleteMember('${escapeAttr(member.username)}')">删除</button>
-                    `}
-                </div>
+        list.innerHTML = `
+            <div class="member-table-wrap">
+                <table class="member-table">
+                    <thead><tr><th>用户</th><th>角色</th><th>积分</th><th>注册时间</th><th>操作</th></tr></thead>
+                    <tbody>
+                        ${data.members.map(member => `
+                            <tr>
+                                <td><strong>${escapeHtml(member.displayName)}</strong><br><span class="panel-note">${escapeHtml(member.username)}</span></td>
+                                <td>${escapeHtml(roleLabel(member.role))}</td>
+                                <td>${member.points || 0}</td>
+                                <td>${member.createdAt ? new Date(member.createdAt).toLocaleString() : '-'}</td>
+                                <td>
+                                    <div class="rating-row">
+                                        ${member.role === 'system_admin' ? '<span class="panel-note">内置系统管理员不可修改</span>' : `
+                                            <button class="vibe-button ghost" onclick="editMemberFromList('${escapeAttr(member.username)}','${escapeAttr(member.displayName)}', ${Number(member.points || 0)}, '${escapeAttr(member.role)}')">修改</button>
+                                            <button class="vibe-button recharge-entry-btn" onclick="prepareRecharge('${escapeAttr(member.username)}')">充值</button>
+                                            <button class="vibe-button ghost" onclick="switchUserRole('${escapeAttr(member.username)}', '${member.role === 'game_admin' ? 'member' : 'game_admin'}')">切换为${member.role === 'game_admin' ? '普通用户' : '游戏管理员'}</button>
+                                            <button class="trash-btn" onclick="deleteMember('${escapeAttr(member.username)}')">删除</button>
+                                        `}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
             </div>
-        `).join('');
+        `;
     } catch (error) {
         list.textContent = `加载用户失败：${error.message}`;
     }
@@ -2376,9 +2584,9 @@ function renderLeaderboard() {
         return `
             <div class="leaderboard-card">
                 <div>
-                    <div class="leaderboard-title">${index + 1}. ${escapeHtml(game.icon || '🎮')} ${escapeHtml(game.title)}</div>
-                    <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
-                    <span class="score-pill">⭐ ${game.averageScore || 0} 分 / ${game.ratingCount || 0} 人评分</span>
+                    <div class="leaderboard-title">🏆 第 ${index + 1} 名 · ${escapeHtml(game.icon || '🎮')} ${escapeHtml(game.title)}</div>
+                        <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
+                        <span class="score-pill">用户评分 ⭐ ${game.averageScore || 0} 分 · ${game.ratingCount || 0} 人评分</span>
                     <div class="rating-row">
                         ${mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('')}
                     </div>
@@ -3333,9 +3541,9 @@ function escapeAttr(value) {
 
 async function boot() {
     loadLocalLayoutState();
-    document.getElementById('askAiInput').disabled = false;
-    document.getElementById('askAiSendBtn').disabled = false;
-    document.getElementById('askAiVoiceBtn').disabled = false;
+    document.getElementById('askAiInput').disabled = true;
+    document.getElementById('askAiSendBtn').disabled = true;
+    document.getElementById('askAiVoiceBtn').disabled = true;
     setupAskAiInputShortcuts();
     await loadPublicSettings();
     ['loginUsername', 'loginPassword'].forEach(id => {
