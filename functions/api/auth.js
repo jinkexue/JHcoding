@@ -8,6 +8,9 @@ const GAME_ADMIN_USERNAME = 'yjh';
 const GAME_ADMIN_PASSWORD = '150113';
 const SYSTEM_ADMIN_USERNAME = 'yqcw@qq.com';
 const SYSTEM_ADMIN_PASSWORD = '123456';
+const FEATURED_OWNER_USERNAME = 'yjh@sivani.net';
+const FEATURED_OWNER_PASSWORD = '123456';
+const FEATURED_OWNER_DISPLAY = 'yjh@sivani.net';
 const MAX_MEMBER_CARDS = 3;
 
 const DEFAULT_SETTINGS = {
@@ -24,6 +27,14 @@ const DEFAULT_SETTINGS = {
     wechat_qr_image: '',
     recharge_notice: '充值请添加系统管理员设置的微信账户，10 元起充。'
 };
+
+const FEATURED_GAMES = [
+    { cardId: 'go-game', title: '围棋对弈', icon: '⚫', url: 'go-game.html', description: '经典围棋游戏！输入密码进入房间，支持在线对战。可创建房间、观战、限时落子、保存棋局回放。' },
+    { cardId: 'whack-a-mole', title: '打地鼠', icon: '🐹', url: 'whack-a-mole.html', description: '经典的打地鼠游戏！考验你的反应速度，看看能在10秒内打到多少只地鼠。' },
+    { cardId: 'racing-game', title: '极速躲避赛车', icon: '🏎️', url: 'racing-game.html', description: '使用方向键控制赛车躲避障碍物，坚持越久得分越高，难度会逐渐增加。' },
+    { cardId: 'shooting-game', title: 'WASD射击', icon: '🎯', url: 'shooting-game.html', description: 'WASD移动，鼠标瞄准射击！消灭不断涌来的敌人，挑战你的极限分数。' },
+    { cardId: 'campus-survival', title: '校园求生', icon: '🏫', url: 'campus-survival.html', description: '3D冒险游戏！选择角色，在风雨雪雹中从校门口穿越到学校教室，收集道具保护自己。' }
+];
 
 export async function onRequestOptions() {
     return new Response(null, { headers: corsHeaders });

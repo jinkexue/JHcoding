@@ -86,6 +86,20 @@
             transform: scale(0.96);
         }
 
+        .page-layout {
+            width: min(1200px, calc(100% - 80px));
+            margin: 0 auto 20px;
+            display: grid;
+            grid-template-columns: minmax(250px, 25%) minmax(0, 75%);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .leaderboard-column,
+        .content-column {
+            min-width: 0;
+        }
+
         .game-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -301,9 +315,9 @@
         }
 
         .vibecoding-shell {
-            max-width: 1200px;
-            margin: 0 auto 36px;
-            padding: 0 40px;
+            max-width: none;
+            margin: 0 0 26px;
+            padding: 0;
         }
 
         .vibecoding-panel {
@@ -660,9 +674,9 @@
         }
 
         .debug-panel {
-            max-width: 1200px;
+            width: min(1200px, calc(100% - 80px));
             margin: 0 auto 28px;
-            padding: 0 40px;
+            padding: 0;
         }
 
         .ask-ai-box {
@@ -807,19 +821,19 @@
 
         .auth-panel {
             position: absolute;
-            top: 18px;
-            right: 24px;
-            width: 245px;
-            max-width: calc(100vw - 48px);
+            top: 10px;
+            right: 18px;
+            width: 292px;
+            max-width: calc(100vw - 36px);
             z-index: 20;
             margin: 0;
             padding: 0;
         }
 
         .auth-card {
-            padding: 12px;
-            border-radius: 18px;
-            box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+            padding: 8px 10px;
+            border-radius: 16px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
         }
 
         .auth-card .section-title h2 {
@@ -828,21 +842,27 @@
 
         .auth-card .auth-hint,
         .auth-card .login-status {
-            font-size: 11px;
-            line-height: 1.35;
+            font-size: 10px;
+            line-height: 1.25;
+            margin-top: 5px;
         }
 
         .auth-card .auth-form {
-            grid-template-columns: 1fr;
-            gap: 7px;
-            margin-top: 8px;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 5px;
+            margin-top: 6px;
+        }
+
+        .auth-card #registerBox .auth-form {
+            grid-template-columns: 1fr 1fr;
         }
 
         .auth-card input,
         .auth-card .vibe-button {
-            padding: 8px 10px;
-            font-size: 13px;
-            border-radius: 12px;
+            padding: 7px 8px;
+            font-size: 12px;
+            border-radius: 10px;
+            min-height: 32px;
         }
 
         .auth-card .tab-row {
@@ -851,8 +871,9 @@
         }
 
         .auth-switch {
-            margin-top: 8px;
+            margin-top: 4px;
             text-align: right;
+            font-size: 11px;
         }
 
         .auth-switch button {
@@ -867,14 +888,26 @@
             justify-content: flex-end;
         }
 
+        .compact-auth-card .section-title {
+            margin-bottom: 0;
+        }
+
+        .compact-auth-card #registerSubmitBtn {
+            grid-column: span 2;
+        }
+
+        .compact-auth-card #registerBox .auth-switch {
+            text-align: left;
+        }
+
         .member-zone,
         .admin-zone,
         .system-zone,
         .invite-banner,
         .hero-section {
-            max-width: 1200px;
-            margin: 0 auto 20px;
-            padding: 0 40px;
+            max-width: none;
+            margin: 0 0 20px;
+            padding: 0;
         }
 
         .auth-card,
@@ -1365,7 +1398,55 @@
             }
         }
 
+        @media (max-width: 1024px) {
+            header {
+                padding: 24px 300px 16px 24px;
+            }
+            header h1 { font-size: 38px; }
+            header p { font-size: 16px; }
+            .page-layout {
+                width: min(100% - 40px, 980px);
+                grid-template-columns: minmax(220px, 28%) minmax(0, 72%);
+                gap: 16px;
+            }
+            .hero-card {
+                grid-template-columns: 1fr;
+            }
+            .hero-points {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
         @media (max-width: 900px) {
+            header {
+                padding: 22px 20px 14px;
+                min-height: auto;
+            }
+            .auth-panel {
+                position: static;
+                width: min(100% - 40px, 760px);
+                max-width: none;
+                padding: 0;
+                margin: 0 auto 16px;
+            }
+            .auth-card .auth-form,
+            .auth-card #registerBox .auth-form {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .compact-auth-card #loginSubmitBtn,
+            .compact-auth-card #registerSubmitBtn {
+                grid-column: span 2;
+            }
+            .page-layout {
+                width: min(100% - 40px, 820px);
+                grid-template-columns: 1fr;
+            }
+            .leaderboard-column {
+                order: 1;
+            }
+            .content-column {
+                order: 2;
+            }
             .vibe-workspace {
                 grid-template-columns: 1fr;
             }
@@ -1377,30 +1458,25 @@
         }
 
         @media (max-width: 600px) {
-            header { padding: 22px 20px 14px; text-align: center; min-height: auto; }
-            header h1 { font-size: 36px; }
-            .auth-panel { position: static; width: auto; max-width: none; padding: 0 20px; margin: 0 auto 16px; }
+            header { padding: 18px 16px 12px; text-align: center; min-height: auto; }
+            header h1 { font-size: 34px; }
+            .auth-panel { width: calc(100% - 32px); }
+            .auth-card .auth-form,
+            .auth-card #registerBox .auth-form { grid-template-columns: 1fr; }
+            .compact-auth-card #loginSubmitBtn,
+            .compact-auth-card #registerSubmitBtn { grid-column: auto; }
+            .page-layout,
+            .debug-panel { width: calc(100% - 32px); }
             .game-grid { grid-template-columns: 1fr; padding: 0; }
-            .builtin-leaderboard-zone,
-            .card-toolbar { max-width: none; margin-left: 20px; margin-right: 20px; }
             #leaderboardZone { max-width: none; margin-left: auto; margin-right: auto; }
-            .hero-points { grid-template-columns: 1fr 1fr; }
+            .hero-points { grid-template-columns: 1fr; }
             .card-toolbar { justify-content: stretch; }
             .card-toolbar .vibe-button { width: 100%; }
-            .vibecoding-shell,
-            .auth-panel,
-            .member-zone,
-            .admin-zone,
-            .system-zone,
-            .invite-banner,
-            .hero-section { padding: 0 20px; }
-            .builtin-leaderboard-zone { padding: 0; }
             .vibe-header h2 { font-size: 24px; }
             .vibe-actions { grid-template-columns: 1fr; }
             .password-row input { width: 220px; margin-bottom: 8px; }
             .password-row button { margin-left: 0; }
             .leaderboard-card { grid-template-columns: 1fr; }
-            .hero-points { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 400px) {
@@ -1425,6 +1501,24 @@
     </header>
 
     <main>
+        <div class="page-layout">
+            <aside class="leaderboard-column">
+                <section class="builtin-leaderboard-zone" id="builtinLeaderboardZone">
+                    <div class="member-card builtin-leaderboard-card">
+                        <div class="section-title">
+                            <div>
+                                <h2 class="builtin-leaderboard-title">🏆 榜单游戏</h2>
+                                <p class="panel-note">推荐展示作品，单列竖排；当前绑定创作者：yjh@sivani.net。</p>
+                            </div>
+                        </div>
+                        <div class="game-grid" id="gameGrid"></div>
+                    </div>
+                </section>
+                <div class="card-toolbar">
+                    <button class="vibe-button ghost" id="compactToggleBtn" onclick="toggleCompactCards()">批量收拢卡片</button>
+                </div>
+            </aside>
+            <div class="content-column">
         <section class="hero-section" id="heroSection">
             <div class="hero-card">
                 <div class="hero-content">
@@ -1463,7 +1557,7 @@
         </section>
 
         <section class="auth-panel" id="authPanel">
-            <div class="auth-card">
+            <div class="auth-card compact-auth-card">
                 <div class="section-title">
                     <div>
                         <h2>登录 / 注册</h2>
@@ -1603,21 +1697,6 @@
             </div>
         </section>
 
-        <section class="builtin-leaderboard-zone" id="builtinLeaderboardZone">
-            <div class="member-card builtin-leaderboard-card">
-                <div class="section-title">
-                    <div>
-                        <h2 class="builtin-leaderboard-title">🏆 榜单游戏</h2>
-                        <p class="panel-note">推荐展示作品，单列竖排；当前绑定创作者：yjh@sivani.net。</p>
-                    </div>
-                </div>
-                <div class="game-grid" id="gameGrid"></div>
-            </div>
-        </section>
-        <div class="card-toolbar">
-            <button class="vibe-button ghost" id="compactToggleBtn" onclick="toggleCompactCards()">批量收拢卡片</button>
-        </div>
-
         <section class="vibecoding-shell" id="vibecoding">
             <div class="vibecoding-panel">
                 <div class="vibe-header">
@@ -1661,7 +1740,7 @@
                                     <button class="vibe-button ghost" id="toggleHintBtn" onclick="toggleHintList()">提示</button>
                                 </div>
                             </div>
-                            <div class="status-area" id="vibeStatus">请先登录。会员可用积分 AI 编程，游戏管理员可管理内置游戏。</div>
+                            <div class="status-area" id="vibeStatus">未登录也可以浏览 AI 编程区域；登录会员或游戏管理员后可正式生成和编辑游戏。</div>
                             <div class="thinking-card" id="thinkingCard">
                                 <div class="thinking-face" id="thinkingFace">🤔</div>
                                 <div class="thinking-title" id="thinkingTitle">等待你的创意</div>
@@ -1712,6 +1791,8 @@
                 </div>
             </div>
         </section>
+            </div>
+        </div>
         <div class="debug-panel">
             <div class="debug-box" id="debugBox">
                 <div class="debug-title">
@@ -2046,7 +2127,7 @@ function applyUnlockState() {
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
     document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
-    if (vibeEl) vibeEl.classList.toggle('hidden', !(isMember || isGameAdmin || isSystemAdmin));
+    if (vibeEl) vibeEl.classList.toggle('hidden', false);
     document.getElementById('compactToggleBtn').style.display = isGameAdmin ? '' : 'none';
     if (isSystemAdmin) {
         clearSelectedGame({ silent: true });
@@ -2076,7 +2157,7 @@ function applyUnlockState() {
     document.getElementById('askAiSendBtn').disabled = !canAskAi;
     document.getElementById('askAiVoiceBtn').disabled = !canAskAi;
 
-    setStatus(isVibeUnlocked ? (isMember ? `会员 AI 编程已开启：新建 ${platformSettings.ai_create_cost || 100} 积分，编辑 ${platformSettings.ai_edit_cost || 10} 积分。` : `游戏管理员已解锁编程。邀请朋友一起来编程：${ADMIN_INVITE_URL}`) : (canAskAi ? '系统管理员可使用“不懂就问 AI”，AI 编程创作区仅会员和游戏管理员可用。' : '请登录会员或游戏管理员账号使用 AI 编程。'), (isVibeUnlocked || canAskAi) ? 'ok' : 'warn');
+    setStatus(isVibeUnlocked ? (isMember ? `会员 AI 编程已开启：新建 ${platformSettings.ai_create_cost || 100} 积分，编辑 ${platformSettings.ai_edit_cost || 10} 积分。` : `游戏管理员已解锁编程。邀请朋友一起来编程：${ADMIN_INVITE_URL}`) : (canAskAi ? '系统管理员可使用“不懂就问 AI”，AI 编程创作区仅会员和游戏管理员可用。' : '未登录可浏览 AI 编程区域；登录会员或游戏管理员后可使用生成、编辑和语音功能。'), (isVibeUnlocked || canAskAi) ? 'ok' : 'warn');
     renderGameCards();
     renderTrashList();
 }
