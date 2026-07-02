@@ -178,6 +178,7 @@ async function initDb(db) {
     await migrateDb(db);
     await seedUser(db, GAME_ADMIN_USERNAME, GAME_ADMIN_PASSWORD, 'game_admin', '游戏管理员', 0);
     await seedUser(db, SYSTEM_ADMIN_USERNAME, SYSTEM_ADMIN_PASSWORD, 'system_admin', '系统管理员', 0);
+    await seedFeaturedLeaderboardGames(db);
     await seedSettings(db);
 }
 
@@ -200,6 +201,31 @@ async function seedUser(db, username, password, role, displayName, points) {
     }
     await db.prepare('INSERT INTO users (username, password, role, display_name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .bind(username, password, role, displayName, points, now, now).run();
+}
+
+async function seedFeaturedLeaderboardGames(db) {
+    const now = new Date().toISOString();
+    await ensureFeaturedOwner(db);
+    const owner = await db.prepare('SELECT id FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();
+    if (!owner) return;
+    for (const game of FEATURED_GAMES) {
+        await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, recommended = 1, recommended_at = CASE WHEN member_cards.recommended_at = '' THEN excluded.recommended_at ELSE member_cards.recommended_at END, updated_at = excluded.updated_at`)
+            .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now, now).run();
+    }
+}
+
+async function ensureFeaturedOwner(db) {
+    const now = new Date().toISOString();
+    const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();
+    if (existing) {
+        await db.prepare('UPDATE users SET role = ?, display_name = CASE WHEN display_name = \'\' THEN ? ELSE display_name END, updated_at = ? WHERE id = ?')
+            .bind('member', FEATURED_OWNER_DISPLAY, now, existing.id).run();
+        return;
+    }
+    await db.prepare('INSERT INTO users (username, password, role, display_name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(FEATURED_OWNER_USERNAME, FEATURED_OWNER_PASSWORD, 'member', FEATURED_OWNER_DISPLAY, 200, now, now).run();
 }
 
 async function seedSettings(db) {
