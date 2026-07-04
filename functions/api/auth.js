@@ -55,6 +55,7 @@ export async function onRequestPost(context) {
         if (action === 'register') return register(db, body, request);
 
         const session = await getSession(db, request, body);
+        if (action === 'leaderboard') return getLeaderboard(db, session?.user || null, env.GAMES_KV);
         if (!session) return json({ success: false, error: '请先登录。' }, 401);
 
         if (action === 'me') return json({ success: true, user: publicUser(session.user), settings: await getSettings(db) });
@@ -74,10 +75,9 @@ export async function onRequestPost(context) {
         if (action === 'pointLogs') return getPointLogs(db, session.user);
         if (action === 'myProfile') return requireMember(session, () => getMyProfile(db, session.user));
         if (action === 'saveCard') return requireMember(session, () => saveCard(db, session.user, body));
-        if (action === 'recommend') return requireMember(session, () => setRecommendState(db, session.user, body));
-        if (action === 'leaderboard') return requireMember(session, () => getLeaderboard(db, session.user));
-        if (action === 'rateGame') return requireMember(session, () => rateGame(db, session.user, body));
-        if (action === 'playLeaderboardGame') return requireMember(session, () => playLeaderboardGame(db, session.user, body));
+        if (action === 'recommend') return requireMember(session, () => setRecommendState(db, session.user, body, env.GAMES_KV));
+        if (action === 'rateGame') return requireMember(session, () => rateGame(db, session.user, body, env.GAMES_KV));
+        if (action === 'playLeaderboardGame') return requireMember(session, () => playLeaderboardGame(db, session.user, body, env.GAMES_KV));
 
         return json({ success: false, error: '未知操作。' }, 400);
     } catch (error) {
@@ -221,9 +221,9 @@ async function seedFeaturedLeaderboardGames(db) {
     if (!owner) return;
     for (const game of FEATURED_GAMES) {
         await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-            ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, recommended = 1, recommended_at = CASE WHEN member_cards.recommended_at = '' THEN excluded.recommended_at ELSE member_cards.recommended_at END, updated_at = excluded.updated_at`)
-            .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now, now).run();
+            VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
+            ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, recommended = 0, recommended_at = '', updated_at = excluded.updated_at`)
+            .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now).run();
     }
 }
 
@@ -522,35 +522,37 @@ async function saveCard(db, user, body) {
     return getMyProfile(db, user);
 }
 
-async function setRecommendState(db, user, body) {
+async function setRecommendState(db, user, body, kv = null) {
     const cardId = sanitizeCardId(body.cardId || '');
     const recommended = body.recommended === true;
     if (!cardId) return json({ success: false, error: '游戏不存在。' }, 400);
     const card = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ?').bind(user.id, cardId).first();
     if (!card) return json({ success: false, error: '请先保存这个编程游戏后再推荐。' }, 400);
     if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
+    if (recommended && await isCardTrashed(kv, cardId)) return json({ success: false, error: '回收站中的游戏不能推荐到榜单。' }, 400);
     if (recommended && !card.recommended) {
         const count = await db.prepare('SELECT COUNT(*) AS total FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).first();
-        if (Number(count?.total || 0) >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到公共游戏库。` }, 400);
+        if (Number(count?.total || 0) >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到榜单游戏。` }, 400);
     }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
         .bind(recommended ? 1 : 0, recommended ? (card.recommended_at || now) : '', now, user.id, cardId).run();
     const profile = await getProfileObject(db, user.id);
-    return json({ success: true, profile, leaderboard: await buildLeaderboard(db, user) });
+    return json({ success: true, profile, leaderboard: await buildLeaderboard(db, user, kv) });
 }
 
-async function getLeaderboard(db, user) {
-    return json({ success: true, leaderboard: await buildLeaderboard(db, user) });
+async function getLeaderboard(db, user, kv = null) {
+    return json({ success: true, leaderboard: await buildLeaderboard(db, user, kv) });
 }
 
-async function rateGame(db, user, body) {
+async function rateGame(db, user, body, kv = null) {
     const owner = sanitizeUsername(body.owner || '');
     const cardId = sanitizeCardId(body.cardId || '');
     const score = Math.max(1, Math.min(5, Number(body.score || 0)));
     const ownerUser = await db.prepare('SELECT * FROM users WHERE username = ?').bind(owner).first();
     if (!ownerUser || !cardId || !Number.isFinite(score)) return json({ success: false, error: '评分参数不完整。' }, 400);
     if (ownerUser.id === user.id) return json({ success: false, error: '不能给自己的榜单游戏打分。' }, 400);
+    if (await isCardTrashed(kv, cardId)) return json({ success: false, error: '榜单游戏已在回收站。' }, 404);
     const card = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ? AND recommended = 1').bind(ownerUser.id, cardId).first();
     if (!card) return json({ success: false, error: '榜单游戏不存在或尚未推荐。' }, 404);
     const now = new Date().toISOString();
@@ -558,19 +560,20 @@ async function rateGame(db, user, body) {
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(owner_user_id, card_id, rater_user_id) DO UPDATE SET score = excluded.score, updated_at = excluded.updated_at`)
         .bind(ownerUser.id, cardId, user.id, score, now).run();
-    return json({ success: true, leaderboard: await buildLeaderboard(db, user) });
+    return json({ success: true, leaderboard: await buildLeaderboard(db, user, kv) });
 }
 
-async function playLeaderboardGame(db, user, body) {
+async function playLeaderboardGame(db, user, body, kv = null) {
     const owner = sanitizeUsername(body.owner || '');
     const cardId = sanitizeCardId(body.cardId || '');
     const idempotencyKey = sanitizePlayKey(body.playKey || '');
     const ownerUser = await db.prepare('SELECT * FROM users WHERE username = ?').bind(owner).first();
+    if (await isCardTrashed(kv, cardId)) return json({ success: false, error: '榜单游戏已在回收站。' }, 404);
     const card = ownerUser ? await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ? AND recommended = 1').bind(ownerUser.id, cardId).first() : null;
     if (!ownerUser || !card) return json({ success: false, error: '榜单游戏不存在。' }, 404);
     if (idempotencyKey) {
         const charged = await db.prepare('SELECT id FROM game_plays WHERE player_id = ? AND play_key = ?').bind(user.id, idempotencyKey).first();
-        if (charged) return json({ success: true, url: card.url, user: publicUser(user), leaderboard: await buildLeaderboard(db, user), charged: false });
+        if (charged) return json({ success: true, url: card.url, user: publicUser(user), leaderboard: await buildLeaderboard(db, user, kv), charged: false });
     }
     const settings = await getSettings(db);
     const cost = numberSetting(settings, 'leaderboard_play_cost', 2);
@@ -585,10 +588,10 @@ async function playLeaderboardGame(db, user, body) {
     await db.prepare('INSERT INTO game_plays (player_id, owner_user_id, card_id, cost, reward, play_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .bind(user.id, ownerUser.id, cardId, ownerUser.id === user.id ? 0 : cost, ownerUser.id === user.id ? 0 : reward, idempotencyKey, now).run();
     const fresh = await db.prepare('SELECT * FROM users WHERE id = ?').bind(user.id).first();
-    return json({ success: true, url: card.url, user: publicUser(fresh), leaderboard: await buildLeaderboard(db, fresh) });
+    return json({ success: true, url: card.url, user: publicUser(fresh), leaderboard: await buildLeaderboard(db, fresh, kv) });
 }
 
-async function buildLeaderboard(db, currentUser = null) {
+async function buildLeaderboard(db, currentUser = null, kv = null) {
     const result = await db.prepare(`
         SELECT c.*, u.username AS owner, u.display_name AS owner_name,
             COALESCE(AVG(r.score), 0) AS average_score,
@@ -600,7 +603,12 @@ async function buildLeaderboard(db, currentUser = null) {
         WHERE c.recommended = 1
         GROUP BY c.user_id, c.card_id
         ORDER BY average_score DESC, rating_count DESC, c.recommended_at DESC`).bind(currentUser?.id || 0).all();
-    return (result.results || []).map(row => ({
+    const rows = [];
+    for (const row of (result.results || [])) {
+        if (await isCardTrashed(kv, row.card_id)) continue;
+        rows.push(row);
+    }
+    return rows.map(row => ({
         id: `${row.owner}__${row.card_id}`,
         owner: row.owner,
         ownerName: row.owner_name || row.owner,
@@ -642,6 +650,16 @@ async function getCards(db, userId) {
 async function getProfileObject(db, userId) {
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
     return { ...publicUser(user), cards: await getCards(db, userId) };
+}
+
+async function isCardTrashed(kv, cardId) {
+    if (!kv || !cardId || !/^(mod-)?[a-z0-9_-]+$/.test(String(cardId))) return false;
+    try {
+        const stored = await kv.get(`game:${cardId}`, { type: 'json' });
+        return Boolean(stored?.trashed);
+    } catch (error) {
+        return false;
+    }
 }
 
 async function changePoints(db, userId, delta, reason, refType = '', refId = '', meta = {}) {

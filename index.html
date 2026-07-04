@@ -1518,7 +1518,6 @@
             .page-layout,
             .debug-panel { width: calc(100% - 32px); }
             .game-grid { grid-template-columns: 1fr; padding: 0; }
-            #leaderboardZone { max-width: none; margin-left: auto; margin-right: auto; }
             .hero-points { grid-template-columns: 1fr; }
             .card-toolbar { justify-content: stretch; }
             .card-toolbar .vibe-button { width: 100%; }
@@ -1697,7 +1696,7 @@
                             </div>
                         </div>
                         <iframe id="gamePreviewFrame" sandbox="allow-scripts allow-same-origin" style="display:none;"></iframe>
-                        <div class="trash-panel" id="trashPanel">
+                        <div class="trash-panel hidden" id="trashPanel">
                             <h3>回收站</h3>
                             <div class="trash-list" id="trashList">回收站为空。</div>
                         </div>
@@ -1775,7 +1774,7 @@
                 <div class="section-title">
                     <div>
                         <h2>我的编程游戏</h2>
-                        <p class="panel-note">只可修改名称和简介；最多推荐 3 个游戏到公共游戏库（榜单）。</p>
+                        <p class="panel-note">只可修改名称和简介；最多推荐 3 个游戏到榜单游戏。</p>
                     </div>
                     <button class="vibe-button ghost" onclick="loadMyProfile()">刷新游戏</button>
                 </div>
@@ -1818,28 +1817,17 @@
                     <div class="section-title">
                         <div>
                             <h2 class="builtin-leaderboard-title" id="sidebarLeaderboardTitle">🏆 榜单游戏</h2>
-                            <p class="panel-note" id="sidebarLeaderboardNote">推荐展示作品，默认展开；当前绑定创作者：yjh@sivani.net。</p>
+                            <p class="panel-note" id="sidebarLeaderboardNote">会员游戏榜单与内置榜单统一展示，默认展开，回收站游戏不会显示。</p>
                         </div>
                     </div>
                     <div class="game-grid" id="gameGrid"></div>
+                    <div class="leaderboard-grid unified-member-leaderboard" id="leaderboardList">暂无推荐游戏。</div>
                 </div>
             </section>
             <div class="card-toolbar">
                 <button class="vibe-button ghost" id="compactToggleBtn" onclick="toggleCompactCards()">收拢卡片</button>
             </div>
 
-            <section class="member-zone hidden" id="leaderboardZone">
-                <div class="member-card compact-member-leaderboard">
-                    <div class="section-title">
-                        <div>
-                            <h2>会员游戏榜单</h2>
-                            <p class="panel-note">公共游戏库，最多可推荐 3 个自己的游戏。</p>
-                        </div>
-                        <button class="vibe-button ghost" onclick="loadLeaderboard()">刷新</button>
-                    </div>
-                    <div class="leaderboard-grid" id="leaderboardList">暂无推荐游戏。</div>
-                </div>
-            </section>
         </aside>
         </div>
         <div class="debug-panel">
@@ -1891,6 +1879,7 @@ let currentUser = null;
 let authToken = localStorage.getItem('authToken') || '';
 let myProfile = null;
 let leaderboardGames = [];
+let editingCardId = '';
 let platformSettings = { signup_bonus_points: '200', invite_required: '1' };
 let rechargeAccounts = [];
 let selectedGame = null;
@@ -1989,16 +1978,12 @@ function renderGameCards() {
     const grid = document.getElementById('gameGrid');
     grid.classList.toggle('compact', cardsCompact);
     const isSystemAdmin = currentUser && currentUser.role === 'system_admin';
-    if (isSystemAdmin) {
-        grid.innerHTML = '';
-        return;
-    }
     const allGames = sortGamesByOrder([
         ...builtInGames.filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        ...dynamicGames.filter(game => isAdminRole() && !game.isBuiltinOverride && !game.trashed)
+        ...dynamicGames.filter(game => isGameAdminRole() && !game.isBuiltinOverride && !game.trashed && game.owner === currentUser.username)
     ]);
     if (!allGames.length) {
-        grid.innerHTML = '<div class="auth-card"><strong>还没有编程游戏。</strong><p class="panel-note">进入上方 AI 编程区域建立游戏；建好后可在这里修改名称和简介。</p></div>';
+        grid.innerHTML = isSystemAdmin ? '<div class="auth-card"><strong>榜单游戏暂无可展示卡片。</strong><p class="panel-note">系统管理员可在下方查看会员推荐榜单。</p></div>' : '<div class="auth-card"><strong>还没有编程游戏。</strong><p class="panel-note">进入上方 AI 编程区域建立游戏；建好后可在这里修改名称和简介。</p></div>';
         return;
     }
 
@@ -2076,7 +2061,7 @@ function handleCardDrop(event, targetGameId) {
     if (!sourceGameId || sourceGameId === targetGameId) return;
     const visibleIds = sortGamesByOrder([
         ...builtInGames.filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed)
+        ...dynamicGames.filter(game => isAdminRole() && !game.isBuiltinOverride && !game.trashed && game.owner === currentUser.username)
     ]).map(game => game.id);
     const fromIndex = visibleIds.indexOf(sourceGameId);
     const toIndex = visibleIds.indexOf(targetGameId);
@@ -2126,7 +2111,7 @@ function loadLocalLayoutState() {
     hiddenBuiltinIds = safeJsonArray(localStorage.getItem('hiddenBuiltinIds'));
     deletedBuiltinIds = safeJsonArray(localStorage.getItem('deletedBuiltinIds'));
     cardOrder = safeJsonArray(localStorage.getItem('cardOrder'));
-    cardsCompact = localStorage.getItem('cardsCompact') === 'true';
+    cardsCompact = localStorage.getItem('cardsCompactV2') === 'true';
     const btn = document.getElementById('compactToggleBtn');
     if (btn) btn.textContent = cardsCompact ? '展开卡片' : '收拢卡片';
 }
@@ -2171,13 +2156,15 @@ function applyUnlockState() {
     document.getElementById('authPanel').classList.toggle('hidden', loggedIn);
     document.getElementById('userBar').classList.toggle('hidden', !loggedIn);
     document.getElementById('memberZone').classList.toggle('hidden', !isMember);
-    document.getElementById('leaderboardZone').classList.toggle('hidden', !isMember);
-    document.getElementById('builtinLeaderboardZone').classList.toggle('hidden', isSystemAdmin);
+    const builtinZone = document.getElementById('builtinLeaderboardZone');
+    if (builtinZone) builtinZone.classList.toggle('hidden', false);
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
     document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
     if (vibeEl) vibeEl.classList.toggle('hidden', false);
     document.getElementById('compactToggleBtn').style.display = isGameAdmin ? '' : 'none';
+    const trashPanel = document.getElementById('trashPanel');
+    if (trashPanel) trashPanel.classList.toggle('hidden', !loggedIn);
     if (isSystemAdmin) {
         clearSelectedGame({ silent: true });
     }
@@ -2429,10 +2416,12 @@ async function restoreSession() {
 
 async function afterLoginLoad() {
     if (!currentUser) return;
+    await loadDynamicGames();
     if (isAdminRole()) {
         showAdminTab(isSystemAdminRole() ? currentAdminTab : 'invite');
         await loadInviteCodes();
         if (isSystemAdminRole()) await loadSystemAdminData();
+        await loadLeaderboard();
     } else {
         await loadMyProfile();
         await loadLeaderboard();
@@ -2729,6 +2718,7 @@ async function loadMyProfile() {
     try {
         const data = await apiAuth('myProfile');
         myProfile = data.profile;
+        editingCardId = '';
         renderMyCards();
     } catch (error) {
         wrap.textContent = `加载我的编程游戏失败：${error.message}`;
@@ -2737,9 +2727,10 @@ async function loadMyProfile() {
 
 function renderMyCards() {
     const wrap = document.getElementById('myCards');
-    const cards = myProfile && Array.isArray(myProfile.cards) ? myProfile.cards : [];
+    const cards = (myProfile && Array.isArray(myProfile.cards) ? myProfile.cards : []).filter(card => !isGameCurrentlyTrashed(card.id));
     if (!cards.length) {
-        wrap.innerHTML = '<div class="personal-game-card"><strong>还没有编程游戏。</strong><p class="panel-note">进入上方 AI 编程区域建立游戏；建好后可在这里修改名称和简介。</p></div>';
+        const hasTrashedOnly = myProfile && Array.isArray(myProfile.cards) && myProfile.cards.length > 0;
+        wrap.innerHTML = `<div class="personal-game-card"><strong>${hasTrashedOnly ? '当前编程游戏都在回收站。' : '还没有编程游戏。'}</strong><p class="panel-note">${hasTrashedOnly ? '可在回收站恢复自己的游戏。' : '进入上方 AI 编程区域建立游戏；建好后会以卡片方式展示，点击“编辑”再修改名称和简介。'}</p></div>`;
         return;
     }
     const recommendedCount = cards.filter(card => card.recommended).length;
@@ -2749,19 +2740,27 @@ function renderMyCards() {
         <div class="personal-game-card ${card.recommended ? 'recommended' : ''}">
             <div class="section-title">
                 <h3>${escapeHtml(card.icon || '🎮')} ${escapeHtml(card.title || `编程游戏 ${index + 1}`)} ${card.recommended ? '✅ 已推荐' : ''}</h3>
-                <button class="vibe-button ${card.recommended ? 'ghost' : ''}" ${recommendDisabled ? 'disabled' : ''} onclick="toggleRecommend('${escapeAttr(card.id)}', ${card.recommended ? 'false' : 'true'})">${card.recommended ? '撤销推荐' : (recommendDisabled ? '已达推荐上限' : '推荐到公共游戏库')}</button>
+                <button class="vibe-button ghost" onclick="toggleMyCardEditor('${escapeAttr(card.id)}')">${editingCardId === card.id ? '收起编辑' : '编辑'}</button>
             </div>
-            <div class="member-form">
+            <p class="panel-note">${escapeHtml(card.description || '暂无简介')}</p>
+            <div class="rating-row">
+                ${card.url ? `<button class="play-btn" onclick="playPersonalCard('${escapeAttr(card.url)}')">玩这个游戏</button>` : ''}
+                <button class="vibe-button ${card.recommended ? 'ghost' : ''}" ${recommendDisabled ? 'disabled' : ''} onclick="toggleRecommend('${escapeAttr(card.id)}', ${card.recommended ? 'false' : 'true'})">${card.recommended ? '撤销推荐' : (recommendDisabled ? '已达推荐上限' : '推荐到榜单游戏')}</button>
+                <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(card.id)}', event)">移到回收站</button>
+            </div>
+            <div class="member-form ${editingCardId === card.id ? '' : 'hidden'}" id="${card.id}-editor">
                 <input id="${card.id}-title" value="${escapeAttr(card.title || '')}" placeholder="游戏名称">
                 <textarea id="${card.id}-desc" placeholder="游戏简介">${escapeHtml(card.description || '')}</textarea>
-            </div>
-            <div class="rating-row">
                 <button class="vibe-button" onclick="saveMyCard('${escapeAttr(card.id)}')">保存游戏信息</button>
-                ${card.url ? `<button class="play-btn" onclick="playPersonalCard('${escapeAttr(card.url)}')">玩这个游戏</button>` : ''}
             </div>
         </div>
     `;
     }).join('');
+}
+
+function toggleMyCardEditor(cardId) {
+    editingCardId = editingCardId === cardId ? '' : cardId;
+    renderMyCards();
 }
 
 function playPersonalCard(url) {
@@ -2786,6 +2785,7 @@ async function saveMyCard(cardId) {
     try {
         const data = await apiAuth('saveCard', { card });
         myProfile = data.profile;
+        editingCardId = '';
         renderMyCards();
         await loadLeaderboard();
         showToast('游戏信息已保存');
@@ -2801,19 +2801,19 @@ async function toggleRecommend(cardId, recommended) {
         leaderboardGames = data.leaderboard || [];
         renderMyCards();
         renderLeaderboard();
-        showToast(recommended ? '已推荐到公共游戏库' : '已撤销推荐');
+        showToast(recommended ? '已推荐到榜单游戏' : '已撤销推荐');
     } catch (error) {
         showToast(`推荐操作失败：${error.message}`);
     }
 }
 
 async function loadLeaderboard() {
-    if (!currentUser || currentUser.role !== 'member') return;
     const list = document.getElementById('leaderboardList');
+    if (!list) return;
     list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
-        leaderboardGames = data.leaderboard || [];
+        leaderboardGames = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
         renderLeaderboard();
     } catch (error) {
         list.textContent = `加载榜单失败：${error.message}`;
@@ -2822,12 +2822,16 @@ async function loadLeaderboard() {
 
 function renderLeaderboard() {
     const list = document.getElementById('leaderboardList');
-    if (!leaderboardGames.length) {
+    if (!list) return;
+    const visibleGames = leaderboardGames.filter(game => !isGameCurrentlyTrashed(game.cardId));
+    if (!visibleGames.length) {
         list.textContent = '暂无推荐游戏。';
         return;
     }
-    list.innerHTML = leaderboardGames.map((game, index) => {
+    list.innerHTML = visibleGames.map((game, index) => {
         const mine = currentUser && game.owner === currentUser.username;
+        const canRate = currentUser && currentUser.role === 'member' && !mine;
+        const canPlay = currentUser && currentUser.role === 'member';
         return `
             <div class="leaderboard-card">
                 <div>
@@ -2835,10 +2839,10 @@ function renderLeaderboard() {
                         <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
                         <span class="score-pill">用户评分 ⭐ ${game.averageScore || 0} 分 · ${game.ratingCount || 0} 人评分</span>
                     <div class="rating-row">
-                        ${mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('')}
+                        ${!currentUser ? '<span class="panel-note">登录会员后可评分和游玩</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
                     </div>
                 </div>
-                <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${mine ? '' : `-${platformSettings.leaderboard_play_cost || 2}积分`}</button>
+                <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${canPlay && !mine ? `-${platformSettings.leaderboard_play_cost || 2}积分` : ''}</button>
             </div>
         `;
     }).join('');
@@ -2846,7 +2850,7 @@ function renderLeaderboard() {
 
 async function playLeaderboardGame(owner, cardId) {
     if (!currentUser || currentUser.role !== 'member') {
-        showToast('请先登录会员账号');
+        showToast('请先登录会员账号再玩榜单游戏');
         return;
     }
     try {
@@ -2875,7 +2879,7 @@ async function rateLeaderboardGame(owner, cardId, score) {
 
 async function loadDynamicGames() {
     try {
-        const res = await fetch('/api/games');
+        const res = await fetch('/api/games', { headers: authHeaders() });
         if (!res.ok) return;
         const data = await res.json();
         dynamicGames = (data.games || []).map(game => ({
@@ -2893,11 +2897,18 @@ async function loadDynamicGames() {
             isBuiltinOverride: isBuiltinOverrideId(game.id)
         }));
         trashGames = dynamicGames.filter(game => game.trashed && !game.isBuiltinOverride);
+        leaderboardGames = leaderboardGames.filter(game => !isGameCurrentlyTrashed(game.cardId));
         renderGameCards();
+        renderLeaderboard();
         renderTrashList();
     } catch (error) {
         console.warn('加载编程作品失败：', error);
     }
+}
+
+function isGameCurrentlyTrashed(gameId) {
+    if (!gameId) return false;
+    return hiddenBuiltinIds.includes(gameId) || trashGames.some(game => game.id === gameId) || dynamicGames.some(game => game.id === gameId && game.trashed);
 }
 
 async function startModifyGame(gameId, event) {
@@ -3125,6 +3136,7 @@ async function generateAndSave(payload) {
         if (currentUser && currentUser.role === 'member') {
             await loadMyProfile();
         }
+        await loadLeaderboard();
         const savedGame = saveData.game;
         const builtinId = getBuiltinIdFromOverride(savedGame.id);
         if (builtinId) {
@@ -3634,8 +3646,8 @@ function stopAskAiSpeaking() {
 
 async function moveGameToTrash(gameId, event) {
     if (event) event.stopPropagation();
-    if (!isAdminRole()) {
-        showToast('只有管理员可以移动榜单游戏');
+    if (!isAdminRole() && !(currentUser && currentUser.role === 'member')) {
+        showToast('请先登录后再移动游戏');
         return;
     }
     if (isGenerating) {
@@ -3643,21 +3655,32 @@ async function moveGameToTrash(gameId, event) {
         return;
     }
     const builtin = builtInGames.find(game => game.id === gameId);
+    if (!builtin && gameId !== selectedCardId && !confirm('确定把这个游戏移到回收站吗？')) return;
     if (builtin) {
+        if (!isAdminRole()) {
+            showToast('只有管理员可以移动内置榜单游戏');
+            return;
+        }
         if (!hiddenBuiltinIds.includes(gameId)) hiddenBuiltinIds.push(gameId);
         saveLocalLayoutState();
         if (selectedGame && selectedGame.id === gameId) clearSelectedGame({ silent: true });
         renderGameCards();
+        renderLeaderboard();
         renderTrashList();
         showToast('已放入回收站');
         return;
     }
-    await updateGameTrash(gameId, 'trash');
+    const game = dynamicGames.find(item => item.id === gameId);
+    if (!isAdminRole() && (!game || game.owner !== currentUser.username)) {
+        showToast('只能移动自己的编程游戏');
+        return;
+    }
+    await changeSelectedGameTrash(gameId, 'trash');
 }
 
 async function restoreGameFromTrash(gameId) {
-    if (!isAdminRole()) {
-        showToast('只有管理员可以恢复榜单游戏');
+    if (!isAdminRole() && !(currentUser && currentUser.role === 'member')) {
+        showToast('请先登录后再恢复游戏');
         return;
     }
     if (isGenerating) {
@@ -3665,14 +3688,31 @@ async function restoreGameFromTrash(gameId) {
         return;
     }
     if (hiddenBuiltinIds.includes(gameId)) {
+        if (!isAdminRole()) {
+            showToast('只有管理员可以恢复内置榜单游戏');
+            return;
+        }
         hiddenBuiltinIds = hiddenBuiltinIds.filter(id => id !== gameId);
         saveLocalLayoutState();
         renderGameCards();
+        renderLeaderboard();
         renderTrashList();
         showToast('已恢复到卡片');
         return;
     }
-    await updateGameTrash(gameId, 'restore');
+    const game = trashGames.find(item => item.id === gameId) || dynamicGames.find(item => item.id === gameId);
+    if (!isAdminRole() && (!game || game.owner !== currentUser.username)) {
+        showToast('只能恢复自己的编程游戏');
+        return;
+    }
+    await changeSelectedGameTrash(gameId, 'restore');
+}
+
+async function changeSelectedGameTrash(gameId, action) {
+    await updateGameTrash(gameId, action);
+    if (currentUser && currentUser.role === 'member') {
+        await loadMyProfile();
+    }
 }
 
 async function updateGameTrash(gameId, action) {
@@ -3685,6 +3725,9 @@ async function updateGameTrash(gameId, action) {
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || '操作失败');
         await loadDynamicGames();
+        await loadLeaderboard();
+        if (currentUser && currentUser.role === 'member') await loadMyProfile();
+        renderLeaderboard();
         if (selectedGame && selectedGame.id === gameId && action === 'trash') {
             clearSelectedGame({ silent: true });
         }
@@ -3738,20 +3781,26 @@ async function deleteGameForever(gameId) {
 function renderTrashList() {
     const list = document.getElementById('trashList');
     if (!list) return;
-    const hiddenBuiltins = builtInGames
+    if (!currentUser) {
+        list.textContent = '登录后可查看自己的回收站。';
+        return;
+    }
+    const canManageAllTrash = isAdminRole();
+    const hiddenBuiltins = canManageAllTrash ? builtInGames
         .filter(game => hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id))
-        .map(game => ({ ...game, trashType: 'builtin' }));
-    const allTrashGames = [...hiddenBuiltins, ...trashGames.map(game => ({ ...game, trashType: 'vibe' }))];
+        .map(game => ({ ...game, trashType: 'builtin' })) : [];
+    const visibleTrashGames = canManageAllTrash ? trashGames : trashGames.filter(game => game.owner === currentUser.username);
+    const allTrashGames = [...hiddenBuiltins, ...visibleTrashGames.map(game => ({ ...game, trashType: 'vibe' }))];
     if (!allTrashGames.length) {
         list.textContent = '回收站为空。';
         return;
     }
     list.innerHTML = allTrashGames.map(game => `
         <div class="trash-item">
-            <span>${game.icon || '🎮'} ${escapeHtml(game.title)} <small>(${game.trashType === 'builtin' ? '内置游戏' : escapeHtml(game.id)})</small></span>
+            <span>${game.icon || '🎮'} ${escapeHtml(game.title)} <small>(${game.trashType === 'builtin' ? '内置游戏' : escapeHtml(game.ownerName || game.owner || game.id)})</small></span>
             <div class="trash-actions">
                 <button class="vibe-button ghost" onclick="restoreGameFromTrash('${escapeAttr(game.id)}')">恢复到卡片</button>
-                <button class="trash-btn" onclick="deleteGameForever('${escapeAttr(game.id)}')">永久删除</button>
+                ${canManageAllTrash ? `<button class="trash-btn" onclick="deleteGameForever('${escapeAttr(game.id)}')">永久删除</button>` : ''}
             </div>
         </div>
     `).join('');
@@ -3800,6 +3849,7 @@ async function boot() {
     renderGameCards();
     applyUnlockState();
     await loadDynamicGames();
+    await loadLeaderboard();
     await restoreSession();
 }
 

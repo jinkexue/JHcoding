@@ -21,13 +21,16 @@ export async function onRequestGet(context) {
             return json({ games: [], warning: '未绑定 GAMES_KV，编程作品暂不能持久保存。' });
         }
 
+        const db = env.DB || env.YJH_DB || env.D1_DATABASE;
+        const session = db ? await getSession(db, request, {}) : null;
+
         const url = new URL(request.url);
         const id = sanitizeId(url.searchParams.get('id') || '');
         const view = url.searchParams.get('view') === '1';
 
         if (id) {
             const stored = await kv.get(`game:${id}`, { type: 'json' });
-            if (!stored) {
+            if (!stored || (stored.trashed && !canSeeTrashedGame(stored, session))) {
                 return view ? html('<h1>游戏不存在</h1>', 404) : json({ success: false, error: '游戏不存在' }, 404);
             }
             if (view) {
@@ -50,7 +53,7 @@ export async function onRequestGet(context) {
                 trashed: Boolean(meta.trashed),
                 trashedAt: meta.trashedAt || ''
             };
-        }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        }).filter(game => !game.trashed || canSeeTrashedGame(game, session)).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 
         return json({ success: true, games });
     } catch (error) {
@@ -72,7 +75,7 @@ export async function onRequestPost(context) {
         if (!session) return json({ success: false, error: '请先登录。' }, 401);
 
         if (action === 'trash' || action === 'restore') {
-            return requireGameAdmin(session, () => updateTrashState(kv, db, body, action === 'trash'));
+            return updateTrashState(kv, db, body, action === 'trash', session.user);
         }
 
         if (action === 'delete') {
@@ -139,6 +142,12 @@ export async function onRequestPost(context) {
     }
 }
 
+function canSeeTrashedGame(game, session) {
+    if (!game?.trashed || !session?.user) return false;
+    if (['game_admin', 'system_admin'].includes(session.user.role)) return true;
+    return game.owner === session.user.username;
+}
+
 function requireGameAdmin(session, fn) {
     if (!['game_admin', 'system_admin'].includes(session.user.role)) return json({ success: false, error: '只有管理员可以操作。' }, 403);
     return fn();
@@ -168,12 +177,16 @@ async function changePoints(db, userId, delta, reason, refType = '', refId = '',
         .bind(userId, Number(delta || 0), reason, refType || '', refId || '', JSON.stringify(meta || {}), now).run();
 }
 
-async function updateTrashState(kv, db, body, trashed) {
+async function updateTrashState(kv, db, body, trashed, user) {
     const id = sanitizeId(body.id || '');
     if (!id) return json({ success: false, error: '缺少游戏 ID' }, 400);
 
     const stored = await kv.get(`game:${id}`, { type: 'json' });
     if (!stored) return json({ success: false, error: '游戏不存在' }, 404);
+    const isAdmin = ['game_admin', 'system_admin'].includes(user.role);
+    if (!isAdmin && (stored.owner !== user.username || /^mod-/.test(id))) {
+        return json({ success: false, error: '只能操作自己的编程游戏。' }, 403);
+    }
 
     const now = new Date().toISOString();
     const game = {
