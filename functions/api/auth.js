@@ -1,3 +1,5 @@
+import { resolveProvider } from './_provider.js';
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -25,8 +27,29 @@ const DEFAULT_SETTINGS = {
     invite_required: '1',
     wechat_account_name: '',
     wechat_qr_image: '',
-    recharge_notice: '充值请添加系统管理员设置的微信账户，10 元起充。'
+    recharge_notice: '充值请添加系统管理员设置的微信账户，10 元起充。',
+    // AI 供应商配置（管理员在后台设置，用于替代环境变量）
+    ai_api_key: '',
+    ai_base_url: '',
+    ai_model: '',
+    ai_chat_model: '',
+    ai_token_param: '',
+    ai_max_tokens: '',
+    ai_chat_max_tokens: '',
+    ai_use_response_format: ''
 };
+
+// 敏感字段：不会通过 publicSettings 暴露给普通用户
+const SENSITIVE_SETTING_KEYS = new Set([
+    'ai_api_key',
+    'ai_base_url',
+    'ai_model',
+    'ai_chat_model',
+    'ai_token_param',
+    'ai_max_tokens',
+    'ai_chat_max_tokens',
+    'ai_use_response_format'
+]);
 
 const FEATURED_GAMES = [
     { cardId: 'go-game', title: '围棋对弈', icon: '⚫', url: 'go-game.html', description: '经典围棋游戏！输入密码进入房间，支持在线对战。可创建房间、观战、限时落子、保存棋局回放。' },
@@ -34,6 +57,12 @@ const FEATURED_GAMES = [
     { cardId: 'racing-game', title: '极速躲避赛车', icon: '🏎️', url: 'racing-game.html', description: '使用方向键控制赛车躲避障碍物，坚持越久得分越高，难度会逐渐增加。' },
     { cardId: 'shooting-game', title: 'WASD射击', icon: '🎯', url: 'shooting-game.html', description: 'WASD移动，鼠标瞄准射击！消灭不断涌来的敌人，挑战你的极限分数。' },
     { cardId: 'campus-survival', title: '校园求生', icon: '🏫', url: 'campus-survival.html', description: '3D冒险游戏！选择角色，在风雨雪雹中从校门口穿越到学校教室，收集道具保护自己。' }
+];
+
+// KV 中 mod- 前缀的内置游戏"AI 改编版",在启动时确保归属挂到 yjh@sivani.net。
+const BUILTIN_MOD_GAMES = [
+    { modId: 'mod-rainbow-tetris', title: '七彩俄罗斯方块（编程版）', icon: '🌈', description: '在原版七彩俄罗斯方块基础上做的编程改进版本。' },
+    { modId: 'mod-snake-game', title: '快乐贪吃蛇（编程版）', icon: '🐍', description: '在原版快乐贪吃蛇基础上做的编程改进版本。' }
 ];
 
 export async function onRequestOptions() {
@@ -47,6 +76,8 @@ export async function onRequestPost(context) {
         if (!db) return json({ success: false, error: '缺少 Cloudflare D1 绑定。请把 D1 数据库绑定名设置为 DB。' }, 500);
 
         await initDb(db);
+        // 若 KV 可用,顺便把 mod- 记录归属迁移到 yjh@sivani.net(幂等,已挂好则跳过)
+        try { await migrateBuiltinOverridesToFeaturedOwner(db, env.GAMES_KV || null); } catch { /* 迁移失败不影响主流程 */ }
         const body = await request.json();
         const action = String(body.action || '').trim();
 
@@ -58,7 +89,7 @@ export async function onRequestPost(context) {
         if (action === 'leaderboard') return getLeaderboard(db, session?.user || null, env.GAMES_KV);
         if (!session) return json({ success: false, error: '请先登录。' }, 401);
 
-        if (action === 'me') return json({ success: true, user: publicUser(session.user), settings: await getSettings(db) });
+        if (action === 'me') return json({ success: true, user: publicUser(session.user), settings: filterSensitiveSettings(await getSettings(db)) });
         if (action === 'listMembers') return requireSystemAdmin(session, () => listMembers(db));
         if (action === 'saveMember') return requireSystemAdmin(session, () => saveMember(db, body));
         if (action === 'listInviteCodes') return requireAnyAdmin(session, () => listInviteCodes(db));
@@ -66,6 +97,7 @@ export async function onRequestPost(context) {
         if (action === 'deleteInviteCode') return requireAnyAdmin(session, () => deleteInviteCode(db, body));
         if (action === 'getSettings') return requireSystemAdmin(session, () => getAdminSettings(db));
         if (action === 'saveSettings') return requireSystemAdmin(session, () => saveSettings(db, body));
+        if (action === 'testAiProvider') return requireSystemAdmin(session, () => testAiProvider(db, env));
         if (action === 'listRechargeAccounts') return requireSystemAdmin(session, () => listRechargeAccounts(db));
         if (action === 'saveRechargeAccount') return requireSystemAdmin(session, () => saveRechargeAccount(db, body));
         if (action === 'deleteRechargeAccount') return requireSystemAdmin(session, () => deleteRechargeAccount(db, body));
@@ -76,6 +108,7 @@ export async function onRequestPost(context) {
         if (action === 'myProfile') return requireMember(session, () => getMyProfile(db, session.user));
         if (action === 'saveCard') return requireMember(session, () => saveCard(db, session.user, body));
         if (action === 'recommend') return requireMember(session, () => setRecommendState(db, session.user, body, env.GAMES_KV));
+        if (action === 'adminRecommend') return requireAnyAdmin(session, () => adminSetRecommend(db, body, env.GAMES_KV));
         if (action === 'rateGame') return requireMember(session, () => rateGame(db, session.user, body, env.GAMES_KV));
         if (action === 'playLeaderboardGame') return requireMember(session, () => playLeaderboardGame(db, session.user, body, env.GAMES_KV));
 
@@ -191,6 +224,63 @@ async function initDb(db) {
     await seedUser(db, SYSTEM_ADMIN_USERNAME, SYSTEM_ADMIN_PASSWORD, 'system_admin', '系统管理员', 0);
     await seedFeaturedLeaderboardGames(db);
     await seedSettings(db);
+}
+
+// 把 KV 里已有的 mod-{builtinId} 覆盖版归属统一挂到 yjh@sivani.net,
+// 并把对应的推荐卡片写入 member_cards(推荐上限专供该账号,不占普通会员的 3 张位)。
+async function migrateBuiltinOverridesToFeaturedOwner(db, kv) {
+    if (!kv) return;
+    await ensureFeaturedOwner(db);
+    const owner = await db.prepare('SELECT id, username, display_name FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();
+    if (!owner) return;
+    const now = new Date().toISOString();
+    for (const featured of BUILTIN_MOD_GAMES) {
+        const key = `game:${featured.modId}`;
+        let stored;
+        try { stored = await kv.get(key, { type: 'json' }); } catch { stored = null; }
+        if (!stored) continue;
+        // 补齐 owner / ownerName,若已经是目标账号则跳过写 KV
+        const needFix = stored.owner !== FEATURED_OWNER_USERNAME || stored.ownerName !== FEATURED_OWNER_DISPLAY;
+        if (needFix) {
+            const nextGame = {
+                ...stored,
+                owner: FEATURED_OWNER_USERNAME,
+                ownerName: FEATURED_OWNER_DISPLAY,
+                trashed: Boolean(stored.trashed),
+                trashedAt: stored.trashedAt || '',
+                updatedAt: now
+            };
+            try {
+                await kv.put(key, JSON.stringify(nextGame), {
+                    metadata: {
+                        title: nextGame.title || featured.title,
+                        icon: nextGame.icon || featured.icon,
+                        description: nextGame.description || featured.description,
+                        owner: FEATURED_OWNER_USERNAME,
+                        ownerName: FEATURED_OWNER_DISPLAY,
+                        updatedAt: now,
+                        trashed: Boolean(nextGame.trashed),
+                        trashedAt: nextGame.trashedAt || ''
+                    }
+                });
+            } catch { /* KV 写入失败时忽略,下次启动再重试 */ }
+        }
+        const title = stored.title || featured.title;
+        const icon = stored.icon || featured.icon;
+        const description = stored.description || featured.description;
+        const url = `/api/games?id=${featured.modId}&view=1`;
+        await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, card_id) DO UPDATE SET
+                title = excluded.title,
+                icon = excluded.icon,
+                description = excluded.description,
+                url = excluded.url,
+                recommended = CASE WHEN member_cards.recommended = 1 THEN 1 ELSE 1 END,
+                recommended_at = CASE WHEN member_cards.recommended_at = '' OR member_cards.recommended_at IS NULL THEN excluded.recommended_at ELSE member_cards.recommended_at END,
+                updated_at = excluded.updated_at`)
+            .bind(owner.id, featured.modId, title, icon, description, url, now, now).run();
+    }
 }
 
 async function migrateDb(db) {
@@ -419,7 +509,79 @@ async function getPublicSettings(db) {
 }
 
 async function getAdminSettings(db) {
-    return json({ success: true, settings: await getSettings(db) });
+    const settings = await getSettings(db);
+    // 对 api key 做脱敏，前端只显示掩码。保存时如果收到掩码则不更新该字段。
+    const apiKey = String(settings.ai_api_key || '');
+    if (apiKey) {
+        settings.ai_api_key_masked = maskApiKey(apiKey);
+        settings.ai_api_key = '';
+    } else {
+        settings.ai_api_key_masked = '';
+    }
+    return json({ success: true, settings });
+}
+
+function maskApiKey(value) {
+    const text = String(value || '');
+    if (!text) return '';
+    if (text.length <= 8) return '****';
+    return `${text.slice(0, 4)}****${text.slice(-4)}`;
+}
+
+function filterSensitiveSettings(settings) {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(settings || {})) {
+        if (SENSITIVE_SETTING_KEYS.has(key)) continue;
+        cleaned[key] = value;
+    }
+    return cleaned;
+}
+
+async function testAiProvider(db, env) {
+    try {
+        const config = await resolveProvider(env, 'chat', db);
+        if (!config.apiKey) {
+            return json({ success: false, error: '未配置 AI API Key。' }, 400);
+        }
+        const requestBody = {
+            model: config.model,
+            messages: [
+                { role: 'system', content: '你是一个测试助手，请只回复"OK"。' },
+                { role: 'user', content: '连通性测试。' }
+            ],
+            temperature: 0
+        };
+        requestBody[config.tokenParamName] = 32;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        let res;
+        try {
+            res = await fetch(`${config.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${config.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timer);
+        }
+        const text = await res.text();
+        if (!res.ok) {
+            return json({ success: false, error: `AI 接口测试失败（HTTP ${res.status}）：${text.slice(0, 400)}`, baseUrl: config.baseUrl, model: config.model }, 502);
+        }
+        return json({
+            success: true,
+            message: 'AI 连接成功。',
+            baseUrl: config.baseUrl,
+            model: config.model,
+            preview: text.slice(0, 200)
+        });
+    } catch (error) {
+        return json({ success: false, error: `AI 接口测试异常：${error.message || error}` }, 500);
+    }
 }
 
 async function saveSettings(db, body) {
@@ -428,7 +590,10 @@ async function saveSettings(db, body) {
     const now = new Date().toISOString();
     for (const key of allowed) {
         if (Object.prototype.hasOwnProperty.call(settings, key)) {
-            await db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)').bind(key, String(settings[key] ?? ''), now).run();
+            const rawValue = settings[key];
+            // ai_api_key 特殊处理：如果传空字符串，则保留原有值（避免脱敏显示后被清空）
+            if (key === 'ai_api_key' && (rawValue === '' || rawValue == null)) continue;
+            await db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)').bind(key, String(rawValue ?? ''), now).run();
         }
     }
     return getAdminSettings(db);
@@ -543,6 +708,23 @@ async function setRecommendState(db, user, body, kv = null) {
 
 async function getLeaderboard(db, user, kv = null) {
     return json({ success: true, leaderboard: await buildLeaderboard(db, user, kv) });
+}
+
+// 管理员对任意用户的卡片进行推荐/下架切换,不受 3 张上限约束
+async function adminSetRecommend(db, body, kv = null) {
+    const owner = sanitizeUsername(body.owner || '');
+    const cardId = sanitizeCardId(body.cardId || '');
+    const recommended = body.recommended === true;
+    if (!owner || !cardId) return json({ success: false, error: '缺少 owner 或 cardId。' }, 400);
+    const ownerUser = await db.prepare('SELECT id FROM users WHERE username = ?').bind(owner).first();
+    if (!ownerUser) return json({ success: false, error: '推荐人不存在。' }, 404);
+    const card = await db.prepare('SELECT * FROM member_cards WHERE user_id = ? AND card_id = ?').bind(ownerUser.id, cardId).first();
+    if (!card) return json({ success: false, error: '推荐目录里没有这张卡片。' }, 404);
+    if (recommended && await isCardTrashed(kv, cardId)) return json({ success: false, error: '回收站中的游戏不能推荐到榜单。' }, 400);
+    const now = new Date().toISOString();
+    await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
+        .bind(recommended ? 1 : 0, recommended ? (card.recommended_at || now) : '', now, ownerUser.id, cardId).run();
+    return json({ success: true, leaderboard: await buildLeaderboard(db, null, kv) });
 }
 
 async function rateGame(db, user, body, kv = null) {

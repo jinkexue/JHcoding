@@ -1647,6 +1647,50 @@
                         <textarea id="rechargeNotice" placeholder="充值提示，例如：充值后请联系管理员确认到账"></textarea>
                         <button class="vibe-button" onclick="saveSystemSettings()">保存平台设置</button>
                     </div>
+
+                    <div class="section-title" style="margin-top:24px;">
+                        <div>
+                            <h3>AI 供应商设置</h3>
+                            <p class="panel-note">在此配置 AI 的 baseUrl、apiKey、model 等；保存后立即生效，无需重新部署 Cloudflare。所有兼容 OpenAI 格式的服务（火山方舟、DeepSeek、Kimi、通义、硅基流动、OpenAI 等）都可以用。</p>
+                        </div>
+                    </div>
+                    <div class="system-form">
+                        <input id="aiBaseUrl" placeholder="Base URL，例如 https://ark.cn-beijing.volces.com/api/v3">
+                        <input id="aiApiKey" placeholder="API Key（保存后会脱敏显示；如需保留旧值，留空即可）" autocomplete="off">
+                        <input id="aiModel" placeholder="生成游戏用的模型 ID / 接入点 ID">
+                        <input id="aiChatModel" placeholder="AI 助手对话用的模型 ID（可留空，默认与上面一致）">
+                        <div class="settings-grid compact-settings">
+                            <div class="setting-item">
+                                <label><strong>Token 参数名</strong></label>
+                                <select id="aiTokenParam">
+                                    <option value="">默认（max_tokens）</option>
+                                    <option value="max_tokens">max_tokens</option>
+                                    <option value="max_completion_tokens">max_completion_tokens</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label><strong>生成游戏最大 Token</strong></label>
+                                <input id="aiMaxTokens" type="number" placeholder="默认 6000">
+                            </div>
+                            <div class="setting-item">
+                                <label><strong>AI 对话最大 Token</strong></label>
+                                <input id="aiChatMaxTokens" type="number" placeholder="默认 1200">
+                            </div>
+                            <div class="setting-item">
+                                <label><strong>强制 JSON 输出</strong></label>
+                                <select id="aiUseResponseFormat">
+                                    <option value="">默认（关闭）</option>
+                                    <option value="false">关闭</option>
+                                    <option value="true">开启（response_format=json_object）</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="rating-row">
+                            <button class="vibe-button" onclick="saveAiProviderSettings()">保存 AI 供应商设置</button>
+                            <button class="vibe-button ghost" onclick="testAiProviderSettings()">测试 AI 连接</button>
+                        </div>
+                        <p class="panel-note" id="aiProviderStatus">当前 API Key 状态：<span id="aiApiKeyStatus">未配置</span></p>
+                    </div>
                 </div>
 
                 <div class="admin-tab-panel hidden" id="adminTabUsers">
@@ -1902,6 +1946,8 @@ let askAiSpeakingEnabled = true;
 let askAiRecognition = null;
 let cardsCompact = false;
 let vibeRecognition = null;
+// 游客免费试玩:每种游戏(builtin id 或 mod- id)允许 1 次,再次点击提示登录/注册
+const GUEST_TRIAL_STORAGE_KEY = 'guestTrialPlayedV1';
 
 const FEATURED_OWNER_USERNAME = 'yjh@sivani.net';
 const FEATURED_OWNER_NAME = 'yjh@sivani.net';
@@ -1980,7 +2026,12 @@ function renderGameCards() {
     const isSystemAdmin = currentUser && currentUser.role === 'system_admin';
     const allGames = sortGamesByOrder([
         ...builtInGames.filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        ...dynamicGames.filter(game => isGameAdminRole() && !game.isBuiltinOverride && !game.trashed && game.owner === currentUser.username)
+        // 管理员可看到所有会员的 AI 编程作品(不再限制 owner);其余身份看不到 vibe 卡片
+        ...dynamicGames.filter(game => {
+            if (game.isBuiltinOverride || game.trashed) return false;
+            if (isAdminRole()) return true;
+            return false;
+        })
     ]);
     if (!allGames.length) {
         grid.innerHTML = isSystemAdmin ? '<div class="auth-card"><strong>榜单游戏暂无可展示卡片。</strong><p class="panel-note">系统管理员可在下方查看会员推荐榜单。</p></div>' : '<div class="auth-card"><strong>还没有编程游戏。</strong><p class="panel-note">进入上方 AI 编程区域建立游戏；建好后可在这里修改名称和简介。</p></div>';
@@ -2011,7 +2062,7 @@ function renderGameCards() {
                     <p>${escapeHtml(game.description || '这是一个由 VibeCoding 生成的小游戏，可以继续用提示词修改。')}</p>
                     ${displayOwner ? `<div class="panel-note">创作者：${escapeHtml(displayOwner)}</div>` : ''}
                     <div class="card-actions">
-                        <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="event.stopPropagation(); if (!currentUser) { event.preventDefault(); showToast('请先登录'); }">${playText}</a>
+                        <a href="${escapeAttr(playUrl)}" class="play-btn" onclick="return handleGuestTrialClick(event, '${escapeAttr(game.id)}')">${playText}</a>
                         ${adminActions}
                     </div>
                 </div>
@@ -2061,7 +2112,7 @@ function handleCardDrop(event, targetGameId) {
     if (!sourceGameId || sourceGameId === targetGameId) return;
     const visibleIds = sortGamesByOrder([
         ...builtInGames.filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        ...dynamicGames.filter(game => isAdminRole() && !game.isBuiltinOverride && !game.trashed && game.owner === currentUser.username)
+        ...dynamicGames.filter(game => !game.isBuiltinOverride && !game.trashed && isAdminRole())
     ]).map(game => game.id);
     const fromIndex = visibleIds.indexOf(sourceGameId);
     const toIndex = visibleIds.indexOf(targetGameId);
@@ -2080,17 +2131,54 @@ function handleCardDragEnd(event) {
 }
 
 async function openGameFromCard(gameId) {
-    if (!currentUser) {
-        showToast('请先登录');
-        return;
-    }
     const game = getGameMetaById(gameId);
     if (!game) return;
     const hasOverride = game.type === 'builtin' && Boolean(getBuiltinOverride(game.id));
     const playUrl = hasOverride ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}&view=1` : (game.url || '#');
+    if (!currentUser) {
+        if (!consumeGuestTrial(gameId)) {
+            showToast('免费试玩机会已用完，请登录或注册后继续游玩');
+            return;
+        }
+        showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
+    }
     if (playUrl && playUrl !== '#') {
         window.open(playUrl, '_blank');
     }
+}
+
+// 游客试玩额度:每个 gameId 只允许 1 次;未来同一游戏再点击返回 false,首次点击返回 true 并记录
+function consumeGuestTrial(gameId) {
+    const played = getGuestPlayedList();
+    if (played.includes(gameId)) return false;
+    played.push(gameId);
+    try { localStorage.setItem(GUEST_TRIAL_STORAGE_KEY, JSON.stringify(played)); } catch { /* ignore */ }
+    return true;
+}
+
+// 卡片"开始游戏"按钮的原生 <a> onclick 拦截:游客首次放行,继续玩弹提示
+function handleGuestTrialClick(event, gameId) {
+    if (event && event.stopPropagation) event.stopPropagation();
+    if (currentUser) return true;
+    if (!consumeGuestTrial(gameId)) {
+        if (event && event.preventDefault) event.preventDefault();
+        showToast('免费试玩机会已用完，请登录或注册后继续游玩');
+        return false;
+    }
+    showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
+    return true;
+}
+
+function hasGuestTrialUsed(gameId) {
+    return getGuestPlayedList().includes(gameId);
+}
+
+function getGuestPlayedList() {
+    try {
+        const raw = localStorage.getItem(GUEST_TRIAL_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch { return []; }
 }
 
 function toggleCompactCards() {
@@ -2538,6 +2626,68 @@ function renderSettings() {
     document.getElementById('wechatAccountName').value = platformSettings.wechat_account_name || '';
     document.getElementById('wechatQrImage').value = platformSettings.wechat_qr_image || '';
     document.getElementById('rechargeNotice').value = platformSettings.recharge_notice || '';
+    renderAiProviderSettings();
+}
+
+function renderAiProviderSettings() {
+    const s = platformSettings || {};
+    const baseUrl = document.getElementById('aiBaseUrl');
+    const apiKey = document.getElementById('aiApiKey');
+    const model = document.getElementById('aiModel');
+    const chatModel = document.getElementById('aiChatModel');
+    const tokenParam = document.getElementById('aiTokenParam');
+    const maxTokens = document.getElementById('aiMaxTokens');
+    const chatMaxTokens = document.getElementById('aiChatMaxTokens');
+    const useResponseFormat = document.getElementById('aiUseResponseFormat');
+    const status = document.getElementById('aiApiKeyStatus');
+    if (!baseUrl) return;
+    baseUrl.value = s.ai_base_url || '';
+    apiKey.value = '';
+    apiKey.placeholder = s.ai_api_key_masked
+        ? `已保存：${s.ai_api_key_masked}（留空表示不修改）`
+        : 'API Key（保存后会脱敏显示；如需保留旧值，留空即可）';
+    model.value = s.ai_model || '';
+    chatModel.value = s.ai_chat_model || '';
+    tokenParam.value = s.ai_token_param || '';
+    maxTokens.value = s.ai_max_tokens || '';
+    chatMaxTokens.value = s.ai_chat_max_tokens || '';
+    useResponseFormat.value = s.ai_use_response_format || '';
+    if (status) status.textContent = s.ai_api_key_masked ? `已配置（${s.ai_api_key_masked}）` : '未配置，将回退到 Cloudflare 环境变量。';
+}
+
+async function saveAiProviderSettings() {
+    const settings = {
+        ai_base_url: document.getElementById('aiBaseUrl').value.trim(),
+        ai_model: document.getElementById('aiModel').value.trim(),
+        ai_chat_model: document.getElementById('aiChatModel').value.trim(),
+        ai_token_param: document.getElementById('aiTokenParam').value,
+        ai_max_tokens: document.getElementById('aiMaxTokens').value.trim(),
+        ai_chat_max_tokens: document.getElementById('aiChatMaxTokens').value.trim(),
+        ai_use_response_format: document.getElementById('aiUseResponseFormat').value
+    };
+    const newKey = document.getElementById('aiApiKey').value.trim();
+    if (newKey) settings.ai_api_key = newKey;
+    try {
+        const data = await apiAuth('saveSettings', { settings });
+        platformSettings = data.settings || {};
+        renderAiProviderSettings();
+        showToast('AI 供应商配置已保存');
+    } catch (error) {
+        showToast(`保存失败：${error.message}`);
+    }
+}
+
+async function testAiProviderSettings() {
+    const status = document.getElementById('aiApiKeyStatus');
+    if (status) status.textContent = '正在测试...';
+    try {
+        const data = await apiAuth('testAiProvider');
+        showToast(`AI 连接成功：${data.baseUrl || ''} ${data.model || ''}`);
+        if (status) status.textContent = `连通性 OK（${data.baseUrl || ''} · ${data.model || ''}）`;
+    } catch (error) {
+        showToast(`测试失败：${error.message}`);
+        if (status) status.textContent = `测试失败：${error.message}`;
+    }
 }
 
 async function saveSystemSettings() {
@@ -2832,6 +2982,11 @@ function renderLeaderboard() {
         const mine = currentUser && game.owner === currentUser.username;
         const canRate = currentUser && currentUser.role === 'member' && !mine;
         const canPlay = currentUser && currentUser.role === 'member';
+        const isAdmin = isAdminRole();
+        const adminUnrecommend = isAdmin
+            ? `<button class="trash-btn" style="margin-left:6px" onclick="adminUnrecommend('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">下架推荐</button>`
+            : '';
+        const playCostLabel = canPlay && !mine ? `-${platformSettings.leaderboard_play_cost || 2}积分` : (!currentUser ? '（免费试玩）' : '');
         return `
             <div class="leaderboard-card">
                 <div>
@@ -2839,17 +2994,39 @@ function renderLeaderboard() {
                         <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
                         <span class="score-pill">用户评分 ⭐ ${game.averageScore || 0} 分 · ${game.ratingCount || 0} 人评分</span>
                     <div class="rating-row">
-                        ${!currentUser ? '<span class="panel-note">登录会员后可评分和游玩</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
+                        ${!currentUser ? '<span class="panel-note">登录会员后可评分</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
                     </div>
                 </div>
-                <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${canPlay && !mine ? `-${platformSettings.leaderboard_play_cost || 2}积分` : ''}</button>
+                <div>
+                    <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${playCostLabel}</button>
+                    ${adminUnrecommend}
+                </div>
             </div>
         `;
     }).join('');
 }
 
 async function playLeaderboardGame(owner, cardId) {
-    if (!currentUser || currentUser.role !== 'member') {
+    // 游客:走免费试玩(每张卡 1 次),打开榜单卡片对应的 url
+    if (!currentUser) {
+        const game = leaderboardGames.find(g => g.owner === owner && g.cardId === cardId);
+        const playUrl = game ? game.url : '';
+        if (!consumeGuestTrial(cardId)) {
+            showToast('免费试玩机会已用完，请登录或注册后继续游玩');
+            return;
+        }
+        showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
+        if (playUrl) window.open(playUrl, '_blank');
+        return;
+    }
+    // 管理员:免费打开,不扣积分
+    if (isAdminRole()) {
+        const game = leaderboardGames.find(g => g.owner === owner && g.cardId === cardId);
+        if (game && game.url) window.open(game.url, '_blank');
+        else showToast('该榜单游戏暂无地址。');
+        return;
+    }
+    if (currentUser.role !== 'member') {
         showToast('请先登录会员账号再玩榜单游戏');
         return;
     }
@@ -2863,6 +3040,20 @@ async function playLeaderboardGame(owner, cardId) {
         if (data.url) window.open(data.url, '_blank');
     } catch (error) {
         showToast(`无法打开榜单游戏：${error.message}`);
+    }
+}
+
+// 管理员下架任意会员的推荐卡片
+async function adminUnrecommend(owner, cardId) {
+    if (!isAdminRole()) { showToast('只有管理员可以下架推荐'); return; }
+    if (!confirm(`确认要把「${owner}」的这张推荐卡片下架吗？`)) return;
+    try {
+        const data = await apiAuth('adminRecommend', { owner, cardId, recommended: false });
+        leaderboardGames = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
+        renderLeaderboard();
+        showToast('已下架该榜单推荐');
+    } catch (error) {
+        showToast(`下架失败：${error.message}`);
     }
 }
 
