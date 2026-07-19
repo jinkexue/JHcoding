@@ -1740,10 +1740,6 @@
                             </div>
                         </div>
                         <iframe id="gamePreviewFrame" sandbox="allow-scripts allow-same-origin" style="display:none;"></iframe>
-                        <div class="trash-panel hidden" id="trashPanel">
-                            <h3>回收站</h3>
-                            <div class="trash-list" id="trashList">回收站为空。</div>
-                        </div>
                     </div>
 
                     <div class="prompt-box">
@@ -1814,7 +1810,7 @@
             </div>
         </section>
         <section class="member-zone hidden" id="memberZone">
-            <div class="member-card compact-my-games-card">
+            <div class="member-card compact-my-games-card" id="myGamesBox">
                 <div class="section-title">
                     <div>
                         <h2>我的编程游戏</h2>
@@ -1823,6 +1819,11 @@
                     <button class="vibe-button ghost" onclick="loadMyProfile()">刷新游戏</button>
                 </div>
                 <div class="member-card-grid compact-my-games" id="myCards"></div>
+            </div>
+            <!-- 回收站放在"我的编程游戏"下方 -->
+            <div class="trash-panel hidden" id="trashPanel">
+                <h3>回收站</h3>
+                <div class="trash-list" id="trashList">回收站为空。</div>
             </div>
         </section>
             </div>
@@ -2242,7 +2243,10 @@ function applyUnlockState() {
     document.getElementById('heroSection').classList.toggle('hidden', loggedIn);
     document.getElementById('authPanel').classList.toggle('hidden', loggedIn);
     document.getElementById('userBar').classList.toggle('hidden', !loggedIn);
-    document.getElementById('memberZone').classList.toggle('hidden', !isMember);
+    // memberZone 现在对所有登录用户显示(容纳回收站),内部"我的编程游戏"卡片只对会员显示
+    document.getElementById('memberZone').classList.toggle('hidden', !loggedIn);
+    const myGamesBox = document.getElementById('myGamesBox');
+    if (myGamesBox) myGamesBox.style.display = isMember ? '' : 'none';
     const builtinZone = document.getElementById('builtinLeaderboardZone');
     if (builtinZone) builtinZone.classList.toggle('hidden', false);
     // 管理员才显示"游戏卡片总览"(所有会员的 vibe 作品);其他人只看榜单,避免重复出现两个游戏列表
@@ -2523,6 +2527,8 @@ async function restoreSession() {
     // 网络错误或 5xx:保留 token,下次自动重试
     if (result.network || result.status >= 500) {
         console.warn('恢复登录时后端不可用,已保留登录凭证:', result.data);
+        // 让页面至少能看到榜单,而不是一直卡"正在加载榜单..."
+        try { await loadLeaderboard(); } catch { /* ignore */ }
         return;
     }
     // 401 / token 明确失效才清
@@ -2531,6 +2537,7 @@ async function restoreSession() {
         authToken = '';
         currentUser = null;
         applyUnlockState();
+        try { await loadLeaderboard(); } catch { /* ignore */ }
     } else {
         // 其它情况(400 之类)不影响登录状态,只记录
         console.warn('restoreSession 收到非 401 错误,保留登录:', result.data);
@@ -2998,7 +3005,10 @@ async function loadLeaderboard() {
     list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
-        const remote = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
+        const remote = (data.leaderboard || [])
+            .filter(game => !isGameCurrentlyTrashed(game.cardId))
+            // 自己的作品不进"推荐榜单":会员可以在"我的编程游戏"里看,榜单只展示别人的推荐
+            .filter(game => !(currentUser && game.owner === currentUser.username));
         leaderboardGames = mergeBuiltinIntoLeaderboard(remote);
         renderLeaderboard();
     } catch (error) {
