@@ -1861,10 +1861,11 @@
                     <div class="section-title">
                         <div>
                             <h2 class="builtin-leaderboard-title" id="sidebarLeaderboardTitle">🏆 榜单游戏</h2>
-                            <p class="panel-note" id="sidebarLeaderboardNote">会员游戏榜单与内置榜单统一展示，默认展开，回收站游戏不会显示。</p>
+                            <p class="panel-note" id="sidebarLeaderboardNote">榜单按管理员上架顺序展示；玩家评分后自动按平均分排序。回收站游戏不会显示。</p>
                         </div>
                     </div>
-                    <div class="game-grid" id="gameGrid"></div>
+                    <!-- 管理员的"所有会员编程作品"总览(仅管理员可见,便于批量修改/回收) -->
+                    <div class="game-grid" id="gameGrid" style="display:none"></div>
                     <div class="leaderboard-grid unified-member-leaderboard" id="leaderboardList">暂无推荐游戏。</div>
                 </div>
             </section>
@@ -2024,13 +2025,11 @@ function renderGameCards() {
     const grid = document.getElementById('gameGrid');
     grid.classList.toggle('compact', cardsCompact);
     const isSystemAdmin = currentUser && currentUser.role === 'system_admin';
+    // gameGrid 现在专门给管理员看"所有会员的编程作品",不再混入 builtin,避免和榜单区重复
     const allGames = sortGamesByOrder([
-        ...builtInGames.filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id)),
-        // 管理员可看到所有会员的 AI 编程作品(不再限制 owner);其余身份看不到 vibe 卡片
         ...dynamicGames.filter(game => {
             if (game.isBuiltinOverride || game.trashed) return false;
-            if (isAdminRole()) return true;
-            return false;
+            return isAdminRole();
         })
     ]);
     if (!allGames.length) {
@@ -2246,6 +2245,9 @@ function applyUnlockState() {
     document.getElementById('memberZone').classList.toggle('hidden', !isMember);
     const builtinZone = document.getElementById('builtinLeaderboardZone');
     if (builtinZone) builtinZone.classList.toggle('hidden', false);
+    // 管理员才显示"游戏卡片总览"(所有会员的 vibe 作品);其他人只看榜单,避免重复出现两个游戏列表
+    const gameGrid = document.getElementById('gameGrid');
+    if (gameGrid) gameGrid.style.display = isAdmin ? '' : 'none';
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
     document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
@@ -2486,19 +2488,52 @@ function logout() {
     showToast('已退出登录');
 }
 
+// apiAuth 抛出的错误信息里若明确包含"请先登录/登录已过期"等 401 特征,才真正踢下线;
+// 其它错误(500 / 网络抖动 / 冷启动)保留 token,避免刷新掉线。
+function isAuthExpiredError(error) {
+    const msg = String(error && error.message || '').toLowerCase();
+    return /请先登录|登录已过期|请重新登录|session|unauthorized|expired|invalid token|无效|过期/.test(msg);
+}
+
+async function apiAuthSafe(action, payload = {}) {
+    try {
+        const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ action, token: authToken, ...payload })
+        });
+        const data = await res.json();
+        return { ok: res.ok && data.success, status: res.status, data };
+    } catch (error) {
+        return { ok: false, status: 0, data: { error: error.message || '网络错误' }, network: true };
+    }
+}
+
 async function restoreSession() {
     if (!authToken) return;
-    try {
-        const data = await apiAuth('me');
-        currentUser = data.user;
-        platformSettings = data.settings || platformSettings;
+    // 用"温和版"请求,只在明确 401 / token 无效时才清 token,其它一律保留登录状态
+    const result = await apiAuthSafe('me');
+    if (result.ok) {
+        currentUser = result.data.user;
+        platformSettings = result.data.settings || platformSettings;
         applyUnlockState();
-        await afterLoginLoad();
-    } catch (error) {
+        try { await afterLoginLoad(); } catch (e) { console.warn('afterLoginLoad 出错(保持登录):', e); }
+        return;
+    }
+    // 网络错误或 5xx:保留 token,下次自动重试
+    if (result.network || result.status >= 500) {
+        console.warn('恢复登录时后端不可用,已保留登录凭证:', result.data);
+        return;
+    }
+    // 401 / token 明确失效才清
+    if (result.status === 401 || isAuthExpiredError({ message: result.data && result.data.error })) {
         localStorage.removeItem('authToken');
         authToken = '';
         currentUser = null;
         applyUnlockState();
+    } else {
+        // 其它情况(400 之类)不影响登录状态,只记录
+        console.warn('restoreSession 收到非 401 错误,保留登录:', result.data);
     }
 }
 
@@ -2963,11 +2998,57 @@ async function loadLeaderboard() {
     list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
-        leaderboardGames = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
+        const remote = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
+        leaderboardGames = mergeBuiltinIntoLeaderboard(remote);
         renderLeaderboard();
     } catch (error) {
-        list.textContent = `加载榜单失败：${error.message}`;
+        // 后端拿不到榜单时,仍然把 builtin 卡片显示出来,保证有内容可玩
+        leaderboardGames = mergeBuiltinIntoLeaderboard([]);
+        if (leaderboardGames.length) {
+            renderLeaderboard();
+        } else {
+            list.textContent = `加载榜单失败：${error.message}`;
+        }
     }
+}
+
+// 把 builtin 内置卡片(贪吃蛇/俄罗斯方块/围棋/…)以"榜单项"形态和后端返回的 recommended 卡片一起排序展示,
+// 这样榜单是唯一入口,不会和别的地方重复。
+function mergeBuiltinIntoLeaderboard(remoteGames) {
+    const remoteCardIds = new Set(remoteGames.map(g => g.cardId));
+    const builtinAsLeaderboard = builtInGames
+        .filter(game => FEATURED_BUILTIN_IDS.includes(game.id) && !hiddenBuiltinIds.includes(game.id) && !deletedBuiltinIds.includes(game.id))
+        .map(game => {
+            const override = getBuiltinOverride(game.id);
+            const mine = false;
+            // 如果 KV 里已有 mod- 覆盖版且已经推荐(remote 也返回了 mod-*),就跳过 builtin,防止重复
+            const overrideCardId = getBuiltinOverrideId(game.id);
+            if (remoteCardIds.has(overrideCardId)) return null;
+            return {
+                id: `${FEATURED_OWNER_USERNAME}__${game.id}`,
+                owner: FEATURED_OWNER_USERNAME,
+                ownerName: FEATURED_OWNER_NAME,
+                cardId: game.id,
+                title: game.title,
+                icon: game.icon,
+                description: game.description,
+                url: override ? `/api/games?id=${encodeURIComponent(overrideCardId)}&view=1` : (game.url || ''),
+                averageScore: 0,
+                ratingCount: 0,
+                myScore: 0,
+                recommendedAt: '',
+                _builtin: true
+            };
+        })
+        .filter(Boolean);
+    // 顺序:先按 averageScore desc,再按 ratingCount desc,再按 recommendedAt desc;builtin 兜底排最后(除非有评分)
+    return [...remoteGames, ...builtinAsLeaderboard].sort((a, b) => {
+        const sa = Number(a.averageScore || 0), sb = Number(b.averageScore || 0);
+        if (sb !== sa) return sb - sa;
+        const ca = Number(a.ratingCount || 0), cb = Number(b.ratingCount || 0);
+        if (cb !== ca) return cb - ca;
+        return String(b.recommendedAt || '').localeCompare(String(a.recommendedAt || ''));
+    });
 }
 
 function renderLeaderboard() {
@@ -4039,8 +4120,11 @@ async function boot() {
     });
     renderGameCards();
     applyUnlockState();
+    // 首次进入:游客也能看到榜单;登录状态由 restoreSession 恢复,内部会再触发一次 afterLoginLoad
     await loadDynamicGames();
-    await loadLeaderboard();
+    if (!authToken) {
+        await loadLeaderboard();
+    }
     await restoreSession();
 }
 
