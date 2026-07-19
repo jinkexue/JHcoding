@@ -7,11 +7,11 @@ database_name = "yjh"
 database_id = "0f13b6a3-f8ae-4fcd-bc39-4a0f171bda08"
 
 # 仍需在 Cloudflare Pages 项目中绑定已有 KV 命名空间，绑定名必须是 GAMES_KV，用于保存 AI 生成游戏 HTML。
-# 如果你已经在控制台里绑定了 GAMES_KV，可保持这里不填 KV id；也可以补充下面配置后提交：
-# [[kv_namespaces]]
-# binding = "GAMES_KV"
-# id = "你的生产 KV namespace id"
-# preview_id = "你的预览 KV namespace id"
+# 已在 wrangler.toml 中固化 KV 绑定，Cloudflare Pages 会在部署时自动应用。
+[[kv_namespaces]]
+binding = "GAMES_KV"
+id = "bfbf60372a2a443899d6d4d20437fa17"
+preview_id = "bfbf60372a2a443899d6d4d20437fa17"
 
 # =============================================================
 # AI 供应商切换：所有 API baseUrl / key / model 均在 Cloudflare
