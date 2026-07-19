@@ -76,8 +76,8 @@ export async function onRequestPost(context) {
         if (!db) return json({ success: false, error: '缺少 Cloudflare D1 绑定。请把 D1 数据库绑定名设置为 DB。' }, 500);
 
         await initDb(db);
-        // 若 KV 可用,顺便把 mod- 记录归属迁移到 yjh@sivani.net(幂等,已挂好则跳过)
-        try { await migrateBuiltinOverridesToFeaturedOwner(db, env.GAMES_KV || null); } catch { /* 迁移失败不影响主流程 */ }
+        // 若 KV 可用,幂等触发迁移(内部缓存 Promise,同实例只跑一次)
+        try { await migrateBuiltinOverridesToFeaturedOwnerCached(db, env.GAMES_KV || null); } catch { /* 迁移失败不影响主流程 */ }
         const body = await request.json();
         const action = String(body.action || '').trim();
 
@@ -118,12 +118,31 @@ export async function onRequestPost(context) {
     }
 }
 
+// initDb 在同一个 Worker 实例内只跑一次,后续请求命中内存标记直接跳过,大幅降低冷启动后每次请求的延迟。
+let _dbInitedPromise = null;
 async function initDb(db) {
-    return _initDb(db);
+    if (_dbInitedPromise) return _dbInitedPromise;
+    _dbInitedPromise = _initDb(db).catch(err => {
+        // 失败后不缓存,下次重试
+        _dbInitedPromise = null;
+        throw err;
+    });
+    return _dbInitedPromise;
 }
 
 export async function ensureAuthDbReady(db) {
-    return _initDb(db);
+    return initDb(db);
+}
+
+// 同样地,mod- 迁移只在 Worker 内跑一次(缓存 Promise);运行时新数据由 saveCard/recommend 等接口自己维护
+let _migrateOncePromise = null;
+export async function migrateBuiltinOverridesToFeaturedOwnerCached(db, kv) {
+    if (_migrateOncePromise) return _migrateOncePromise;
+    _migrateOncePromise = migrateBuiltinOverridesToFeaturedOwner(db, kv).catch(err => {
+        _migrateOncePromise = null;
+        throw err;
+    });
+    return _migrateOncePromise;
 }
 
 async function _initDb(db) {
@@ -318,7 +337,8 @@ async function seedFeaturedLeaderboardGames(db) {
     const owner = await db.prepare('SELECT id FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();
     if (!owner) return;
     // 首次 seed:默认把这 5 张 builtin 榜单卡片 recommended=1;
-    // 已存在则保留管理员当前的 recommended / recommended_at 状态,不覆盖。
+    // 已存在且被"从未推荐过"(recommended=0 且 recommended_at 为空)—— 一次性升级为 recommended=1;
+    // 若管理员已经明确下架过(recommended_at 有值),则保留其状态,不再自动 revive。
     for (const game of FEATURED_GAMES) {
         await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
@@ -327,6 +347,16 @@ async function seedFeaturedLeaderboardGames(db) {
                 icon = excluded.icon,
                 description = excluded.description,
                 url = excluded.url,
+                recommended = CASE
+                    WHEN COALESCE(member_cards.recommended_at, '') = '' AND COALESCE(member_cards.recommended, 0) = 0
+                        THEN 1
+                    ELSE member_cards.recommended
+                END,
+                recommended_at = CASE
+                    WHEN COALESCE(member_cards.recommended_at, '') = '' AND COALESCE(member_cards.recommended, 0) = 0
+                        THEN excluded.recommended_at
+                    ELSE member_cards.recommended_at
+                END,
                 updated_at = excluded.updated_at`)
             .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now, now).run();
     }

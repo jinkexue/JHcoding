@@ -4199,11 +4199,11 @@ async function boot() {
     });
     renderGameCards();
     applyUnlockState();
-    // 首次进入:游客也能看到榜单;登录状态由 restoreSession 恢复,内部会再触发一次 afterLoginLoad
-    await loadDynamicGames();
-    if (!authToken) {
-        await loadLeaderboard();
-    }
+    // 首次进入:游客/登录都优先看到榜单。榜单加载和其它数据并行发起,不再串行等 loadDynamicGames 完成。
+    const leaderboardPromise = loadLeaderboard();
+    const dynamicPromise = loadDynamicGames();
+    // 登录恢复也不再阻塞榜单;等前面的先返回,再决定要不要跑 afterLoginLoad
+    await Promise.all([leaderboardPromise, dynamicPromise]);
     await restoreSession();
 }
 

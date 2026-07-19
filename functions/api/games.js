@@ -1,4 +1,4 @@
-import { migrateBuiltinOverridesToFeaturedOwner, ensureAuthDbReady } from './auth.js';
+import { migrateBuiltinOverridesToFeaturedOwnerCached, ensureAuthDbReady } from './auth.js';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -28,7 +28,7 @@ export async function onRequestGet(context) {
         try {
             if (db) {
                 await ensureAuthDbReady(db);
-                await migrateBuiltinOverridesToFeaturedOwner(db, kv);
+                await migrateBuiltinOverridesToFeaturedOwnerCached(db, kv);
             }
         } catch { /* 忽略迁移错误 */ }
         const session = db ? await getSession(db, request, {}) : null;
