@@ -317,11 +317,18 @@ async function seedFeaturedLeaderboardGames(db) {
     await ensureFeaturedOwner(db);
     const owner = await db.prepare('SELECT id FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();
     if (!owner) return;
+    // 首次 seed:默认把这 5 张 builtin 榜单卡片 recommended=1;
+    // 已存在则保留管理员当前的 recommended / recommended_at 状态,不覆盖。
     for (const game of FEATURED_GAMES) {
         await db.prepare(`INSERT INTO member_cards (user_id, card_id, title, icon, description, url, recommended, recommended_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
-            ON CONFLICT(user_id, card_id) DO UPDATE SET title = excluded.title, icon = excluded.icon, description = excluded.description, url = excluded.url, recommended = 0, recommended_at = '', updated_at = excluded.updated_at`)
-            .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now).run();
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(user_id, card_id) DO UPDATE SET
+                title = excluded.title,
+                icon = excluded.icon,
+                description = excluded.description,
+                url = excluded.url,
+                updated_at = excluded.updated_at`)
+            .bind(owner.id, game.cardId, game.title, game.icon, game.description, game.url, now, now).run();
     }
 }
 

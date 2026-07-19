@@ -1158,28 +1158,48 @@
 
         /* 新版:大图标 + 单行文字 */
         .leaderboard-card-lg {
-            grid-template-columns: 76px 1fr auto;
+            grid-template-columns: 68px 1fr;
+            grid-template-rows: auto auto;
+            grid-template-areas:
+                "icon info"
+                "actions actions";
             align-items: center;
-            gap: 14px;
+            gap: 10px 12px;
             padding: 12px 14px;
         }
         .lb-icon {
-            width: 76px; height: 76px;
+            grid-area: icon;
+            width: 68px; height: 68px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 52px;
+            font-size: 44px;
             border-radius: 16px;
             background: rgba(255,255,255,0.75);
             box-shadow: 0 4px 12px rgba(59,130,246,0.15);
         }
-        .lb-info { min-width: 0; }
-        .lb-title { font-weight: 900; color: #1f2937; font-size: 16px; }
-        .lb-meta { color: #6b7280; font-size: 12px; margin-top: 2px; }
+        .lb-info { grid-area: info; min-width: 0; }
+        .lb-title {
+            font-weight: 900; color: #1f2937; font-size: 15px;
+            line-height: 1.25;
+            word-break: break-word;
+            /* 允许最多 2 行,超出省略 */
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+            overflow: hidden;
+        }
+        .lb-meta {
+            color: #6b7280; font-size: 12px; margin-top: 4px;
+            display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+        }
+        .lb-meta .lb-score { color: #92400e; font-weight: 800; }
         .one-line {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .lb-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .lb-actions {
+            grid-area: actions;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+        }
+        .lb-actions .rating-row { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
         .play-btn.disabled {
             background: #d1d5db !important;
             color: #6b7280 !important;
@@ -1956,6 +1976,8 @@ let currentUser = null;
 let authToken = localStorage.getItem('authToken') || '';
 let myProfile = null;
 let leaderboardGames = [];
+// 榜单只在页面首次进入(或明确 force 刷新)加载一次,防止我的作品/评分等操作触发多次重刷
+let leaderboardLoadedOnce = false;
 let editingCardId = '';
 let platformSettings = { signup_bonus_points: '200', invite_required: '1' };
 let rechargeAccounts = [];
@@ -3018,7 +3040,7 @@ async function saveMyCard(cardId) {
         myProfile = data.profile;
         editingCardId = '';
         renderMyCards();
-        await loadLeaderboard();
+        await loadLeaderboard({ force: true });
         showToast('游戏信息已保存');
     } catch (error) {
         showToast(`保存游戏信息失败：${error.message}`);
@@ -3029,7 +3051,8 @@ async function toggleRecommend(cardId, recommended) {
     try {
         const data = await apiAuth('recommend', { cardId, recommended });
         myProfile = data.profile;
-        leaderboardGames = data.leaderboard || [];
+        leaderboardGames = enrichLeaderboardWithBuiltinMeta((data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId)));
+        leaderboardLoadedOnce = true;
         renderMyCards();
         renderLeaderboard();
         showToast(recommended ? '已推荐到榜单游戏' : '已撤销推荐');
@@ -3038,26 +3061,45 @@ async function toggleRecommend(cardId, recommended) {
     }
 }
 
-async function loadLeaderboard() {
+async function loadLeaderboard(options = {}) {
     const list = document.getElementById('leaderboardList');
     if (!list) return;
-    list.textContent = '正在加载榜单...';
+    // 除非明确指示强制刷新,同一个页面周期只加载一次,防止我的作品面板/榜单反复重刷
+    if (!options.force && leaderboardLoadedOnce) {
+        renderLeaderboard();
+        return;
+    }
+    if (!leaderboardLoadedOnce) list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
-        // 榜单是"全站唯一榜单":所有会员推荐 + builtin。自己的作品同样在榜单出现,
-        // "我的编程游戏"里显示的是"我拥有的全部作品",两者维度不同,允许同一张卡两处都在。
+        // 榜单以后端 member_cards.recommended=1 为准。builtin 卡片如果没被推荐,不再"硬塞"进榜单。
         const remote = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
-        leaderboardGames = mergeBuiltinIntoLeaderboard(remote);
+        leaderboardGames = enrichLeaderboardWithBuiltinMeta(remote);
+        leaderboardLoadedOnce = true;
         renderLeaderboard();
     } catch (error) {
-        // 后端拿不到榜单时,仍然把 builtin 卡片显示出来,保证有内容可玩
-        leaderboardGames = mergeBuiltinIntoLeaderboard([]);
-        if (leaderboardGames.length) {
-            renderLeaderboard();
-        } else {
-            list.textContent = `加载榜单失败：${error.message}`;
-        }
+        if (!leaderboardLoadedOnce) list.textContent = `加载榜单失败：${error.message}`;
     }
+}
+
+// 用 builtin 卡片的 icon/title 兜底 remote 榜单里 owner=FEATURED_OWNER 的记录(万一 KV/DB icon 丢失)
+function enrichLeaderboardWithBuiltinMeta(remoteGames) {
+    return remoteGames.map(game => {
+        const builtin = builtInGames.find(b => b.id === game.cardId || getBuiltinOverrideId(b.id) === game.cardId);
+        if (!builtin) return game;
+        return {
+            ...game,
+            icon: game.icon || builtin.icon,
+            title: game.title || builtin.title,
+            url: game.url || (getBuiltinOverride(builtin.id) ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(builtin.id))}&view=1` : builtin.url)
+        };
+    }).sort((a, b) => {
+        const sa = Number(a.averageScore || 0), sb = Number(b.averageScore || 0);
+        if (sb !== sa) return sb - sa;
+        const ca = Number(a.ratingCount || 0), cb = Number(b.ratingCount || 0);
+        if (cb !== ca) return cb - ca;
+        return String(b.recommendedAt || '').localeCompare(String(a.recommendedAt || ''));
+    });
 }
 
 // 把 builtin 内置卡片(贪吃蛇/俄罗斯方块/围棋/…)以"榜单项"形态和后端返回的 recommended 卡片一起排序展示,
@@ -3118,20 +3160,23 @@ function renderLeaderboard() {
         const playBtnLabel = played ? '已玩过' : '开始游戏';
         const playBtnClass = played ? 'play-btn disabled' : 'play-btn';
         const playBtnDisabled = played ? 'disabled' : '';
-        // 大图标 + 单行文字设计:标题限一行,不再显示 description,只保留推荐人+评分
+        // 布局:上方大图标 + 游戏名(可换行,最多2行) + 评分小行;下方按钮行
         return `
             <div class="leaderboard-card leaderboard-card-lg">
                 <div class="lb-icon">${escapeHtml(game.icon || '🎮')}</div>
                 <div class="lb-info">
-                    <div class="lb-title one-line" title="${escapeAttr(game.title)}">🏆 ${index + 1} · ${escapeHtml(game.title)}</div>
-                    <div class="lb-meta one-line">推荐人：${escapeHtml(game.ownerName)} · ⭐ ${game.averageScore || 0}（${game.ratingCount || 0}人）</div>
-                    <div class="rating-row">
-                        ${!currentUser ? '<span class="panel-note">登录会员后可评分</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
+                    <div class="lb-title" title="${escapeAttr(game.title)}">🏆 ${index + 1} · ${escapeHtml(game.title)}</div>
+                    <div class="lb-meta">
+                        <span class="one-line">推荐人：${escapeHtml(game.ownerName)}</span>
+                        <span class="lb-score">⭐ ${game.averageScore || 0}（${game.ratingCount || 0}人）</span>
                     </div>
                 </div>
                 <div class="lb-actions">
                     <button class="${playBtnClass}" ${playBtnDisabled} onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">${playBtnLabel}</button>
                     ${adminUnrecommend}
+                    <div class="rating-row">
+                        ${!currentUser ? '<span class="panel-note">登录会员后可评分</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
+                    </div>
                 </div>
             </div>
         `;
@@ -3159,7 +3204,8 @@ async function adminUnrecommend(owner, cardId) {
     if (!confirm(`确认要把「${owner}」的这张推荐卡片下架吗？`)) return;
     try {
         const data = await apiAuth('adminRecommend', { owner, cardId, recommended: false });
-        leaderboardGames = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
+        leaderboardGames = enrichLeaderboardWithBuiltinMeta((data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId)));
+        leaderboardLoadedOnce = true;
         renderLeaderboard();
         showToast('已下架该榜单推荐');
     } catch (error) {
@@ -3170,7 +3216,8 @@ async function adminUnrecommend(owner, cardId) {
 async function rateLeaderboardGame(owner, cardId, score) {
     try {
         const data = await apiAuth('rateGame', { owner, cardId, score });
-        leaderboardGames = data.leaderboard || [];
+        leaderboardGames = enrichLeaderboardWithBuiltinMeta((data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId)));
+        leaderboardLoadedOnce = true;
         renderLeaderboard();
         showToast('评分成功，榜单已重新排序');
     } catch (error) {
@@ -3440,7 +3487,7 @@ async function generateAndSave(payload) {
         if (currentUser && currentUser.role === 'member') {
             await loadMyProfile();
         }
-        await loadLeaderboard();
+        await loadLeaderboard({ force: true });
         const savedGame = saveData.game;
         const builtinId = getBuiltinIdFromOverride(savedGame.id);
         if (builtinId) {
@@ -4029,7 +4076,7 @@ async function updateGameTrash(gameId, action) {
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || '操作失败');
         await loadDynamicGames();
-        await loadLeaderboard();
+        await loadLeaderboard({ force: true });
         if (currentUser && currentUser.role === 'member') await loadMyProfile();
         renderLeaderboard();
         if (selectedGame && selectedGame.id === gameId && action === 'trash') {
