@@ -63,7 +63,8 @@ export async function resolveProvider(env, type = 'generate', db = null) {
         maxTokens = Number(pick(DB_KEYS.chatMaxTokens, 'CHAT_MAX_TOKENS') || 1200);
     } else {
         model = pick(DB_KEYS.model, 'MODEL') || 'gpt-4o-mini';
-        maxTokens = Number(pick(DB_KEYS.maxTokens, 'MAX_TOKENS') || pickEnv('MAX_COMPLETION_TOKENS') || 6000);
+        // 生成小游戏 HTML 至少要 10k~14k tokens 才能完整闭合,默认从 6000 提到 12000
+        maxTokens = Number(pick(DB_KEYS.maxTokens, 'MAX_TOKENS') || pickEnv('MAX_COMPLETION_TOKENS') || 12000);
     }
 
     return {
@@ -72,7 +73,7 @@ export async function resolveProvider(env, type = 'generate', db = null) {
         baseUrl,
         model,
         tokenParamName: tokenParamRaw === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens',
-        maxTokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : (type === 'chat' ? 1200 : 6000),
+        maxTokens: Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : (type === 'chat' ? 1200 : 12000),
         useResponseFormat,
         source: {
             fromDb: Boolean(dbSettings[DB_KEYS.apiKey] || dbSettings[DB_KEYS.baseUrl] || dbSettings[DB_KEYS.model])

@@ -81,14 +81,21 @@ export async function onRequestPost(context) {
         const html = cleanHtml(patchResult?.html || result.html || '');
 
         if (!isCompleteHtml(html)) {
+            const finishReason = llmData?.choices?.[0]?.finish_reason || '';
+            const isTruncated = finishReason === 'length' || finishReason === 'max_tokens';
+            const hint = isTruncated
+                ? '模型输出被最大 token 数截断，HTML 未能闭合。请让系统管理员在“平台设置 → AI 供应商”里把“生成游戏最大 Token”调大到 12000 以上，或者简化提示词。'
+                : '模型没有返回完整 HTML 文件（缺少 </html>/</body> 结束标签），请换一种提示词再试。';
             return json({
                 success: false,
-                error: '模型没有返回完整 HTML 文件，请换一种提示词再试。',
+                error: hint,
                 debug: {
                     rawResponseLength: llmText.length,
                     contentLength: content.length,
+                    htmlLength: html.length,
+                    finishReason,
+                    truncated: isTruncated,
                     rawResponsePreview: llmText.slice(0, 1200),
-                    finishReason: llmData?.choices?.[0]?.finish_reason || '',
                     reasoningLength: String(llmData?.choices?.[0]?.message?.reasoning_content || '').length,
                     responseShape: describeResponseShape(llmData),
                     parsedKeys: result && typeof result === 'object' ? Object.keys(result) : [],
@@ -498,7 +505,12 @@ function cleanHtml(html) {
 }
 
 function isCompleteHtml(html) {
-    return /<html[\s>]/i.test(html) && /<body[\s>]/i.test(html);
+    if (!html) return false;
+    const text = String(html);
+    if (!/<html[\s>]/i.test(text) || !/<body[\s>]/i.test(text)) return false;
+    // 必须闭合(否则通常是被 max_tokens 截断),尾部允许 200 字节内的空白/注释
+    if (!/<\/html\s*>\s*$/i.test(text.trim().slice(-200)) && !/<\/body\s*>[\s\S]{0,200}<\/html\s*>/i.test(text)) return false;
+    return true;
 }
 
 function sanitizeText(value, maxLength) {

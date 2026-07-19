@@ -3069,6 +3069,7 @@ async function loadLeaderboard(options = {}) {
         renderLeaderboard();
         return;
     }
+    // 首次进入才显示"正在加载";force 刷新时保留原榜单内容,避免闪烁"暂无推荐游戏"
     if (!leaderboardLoadedOnce) list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
@@ -3487,7 +3488,7 @@ async function generateAndSave(payload) {
         if (currentUser && currentUser.role === 'member') {
             await loadMyProfile();
         }
-        await loadLeaderboard({ force: true });
+        // 新生成的游戏默认没有 recommended,榜单不需要刷新;避免出现"暂无推荐游戏"的闪烁
         const savedGame = saveData.game;
         const builtinId = getBuiltinIdFromOverride(savedGame.id);
         if (builtinId) {
