@@ -741,8 +741,15 @@ async function setRecommendState(db, user, body, kv = null) {
     if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
     if (recommended && await isCardTrashed(kv, cardId)) return json({ success: false, error: '回收站中的游戏不能推荐到榜单。' }, 400);
     if (recommended && !card.recommended) {
-        const count = await db.prepare('SELECT COUNT(*) AS total FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).first();
-        if (Number(count?.total || 0) >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到榜单游戏。` }, 400);
+        // 计入配额时排除已放入回收站的卡片,否则会出现"榜单只显示 2 张,后端却认为已推荐 3 张"的假限额
+        const rows = await db.prepare('SELECT card_id FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).all();
+        let active = 0;
+        for (const row of (rows.results || [])) {
+            if (row.card_id === cardId) continue; // 兜底,不把自己算进去
+            if (await isCardTrashed(kv, row.card_id)) continue;
+            active += 1;
+        }
+        if (active >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到榜单游戏。回收站里的游戏不占名额。` }, 400);
     }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')

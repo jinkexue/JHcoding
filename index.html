@@ -3552,7 +3552,12 @@ async function generateWithoutStream(payload) {
             contentType: res.headers.get('Content-Type') || '',
             responsePreview: text.slice(0, 1200)
         });
-        throw new Error(`生成接口返回格式异常：${text.slice(0, 300)}`);
+        // 识别常见的 Cloudflare 边缘错误,给出更精准的排查提示
+        const isRouterError = /ROUTER_EXTERNAL_TARGET_ERROR|ROUTER_EXTERNAL_TIMEOUT|application error/i.test(text);
+        const hint = isRouterError
+            ? 'Cloudflare 边缘连接 AI 上游失败(ROUTER_EXTERNAL_TARGET_ERROR)。可能原因：\n1. AI 供应商 baseUrl 填错或缺少 https:// 前缀\n2. 上游 API 短暂不可用 / 该地区被限制访问\n3. 请求超过 100 秒(Functions 单次上限)，把最大 Token 从 20000 降到 12000 试试\n请让系统管理员在【平台设置 → AI 供应商】里检查 baseUrl 和 apiKey，或换一个模型/供应商。'
+            : `生成接口返回格式异常：${text.slice(0, 300)}`;
+        throw new Error(hint);
     }
 
     addDebugInfo('生成接口响应', {
