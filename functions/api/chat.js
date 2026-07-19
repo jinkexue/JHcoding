@@ -1,3 +1,5 @@
+import { resolveProvider } from './_provider.js';
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -19,12 +21,11 @@ export async function onRequestPost(context) {
             return json({ success: false, error: '问题不能为空' }, 400);
         }
 
-        const apiKey = env.OPENAI_API_KEY;
-        const baseUrl = normalizeBaseUrl(env.OPENAI_BASE_URL || 'https://api.openai.com/v1');
-        const model = env.OPENAI_CHAT_MODEL || env.OPENAI_MODEL || 'gpt-4o-mini';
+        const db = env.DB || env.YJH_DB || env.D1_DATABASE || null;
+        const { apiKey, baseUrl, model, tokenParamName, maxTokens } = await resolveProvider(env, 'chat', db);
 
         if (!apiKey) {
-            return json({ success: false, error: '缺少 OPENAI_API_KEY 环境变量' }, 500);
+            return json({ success: false, error: '缺少 AI API Key，请让系统管理员在"平台设置 → AI 供应商"里填写。' }, 500);
         }
 
         const messages = buildChatMessages(question, history);
@@ -33,9 +34,7 @@ export async function onRequestPost(context) {
             messages,
             temperature: 0.5
         };
-        const maxTokens = Number(env.OPENAI_CHAT_MAX_TOKENS || 1200);
-        const tokenParamName = String(env.OPENAI_TOKEN_PARAM || 'max_tokens').trim();
-        requestBody[tokenParamName === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens'] = maxTokens;
+        requestBody[tokenParamName] = maxTokens;
 
         const llmRes = await fetch(`${baseUrl}/chat/completions`, {
             method: 'POST',

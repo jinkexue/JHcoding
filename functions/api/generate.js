@@ -1,3 +1,5 @@
+import { resolveProvider } from './_provider.js';
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -30,29 +32,25 @@ export async function onRequestPost(context) {
             return json({ success: false, error: '提示词不能为空' }, 400);
         }
 
-        const apiKey = env.OPENAI_API_KEY;
-        const baseUrl = normalizeBaseUrl(env.OPENAI_BASE_URL || 'https://api.openai.com/v1');
-        const model = env.OPENAI_MODEL || 'gpt-4o-mini';
+        const { apiKey, baseUrl, model, tokenParamName, maxTokens: requestedMaxTokens, useResponseFormat } = await resolveProvider(env, 'generate', db);
 
         if (!apiKey) {
-            return json({ success: false, error: '缺少 OPENAI_API_KEY 环境变量' }, 500);
+            return json({ success: false, error: '缺少 AI API Key，请让系统管理员在“平台设置 → AI 供应商”里填写。' }, 500);
         }
 
         const messages = buildMessages({ action, prompt, sourceCode, baseTitle, baseIcon });
-        const requestedMaxTokens = Number(env.OPENAI_MAX_TOKENS || env.OPENAI_MAX_COMPLETION_TOKENS || 6000);
-        const tokenParamName = String(env.OPENAI_TOKEN_PARAM || 'max_tokens').trim();
         const requestBody = {
             model,
             messages,
             temperature: 0.2
         };
-        requestBody[tokenParamName === 'max_completion_tokens' ? 'max_completion_tokens' : 'max_tokens'] = requestedMaxTokens;
+        requestBody[tokenParamName] = requestedMaxTokens;
 
         if (stream) {
             requestBody.stream = true;
         }
 
-        if (String(env.OPENAI_USE_RESPONSE_FORMAT || '').toLowerCase() === 'true') {
+        if (useResponseFormat) {
             requestBody.response_format = { type: 'json_object' };
         }
 

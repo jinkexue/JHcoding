@@ -1,3 +1,5 @@
+import { migrateBuiltinOverridesToFeaturedOwner, ensureAuthDbReady } from './auth.js';
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -22,6 +24,13 @@ export async function onRequestGet(context) {
         }
 
         const db = env.DB || env.YJH_DB || env.D1_DATABASE;
+        // 每次拉取前尝试幂等地把 KV 里 mod- 记录归属挂到 yjh@sivani.net(已挂好则秒返回)
+        try {
+            if (db) {
+                await ensureAuthDbReady(db);
+                await migrateBuiltinOverridesToFeaturedOwner(db, kv);
+            }
+        } catch { /* 忽略迁移错误 */ }
         const session = db ? await getSession(db, request, {}) : null;
 
         const url = new URL(request.url);

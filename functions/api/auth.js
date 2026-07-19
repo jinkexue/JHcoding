@@ -119,6 +119,14 @@ export async function onRequestPost(context) {
 }
 
 async function initDb(db) {
+    return _initDb(db);
+}
+
+export async function ensureAuthDbReady(db) {
+    return _initDb(db);
+}
+
+async function _initDb(db) {
     const statements = [
         `CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -228,7 +236,7 @@ async function initDb(db) {
 
 // 把 KV 里已有的 mod-{builtinId} 覆盖版归属统一挂到 yjh@sivani.net,
 // 并把对应的推荐卡片写入 member_cards(推荐上限专供该账号,不占普通会员的 3 张位)。
-async function migrateBuiltinOverridesToFeaturedOwner(db, kv) {
+export async function migrateBuiltinOverridesToFeaturedOwner(db, kv) {
     if (!kv) return;
     await ensureFeaturedOwner(db);
     const owner = await db.prepare('SELECT id, username, display_name FROM users WHERE username = ?').bind(FEATURED_OWNER_USERNAME).first();

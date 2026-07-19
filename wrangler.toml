@@ -12,3 +12,24 @@ database_id = "0f13b6a3-f8ae-4fcd-bc39-4a0f171bda08"
 # binding = "GAMES_KV"
 # id = "你的生产 KV namespace id"
 # preview_id = "你的预览 KV namespace id"
+
+# =============================================================
+# AI 供应商切换：所有 API baseUrl / key / model 均在 Cloudflare
+# Pages 控制台的「Environment Variables」里配置，不写在代码或
+# 本 toml 中。切换供应商时只需要改一个 AI_PROVIDER 变量。
+#
+# 需要在 Cloudflare Pages → Settings → Environment Variables 里配置：
+#   AI_PROVIDER              例如 OPENAI / DEEPSEEK / KIMI / SILICONFLOW
+#   {PROVIDER}_API_KEY       （Secret 类型）
+#   {PROVIDER}_BASE_URL      例如 https://api.deepseek.com/v1
+#   {PROVIDER}_MODEL         例如 deepseek-chat
+#   {PROVIDER}_CHAT_MODEL    （可选，AI 助手对话用的模型）
+#   {PROVIDER}_TOKEN_PARAM   （可选，max_tokens 或 max_completion_tokens）
+#   {PROVIDER}_MAX_TOKENS
+#   {PROVIDER}_CHAT_MAX_TOKENS
+#   {PROVIDER}_USE_RESPONSE_FORMAT   true / false
+#
+# 兼容旧配置：如果未配置 AI_PROVIDER 或对应前缀变量，会自动回退到
+# 传统的 OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL 等变量。
+# 详见 functions/api/_provider.js。
+# =============================================================
