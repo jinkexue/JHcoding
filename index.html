@@ -1156,6 +1156,37 @@
             background: linear-gradient(135deg, #fff7ed, #eef2ff);
         }
 
+        /* 新版:大图标 + 单行文字 */
+        .leaderboard-card-lg {
+            grid-template-columns: 76px 1fr auto;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 14px;
+        }
+        .lb-icon {
+            width: 76px; height: 76px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 52px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.75);
+            box-shadow: 0 4px 12px rgba(59,130,246,0.15);
+        }
+        .lb-info { min-width: 0; }
+        .lb-title { font-weight: 900; color: #1f2937; font-size: 16px; }
+        .lb-meta { color: #6b7280; font-size: 12px; margin-top: 2px; }
+        .one-line {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lb-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .play-btn.disabled {
+            background: #d1d5db !important;
+            color: #6b7280 !important;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         .leaderboard-title {
             font-weight: 900;
             color: #1f2937;
@@ -2034,7 +2065,7 @@ function renderGameCards() {
         })
     ]);
     if (!allGames.length) {
-        grid.innerHTML = isSystemAdmin ? '<div class="auth-card"><strong>榜单游戏暂无可展示卡片。</strong><p class="panel-note">系统管理员可在下方查看会员推荐榜单。</p></div>' : '<div class="auth-card"><strong>还没有编程游戏。</strong><p class="panel-note">进入上方 AI 编程区域建立游戏；建好后可在这里修改名称和简介。</p></div>';
+        grid.innerHTML = '<div class="auth-card"><strong>还没有会员编程作品。</strong><p class="panel-note">会员登录后在下方 AI 编程区新建游戏，作品会出现在这里。</p></div>';
         return;
     }
 
@@ -2135,51 +2166,58 @@ async function openGameFromCard(gameId) {
     if (!game) return;
     const hasOverride = game.type === 'builtin' && Boolean(getBuiltinOverride(game.id));
     const playUrl = hasOverride ? `/api/games?id=${encodeURIComponent(getBuiltinOverrideId(game.id))}&view=1` : (game.url || '#');
+    // 现在改成"所有身份每张卡只能玩 1 次"(需求 2)。除非清空 localStorage 才能重玩。
+    if (!consumeOneTimePlay(gameId)) {
+        showToast(currentUser ? '这个游戏你已经玩过一次，暂不能再玩' : '免费试玩机会已用完，请登录或注册后再体验其他游戏');
+        return;
+    }
     if (!currentUser) {
-        if (!consumeGuestTrial(gameId)) {
-            showToast('免费试玩机会已用完，请登录或注册后继续游玩');
-            return;
-        }
-        showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
+        showToast('免费试玩一次，登录或注册后可玩更多榜单游戏', 3500);
     }
     if (playUrl && playUrl !== '#') {
         window.open(playUrl, '_blank');
     }
 }
 
-// 游客试玩额度:每个 gameId 只允许 1 次;未来同一游戏再点击返回 false,首次点击返回 true 并记录
-function consumeGuestTrial(gameId) {
-    const played = getGuestPlayedList();
+// 每个 gameId 只允许 1 次(不分身份);首次调用返回 true,后续返回 false
+function consumeOneTimePlay(gameId) {
+    const played = getPlayedGameList();
     if (played.includes(gameId)) return false;
     played.push(gameId);
     try { localStorage.setItem(GUEST_TRIAL_STORAGE_KEY, JSON.stringify(played)); } catch { /* ignore */ }
     return true;
 }
 
-// 卡片"开始游戏"按钮的原生 <a> onclick 拦截:游客首次放行,继续玩弹提示
+// 兼容旧调用:仍暴露 consumeGuestTrial 名称
+function consumeGuestTrial(gameId) { return consumeOneTimePlay(gameId); }
+
+// 卡片"开始游戏"按钮的原生 <a> onclick 拦截:所有身份都限 1 次
 function handleGuestTrialClick(event, gameId) {
     if (event && event.stopPropagation) event.stopPropagation();
-    if (currentUser) return true;
-    if (!consumeGuestTrial(gameId)) {
+    if (!consumeOneTimePlay(gameId)) {
         if (event && event.preventDefault) event.preventDefault();
-        showToast('免费试玩机会已用完，请登录或注册后继续游玩');
+        showToast(currentUser ? '这个游戏你已经玩过一次，暂不能再玩' : '免费试玩机会已用完，请登录或注册后继续游玩');
         return false;
     }
-    showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
+    if (!currentUser) showToast('免费试玩一次，登录或注册后可玩更多榜单游戏', 3500);
     return true;
 }
 
-function hasGuestTrialUsed(gameId) {
-    return getGuestPlayedList().includes(gameId);
+function hasGamePlayedOnce(gameId) {
+    return getPlayedGameList().includes(gameId);
 }
+// 兼容旧调用
+function hasGuestTrialUsed(gameId) { return hasGamePlayedOnce(gameId); }
 
-function getGuestPlayedList() {
+function getPlayedGameList() {
     try {
         const raw = localStorage.getItem(GUEST_TRIAL_STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
         return Array.isArray(parsed) ? parsed.map(String) : [];
     } catch { return []; }
 }
+// 兼容旧调用
+function getGuestPlayedList() { return getPlayedGameList(); }
 
 function toggleCompactCards() {
     cardsCompact = !cardsCompact;
@@ -2937,6 +2975,7 @@ function renderMyCards() {
             <p class="panel-note">${escapeHtml(card.description || '暂无简介')}</p>
             <div class="rating-row">
                 ${card.url ? `<button class="play-btn" onclick="playPersonalCard('${escapeAttr(card.url)}')">玩这个游戏</button>` : ''}
+                <button class="vibe-button" onclick="startModifyGame('${escapeAttr(card.id)}', event)">AI 修改</button>
                 <button class="vibe-button ${card.recommended ? 'ghost' : ''}" ${recommendDisabled ? 'disabled' : ''} onclick="toggleRecommend('${escapeAttr(card.id)}', ${card.recommended ? 'false' : 'true'})">${card.recommended ? '撤销推荐' : (recommendDisabled ? '已达推荐上限' : '推荐到榜单游戏')}</button>
                 <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(card.id)}', event)">移到回收站</button>
             </div>
@@ -3005,10 +3044,9 @@ async function loadLeaderboard() {
     list.textContent = '正在加载榜单...';
     try {
         const data = await apiAuth('leaderboard');
-        const remote = (data.leaderboard || [])
-            .filter(game => !isGameCurrentlyTrashed(game.cardId))
-            // 自己的作品不进"推荐榜单":会员可以在"我的编程游戏"里看,榜单只展示别人的推荐
-            .filter(game => !(currentUser && game.owner === currentUser.username));
+        // 榜单是"全站唯一榜单":所有会员推荐 + builtin。自己的作品同样在榜单出现,
+        // "我的编程游戏"里显示的是"我拥有的全部作品",两者维度不同,允许同一张卡两处都在。
+        const remote = (data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId));
         leaderboardGames = mergeBuiltinIntoLeaderboard(remote);
         renderLeaderboard();
     } catch (error) {
@@ -3072,24 +3110,27 @@ function renderLeaderboard() {
     list.innerHTML = visibleGames.map((game, index) => {
         const mine = currentUser && game.owner === currentUser.username;
         const canRate = currentUser && currentUser.role === 'member' && !mine;
-        const canPlay = currentUser && currentUser.role === 'member';
         const isAdmin = isAdminRole();
+        const played = hasGamePlayedOnce(game.cardId);
         const adminUnrecommend = isAdmin
             ? `<button class="trash-btn" style="margin-left:6px" onclick="adminUnrecommend('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">下架推荐</button>`
             : '';
-        const playCostLabel = canPlay && !mine ? `-${platformSettings.leaderboard_play_cost || 2}积分` : (!currentUser ? '（免费试玩）' : '');
+        const playBtnLabel = played ? '已玩过' : '开始游戏';
+        const playBtnClass = played ? 'play-btn disabled' : 'play-btn';
+        const playBtnDisabled = played ? 'disabled' : '';
+        // 大图标 + 单行文字设计:标题限一行,不再显示 description,只保留推荐人+评分
         return `
-            <div class="leaderboard-card">
-                <div>
-                    <div class="leaderboard-title">🏆 第 ${index + 1} 名 · ${escapeHtml(game.icon || '🎮')} ${escapeHtml(game.title)}</div>
-                        <div class="panel-note">推荐人：${escapeHtml(game.ownerName)} | ${escapeHtml(game.description || '暂无简介')}</div>
-                        <span class="score-pill">用户评分 ⭐ ${game.averageScore || 0} 分 · ${game.ratingCount || 0} 人评分</span>
+            <div class="leaderboard-card leaderboard-card-lg">
+                <div class="lb-icon">${escapeHtml(game.icon || '🎮')}</div>
+                <div class="lb-info">
+                    <div class="lb-title one-line" title="${escapeAttr(game.title)}">🏆 ${index + 1} · ${escapeHtml(game.title)}</div>
+                    <div class="lb-meta one-line">推荐人：${escapeHtml(game.ownerName)} · ⭐ ${game.averageScore || 0}（${game.ratingCount || 0}人）</div>
                     <div class="rating-row">
                         ${!currentUser ? '<span class="panel-note">登录会员后可评分</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
                     </div>
                 </div>
-                <div>
-                    <button class="play-btn" onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">玩游戏 ${playCostLabel}</button>
+                <div class="lb-actions">
+                    <button class="${playBtnClass}" ${playBtnDisabled} onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">${playBtnLabel}</button>
                     ${adminUnrecommend}
                 </div>
             </div>
@@ -3098,40 +3139,18 @@ function renderLeaderboard() {
 }
 
 async function playLeaderboardGame(owner, cardId) {
-    // 游客:走免费试玩(每张卡 1 次),打开榜单卡片对应的 url
-    if (!currentUser) {
-        const game = leaderboardGames.find(g => g.owner === owner && g.cardId === cardId);
-        const playUrl = game ? game.url : '';
-        if (!consumeGuestTrial(cardId)) {
-            showToast('免费试玩机会已用完，请登录或注册后继续游玩');
-            return;
-        }
-        showToast('免费试玩一次，登录或注册后可以无限畅玩', 3500);
-        if (playUrl) window.open(playUrl, '_blank');
+    // 找到卡片(用于取 URL)
+    const game = leaderboardGames.find(g => g.owner === owner && g.cardId === cardId);
+    if (!game) return;
+    // 所有身份统一"每张卡只能玩 1 次"
+    if (!consumeOneTimePlay(cardId)) {
+        showToast(currentUser ? '这个游戏你已经玩过一次，暂不能再玩' : '免费试玩机会已用完，请登录或注册后再体验其他游戏');
         return;
     }
-    // 管理员:免费打开,不扣积分
-    if (isAdminRole()) {
-        const game = leaderboardGames.find(g => g.owner === owner && g.cardId === cardId);
-        if (game && game.url) window.open(game.url, '_blank');
-        else showToast('该榜单游戏暂无地址。');
-        return;
-    }
-    if (currentUser.role !== 'member') {
-        showToast('请先登录会员账号再玩榜单游戏');
-        return;
-    }
-    try {
-        const playKey = `${owner}_${cardId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const data = await apiAuth('playLeaderboardGame', { owner, cardId, playKey });
-        if (data.user) currentUser = data.user;
-        leaderboardGames = data.leaderboard || leaderboardGames;
-        applyUnlockState();
-        renderLeaderboard();
-        if (data.url) window.open(data.url, '_blank');
-    } catch (error) {
-        showToast(`无法打开榜单游戏：${error.message}`);
-    }
+    if (!currentUser) showToast('免费试玩一次，登录或注册后可玩更多榜单游戏', 3500);
+    if (game.url) window.open(game.url, '_blank');
+    // 刷新一下按钮显示状态(变成"已玩过")
+    renderLeaderboard();
 }
 
 // 管理员下架任意会员的推荐卡片
@@ -3200,6 +3219,9 @@ async function startModifyGame(gameId, event) {
         return;
     }
     await selectGame(gameId, { editMode: true });
+    // 修改流程要跳到 AI 编程区,方便用户直接看到 prompt 输入框
+    const vibe = document.getElementById('vibecoding');
+    if (vibe) vibe.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function selectGame(gameId, options = {}) {
