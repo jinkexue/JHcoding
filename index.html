@@ -1247,6 +1247,17 @@
             background: #facc15;
             color: #713f12;
         }
+        .star-btn.disabled,
+        .star-btn[disabled] {
+            background: #e5e7eb !important;
+            color: #9ca3af !important;
+            cursor: not-allowed;
+        }
+        .star-btn.disabled:hover,
+        .star-btn[disabled]:hover {
+            background: #e5e7eb !important;
+            color: #9ca3af !important;
+        }
 
         .section-title {
             display: flex;
@@ -3184,6 +3195,8 @@ function renderLeaderboard() {
     const list = document.getElementById('leaderboardList');
     if (!list) return;
     const visibleGames = leaderboardGames.filter(game => !isGameCurrentlyTrashed(game.cardId));
+    // 库存游戏 = 全部可玩游戏 - 已上榜的,所以只要榜单变了,库存栏也要跟着刷新
+    setTimeout(() => { try { renderGameCards(); } catch { /* ignore */ } }, 0);
     if (!visibleGames.length) {
         list.textContent = '暂无推荐游戏。';
         return;
@@ -3214,7 +3227,16 @@ function renderLeaderboard() {
                     <button class="${playBtnClass}" ${playBtnDisabled} onclick="playLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}')">${playBtnLabel}</button>
                     ${adminUnrecommend}
                     <div class="rating-row">
-                        ${!currentUser ? '<span class="panel-note">登录会员后可评分</span>' : (mine ? '<span class="panel-note">自己的游戏不能给自己评分</span>' : (canRate ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('') : '<span class="panel-note">管理员可查看榜单，会员可评分</span>'))}
+                        ${!currentUser
+                            ? '<span class="panel-note">登录会员后可评分</span>'
+                            : (mine
+                                ? [1,2,3,4,5].map(score => `<button class="star-btn disabled" disabled title="自己的游戏不能给自己评分">${score}⭐</button>`).join('')
+                                : (canRate
+                                    ? [1,2,3,4,5].map(score => `<button class="star-btn ${Number(game.myScore) === score ? 'active' : ''}" onclick="rateLeaderboardGame('${escapeAttr(game.owner)}','${escapeAttr(game.cardId)}',${score})">${score}⭐</button>`).join('')
+                                    : [1,2,3,4,5].map(score => `<button class="star-btn disabled" disabled title="管理员只查看，会员可评分">${score}⭐</button>`).join('')
+                                )
+                            )
+                        }
                     </div>
                 </div>
             </div>
