@@ -28,6 +28,8 @@ const DEFAULT_SETTINGS = {
     wechat_account_name: '',
     wechat_qr_image: '',
     recharge_notice: '充值请添加系统管理员设置的微信账户，10 元起充。',
+    // 每位会员最多可推荐到榜单的自己作品数量(空则用代码默认 3)
+    max_member_recommend: '',
     // AI 供应商配置（管理员在后台设置，用于替代环境变量）
     ai_api_key: '',
     ai_base_url: '',
@@ -760,7 +762,11 @@ async function setRecommendState(db, user, body, kv = null) {
             if (await isCardTrashed(kv, row.card_id)) continue;
             active += 1;
         }
-        if (active >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个自己的游戏到榜单。内置榜单游戏和回收站里的游戏不占名额。` }, 400);
+        // 上限支持系统管理员在"平台设置"里覆盖(max_member_recommend);未配置或非法值时回落到代码默认 3
+        const settings = await getSettings(db).catch(() => ({}));
+        const configured = Number(settings?.max_member_recommend);
+        const limit = Number.isFinite(configured) && configured >= 1 ? Math.floor(configured) : MAX_MEMBER_CARDS;
+        if (active >= limit) return json({ success: false, error: `最多只能推荐 ${limit} 个自己的游戏到榜单。内置榜单游戏和回收站里的游戏不占名额。` }, 400);
     }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')

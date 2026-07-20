@@ -1865,7 +1865,7 @@
                 <div class="section-title">
                     <div>
                         <h2>我的编程游戏</h2>
-                        <p class="panel-note">只可修改名称和简介；最多推荐 3 个游戏到榜单游戏。</p>
+                        <p class="panel-note" id="myGamesLimitNote">只可修改名称和简介；最多推荐 3 个游戏到榜单游戏。</p>
                     </div>
                     <button class="vibe-button ghost" onclick="loadMyProfile()">刷新游戏</button>
                 </div>
@@ -1916,9 +1916,18 @@
                             <p class="panel-note" id="sidebarLeaderboardNote">榜单按管理员上架顺序展示；玩家评分后自动按平均分排序。回收站游戏不会显示。</p>
                         </div>
                     </div>
-                    <!-- 管理员的"所有会员编程作品"总览(仅管理员可见,便于批量修改/回收) -->
-                    <div class="game-grid" id="gameGrid" style="display:none"></div>
+                    <!-- 榜单本身:所有身份显示同一份内容 -->
                     <div class="leaderboard-grid unified-member-leaderboard" id="leaderboardList">暂无推荐游戏。</div>
+                </div>
+                <!-- 管理员专属:所有会员编程作品(含未上榜),用于编辑/回收 -->
+                <div class="member-card admin-all-games-card" id="adminAllGamesCard" style="display:none">
+                    <div class="section-title">
+                        <div>
+                            <h2 class="builtin-leaderboard-title">🛠️ 所有会员编程作品（管理员可见）</h2>
+                            <p class="panel-note">这里显示全站所有会员创建的游戏（含未上榜的），可点“修改游戏”或“回收站”。</p>
+                        </div>
+                    </div>
+                    <div class="game-grid" id="gameGrid"></div>
                 </div>
             </section>
             <div class="card-toolbar">
@@ -1967,7 +1976,8 @@ const SYSTEM_SETTING_FIELDS = [
     ['recharge_min_yuan', '最低充值金额', 'number'],
     ['recharge_points_per_10_yuan', '每 10 元赠送积分', 'number'],
     ['register_ip_limit_per_hour', '每 IP 每小时注册次数', 'number'],
-    ['invite_required', '注册是否开启邀请码', 'select']
+    ['invite_required', '注册是否开启邀请码', 'select'],
+    ['max_member_recommend', '每位会员最多推荐数量(留空=3)', 'number']
 ];
 
 let isUnlocked = false;
@@ -2309,9 +2319,9 @@ function applyUnlockState() {
     if (myGamesBox) myGamesBox.style.display = isMember ? '' : 'none';
     const builtinZone = document.getElementById('builtinLeaderboardZone');
     if (builtinZone) builtinZone.classList.toggle('hidden', false);
-    // 管理员才显示"游戏卡片总览"(所有会员的 vibe 作品);其他人只看榜单,避免重复出现两个游戏列表
-    const gameGrid = document.getElementById('gameGrid');
-    if (gameGrid) gameGrid.style.display = isAdmin ? '' : 'none';
+    // 管理员才显示"所有会员编程作品"区(含未上榜);普通用户和游客只看榜单游戏,不出现两个游戏列表
+    const adminAllGamesCard = document.getElementById('adminAllGamesCard');
+    if (adminAllGamesCard) adminAllGamesCard.style.display = isAdmin ? '' : 'none';
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
     document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
@@ -2985,9 +2995,14 @@ function renderMyCards() {
         wrap.innerHTML = `<div class="personal-game-card"><strong>${hasTrashedOnly ? '当前编程游戏都在回收站。' : '还没有编程游戏。'}</strong><p class="panel-note">${hasTrashedOnly ? '可在回收站恢复自己的游戏。' : '进入上方 AI 编程区域建立游戏；建好后会以卡片方式展示，点击“编辑”再修改名称和简介。'}</p></div>`;
         return;
     }
+    // 前端"上限"读平台设置(留空回落到 3),和后端保持一致
+    const recommendLimitRaw = Number(platformSettings.max_member_recommend);
+    const recommendLimit = Number.isFinite(recommendLimitRaw) && recommendLimitRaw >= 1 ? Math.floor(recommendLimitRaw) : 3;
+    const limitNote = document.getElementById('myGamesLimitNote');
+    if (limitNote) limitNote.textContent = `只可修改名称和简介；最多推荐 ${recommendLimit} 个游戏到榜单游戏。`;
     const recommendedCount = cards.filter(card => card.recommended).length;
     wrap.innerHTML = cards.map((card, index) => {
-        const recommendDisabled = !card.recommended && recommendedCount >= 3;
+        const recommendDisabled = !card.recommended && recommendedCount >= recommendLimit;
         return `
         <div class="personal-game-card ${card.recommended ? 'recommended' : ''}">
             <div class="section-title">
