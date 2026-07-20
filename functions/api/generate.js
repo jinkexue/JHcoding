@@ -78,6 +78,25 @@ export async function onRequestPost(context) {
         const content = extractAssistantContent(llmData, llmText);
         const result = parseModelOutput(content || llmText);
         const patchResult = action === 'modify' && sourceCode ? applyPatchResult(sourceCode, result) : null;
+
+        // 方案 3:修改模式下,如果 AI 尝试走补丁(patches.length > 0)但补丁应用失败,
+        // 不再回落到 result.html(那份很容易被 max_tokens 截断),直接返回失败,让用户重试或简化 prompt。
+        const patchesAttempted = action === 'modify' && sourceCode && Array.isArray(result?.patches) && result.patches.length > 0;
+        const patchFailed = patchesAttempted && !patchResult;
+        if (patchFailed) {
+            const finishReason = llmData?.choices?.[0]?.finish_reason || '';
+            return json({
+                success: false,
+                error: '模型返回的补丁片段与当前源码对不上,已放弃修改。请点“AI 修改”重试一次;若反复失败,请把提示词说得更具体一点(比如“把背景色改成蓝色”)。',
+                debug: {
+                    reason: 'patches_failed',
+                    finishReason,
+                    patchesCount: result.patches.length,
+                    firstOldSnippet: String(result.patches[0]?.old || '').slice(0, 200)
+                }
+            }, 502);
+        }
+
         const html = cleanHtml(patchResult?.html || result.html || '');
 
         if (!isCompleteHtml(html)) {
