@@ -65,6 +65,14 @@ const BUILTIN_MOD_GAMES = [
     { modId: 'mod-snake-game', title: '快乐贪吃蛇（编程版）', icon: '🐍', description: '在原版快乐贪吃蛇基础上做的编程改进版本。' }
 ];
 
+// 内置榜单卡片 id 集合(FEATURED_GAMES + BUILTIN_MOD_GAMES),这些卡片不占用普通会员/推荐者的
+// 3 张推荐配额,否则挂在 yjh@sivani.net 名下的 7 张内置就直接把这个账号的推荐位占满,
+// 导致该账号无法再推荐自己新写的作品。
+const BUILTIN_LEADERBOARD_IDS = new Set([
+    ...FEATURED_GAMES.map(g => g.cardId),
+    ...BUILTIN_MOD_GAMES.map(g => g.modId)
+]);
+
 export async function onRequestOptions() {
     return new Response(null, { headers: corsHeaders });
 }
@@ -741,15 +749,18 @@ async function setRecommendState(db, user, body, kv = null) {
     if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
     if (recommended && await isCardTrashed(kv, cardId)) return json({ success: false, error: '回收站中的游戏不能推荐到榜单。' }, 400);
     if (recommended && !card.recommended) {
-        // 计入配额时排除已放入回收站的卡片,否则会出现"榜单只显示 2 张,后端却认为已推荐 3 张"的假限额
+        // 计入配额时排除:
+        //   1) 已放入回收站的卡片(KV 中 trashed=true)
+        //   2) 内置榜单卡片(围棋/打地鼠/…/mod-*),它们不占用会员自定义推荐位
         const rows = await db.prepare('SELECT card_id FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).all();
         let active = 0;
         for (const row of (rows.results || [])) {
             if (row.card_id === cardId) continue; // 兜底,不把自己算进去
+            if (BUILTIN_LEADERBOARD_IDS.has(row.card_id)) continue;
             if (await isCardTrashed(kv, row.card_id)) continue;
             active += 1;
         }
-        if (active >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个游戏到榜单游戏。回收站里的游戏不占名额。` }, 400);
+        if (active >= MAX_MEMBER_CARDS) return json({ success: false, error: `最多只能推荐 ${MAX_MEMBER_CARDS} 个自己的游戏到榜单。内置榜单游戏和回收站里的游戏不占名额。` }, 400);
     }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')
