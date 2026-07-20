@@ -751,22 +751,26 @@ async function setRecommendState(db, user, body, kv = null) {
     if (recommended && (!card?.title || !card?.url)) return json({ success: false, error: '推荐前请先确认游戏标题和游戏地址。' }, 400);
     if (recommended && await isCardTrashed(kv, cardId)) return json({ success: false, error: '回收站中的游戏不能推荐到榜单。' }, 400);
     if (recommended && !card.recommended) {
-        // 计入配额时排除:
-        //   1) 已放入回收站的卡片(KV 中 trashed=true)
-        //   2) 内置榜单卡片(围棋/打地鼠/…/mod-*),它们不占用会员自定义推荐位
-        const rows = await db.prepare('SELECT card_id FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).all();
-        let active = 0;
-        for (const row of (rows.results || [])) {
-            if (row.card_id === cardId) continue; // 兜底,不把自己算进去
-            if (BUILTIN_LEADERBOARD_IDS.has(row.card_id)) continue;
-            if (await isCardTrashed(kv, row.card_id)) continue;
-            active += 1;
+        // 管理员(游戏管理员 / 系统管理员)不受推荐数量上限限制
+        const isAdmin = user.role === 'game_admin' || user.role === 'system_admin';
+        if (!isAdmin) {
+            // 计入配额时排除:
+            //   1) 已放入回收站的卡片(KV 中 trashed=true)
+            //   2) 内置榜单卡片(围棋/打地鼠/…/mod-*),它们不占用会员自定义推荐位
+            const rows = await db.prepare('SELECT card_id FROM member_cards WHERE user_id = ? AND recommended = 1').bind(user.id).all();
+            let active = 0;
+            for (const row of (rows.results || [])) {
+                if (row.card_id === cardId) continue; // 兜底,不把自己算进去
+                if (BUILTIN_LEADERBOARD_IDS.has(row.card_id)) continue;
+                if (await isCardTrashed(kv, row.card_id)) continue;
+                active += 1;
+            }
+            // 上限支持系统管理员在"平台设置"里覆盖(max_member_recommend);未配置或非法值时回落到代码默认 3
+            const settings = await getSettings(db).catch(() => ({}));
+            const configured = Number(settings?.max_member_recommend);
+            const limit = Number.isFinite(configured) && configured >= 1 ? Math.floor(configured) : MAX_MEMBER_CARDS;
+            if (active >= limit) return json({ success: false, error: `最多只能推荐 ${limit} 个自己的游戏到榜单。内置榜单游戏和回收站里的游戏不占名额。` }, 400);
         }
-        // 上限支持系统管理员在"平台设置"里覆盖(max_member_recommend);未配置或非法值时回落到代码默认 3
-        const settings = await getSettings(db).catch(() => ({}));
-        const configured = Number(settings?.max_member_recommend);
-        const limit = Number.isFinite(configured) && configured >= 1 ? Math.floor(configured) : MAX_MEMBER_CARDS;
-        if (active >= limit) return json({ success: false, error: `最多只能推荐 ${limit} 个自己的游戏到榜单。内置榜单游戏和回收站里的游戏不占名额。` }, 400);
     }
     const now = new Date().toISOString();
     await db.prepare('UPDATE member_cards SET recommended = ?, recommended_at = ?, updated_at = ? WHERE user_id = ? AND card_id = ?')

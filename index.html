@@ -1871,7 +1871,17 @@
                 </div>
                 <div class="member-card-grid compact-my-games" id="myCards"></div>
             </div>
-            <!-- 回收站放在"我的编程游戏"下方 -->
+            <!-- 管理员专属:库存游戏(全站所有未上榜作品,含内置未上榜) -->
+            <div class="member-card admin-inventory-card" id="adminInventoryCard" style="display:none">
+                <div class="section-title">
+                    <div>
+                        <h2>📦 库存游戏（未上榜）</h2>
+                        <p class="panel-note">所有会员创建但未上榜的游戏，包括内置未上榜的游戏。管理员可编辑/上架/回收。</p>
+                    </div>
+                </div>
+                <div class="game-grid" id="gameGrid"></div>
+            </div>
+            <!-- 回收站放在库存游戏下方 -->
             <div class="trash-panel hidden" id="trashPanel">
                 <h3>回收站</h3>
                 <div class="trash-list" id="trashList">回收站为空。</div>
@@ -1918,16 +1928,6 @@
                     </div>
                     <!-- 榜单本身:所有身份显示同一份内容 -->
                     <div class="leaderboard-grid unified-member-leaderboard" id="leaderboardList">暂无推荐游戏。</div>
-                </div>
-                <!-- 管理员专属:所有会员编程作品(含未上榜),用于编辑/回收 -->
-                <div class="member-card admin-all-games-card" id="adminAllGamesCard" style="display:none">
-                    <div class="section-title">
-                        <div>
-                            <h2 class="builtin-leaderboard-title">🛠️ 所有会员编程作品（管理员可见）</h2>
-                            <p class="panel-note">这里显示全站所有会员创建的游戏（含未上榜的），可点“修改游戏”或“回收站”。</p>
-                        </div>
-                    </div>
-                    <div class="game-grid" id="gameGrid"></div>
                 </div>
             </section>
             <div class="card-toolbar">
@@ -2087,17 +2087,34 @@ const builtInGames = [
 
 function renderGameCards() {
     const grid = document.getElementById('gameGrid');
+    if (!grid) return;
     grid.classList.toggle('compact', cardsCompact);
-    const isSystemAdmin = currentUser && currentUser.role === 'system_admin';
-    // gameGrid 现在专门给管理员看"所有会员的编程作品",不再混入 builtin,避免和榜单区重复
+    const isAdmin = isAdminRole();
+    // "库存游戏"= 全站未上榜作品(含内置未上榜 + 会员未上榜的 vibe 作品),仅管理员可见。
+    // 上榜判定:leaderboardGames 里存在同 cardId(或 mod-* 覆盖版 cardId)的记录。
+    const onLeaderboardIds = new Set(leaderboardGames.map(g => g.cardId));
+    const isOnLeaderboard = (game) => {
+        if (onLeaderboardIds.has(game.id)) return true;
+        // builtin 的 mod- 覆盖版若已上榜,视为该 builtin 已上榜(它其实由 mod- 代表)
+        if (game.type === 'builtin' && onLeaderboardIds.has(getBuiltinOverrideId(game.id))) return true;
+        return false;
+    };
     const allGames = sortGamesByOrder([
+        // builtin(游戏管理员/系统管理员都要看到硬编码但未上榜的,例如你说的俄罗斯方块)
+        ...builtInGames.filter(game => {
+            if (deletedBuiltinIds.includes(game.id)) return false;
+            if (!isAdmin) return false;
+            return !isOnLeaderboard(game);
+        }),
+        // 会员 vibe 作品(未上榜)
         ...dynamicGames.filter(game => {
             if (game.isBuiltinOverride || game.trashed) return false;
-            return isAdminRole();
+            if (!isAdmin) return false;
+            return !isOnLeaderboard(game);
         })
     ]);
     if (!allGames.length) {
-        grid.innerHTML = '<div class="auth-card"><strong>还没有会员编程作品。</strong><p class="panel-note">会员登录后在下方 AI 编程区新建游戏，作品会出现在这里。</p></div>';
+        grid.innerHTML = '<div class="auth-card"><strong>暂无未上榜的库存游戏。</strong><p class="panel-note">所有可用游戏都已经在榜单上。</p></div>';
         return;
     }
 
@@ -2111,8 +2128,14 @@ function renderGameCards() {
         const isOwner = !game.owner || !currentUser || game.owner === currentUser.username;
         const lockedClass = !currentUser ? ' locked' : '';
         const selectedClass = selectedCardId === game.id ? ' selected' : '';
+        const adminOwner = game.type === 'builtin' ? FEATURED_OWNER_USERNAME : (game.owner || FEATURED_OWNER_USERNAME);
+        // builtin 的实际"上榜卡片 id":有 mod- 覆盖就用 mod-*,否则用 builtin 本身的 id
+        const adminCardId = game.type === 'builtin'
+            ? (getBuiltinOverride(game.id) ? getBuiltinOverrideId(game.id) : game.id)
+            : game.id;
         const adminActions = currentUser && ['game_admin', 'system_admin'].includes(currentUser.role)
-            ? `<button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">修改游戏</button>
+            ? `<button class="vibe-button" onclick="adminListToLeaderboard('${escapeAttr(adminOwner)}','${escapeAttr(adminCardId)}', event)">上架到榜单</button>
+               <button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">修改游戏</button>
                <button class="trash-btn" onclick="moveGameToTrash('${escapeAttr(game.id)}', event)">回收站</button>`
             : (currentUser && currentUser.role === 'member' && isDynamic && isOwner ? `<button class="play-btn modify-card-btn" onclick="startModifyGame('${escapeAttr(game.id)}', event)">编辑自己的游戏</button>` : '');
         return `
@@ -2319,9 +2342,9 @@ function applyUnlockState() {
     if (myGamesBox) myGamesBox.style.display = isMember ? '' : 'none';
     const builtinZone = document.getElementById('builtinLeaderboardZone');
     if (builtinZone) builtinZone.classList.toggle('hidden', false);
-    // 管理员才显示"所有会员编程作品"区(含未上榜);普通用户和游客只看榜单游戏,不出现两个游戏列表
-    const adminAllGamesCard = document.getElementById('adminAllGamesCard');
-    if (adminAllGamesCard) adminAllGamesCard.style.display = isAdmin ? '' : 'none';
+    // 管理员才显示"库存游戏"卡片(全站未上榜作品);普通用户和游客不显示
+    const adminInventoryCard = document.getElementById('adminInventoryCard');
+    if (adminInventoryCard) adminInventoryCard.style.display = isAdmin ? '' : 'none';
     document.getElementById('adminZone').classList.toggle('hidden', !isAdmin);
     document.querySelectorAll('.system-only-tab').forEach(el => el.classList.toggle('hidden', !isSystemAdmin));
     document.getElementById('inviteBanner').classList.toggle('hidden', !isGameAdmin);
@@ -3223,9 +3246,26 @@ async function adminUnrecommend(owner, cardId) {
         leaderboardGames = enrichLeaderboardWithBuiltinMeta((data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId)));
         leaderboardLoadedOnce = true;
         renderLeaderboard();
+        renderGameCards();
         showToast('已下架该榜单推荐');
     } catch (error) {
         showToast(`下架失败：${error.message}`);
+    }
+}
+
+// 管理员把一张库存(未上榜)游戏"上架到榜单游戏"。不受推荐数量限制(后端已放宽)
+async function adminListToLeaderboard(owner, cardId, event) {
+    if (event && event.stopPropagation) event.stopPropagation();
+    if (!isAdminRole()) { showToast('只有管理员可以上架推荐'); return; }
+    try {
+        const data = await apiAuth('adminRecommend', { owner, cardId, recommended: true });
+        leaderboardGames = enrichLeaderboardWithBuiltinMeta((data.leaderboard || []).filter(game => !isGameCurrentlyTrashed(game.cardId)));
+        leaderboardLoadedOnce = true;
+        renderLeaderboard();
+        renderGameCards();
+        showToast('已上架到榜单游戏');
+    } catch (error) {
+        showToast(`上架失败：${error.message}`);
     }
 }
 
