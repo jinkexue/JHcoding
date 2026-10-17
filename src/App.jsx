@@ -200,6 +200,37 @@ const healthIconMap = {
   BookOpenText,
 };
 
+const sectionTypeOptions = {
+  homeStory: ['照片', '文字', '视频'],
+  schoolAlbum: ['图片', '文字', '链接'],
+  schoolVideo: ['bilibili', 'local'],
+  health: ['提醒', '图片', '链接'],
+  game: ['游戏链接'],
+};
+
+function buildBlankEditorItem(section) {
+  const base = {
+    author: '爸爸',
+    title: '',
+    text: '',
+    type: '照片',
+    mediaUrl: '',
+    image: '',
+    url: '',
+    href: './snake-game.html',
+    accent: 'from-emerald-400 to-lime-300',
+    icon: 'Heart',
+    originalTitle: '',
+  };
+
+  if (section === 'homeStory') return { ...base, author: '爸爸', type: '照片', mediaUrl: heroImages[0], mediaType: 'image' };
+  if (section === 'schoolAlbum') return { ...base, title: '', text: '', image: heroImages[0], type: '图片' };
+  if (section === 'schoolVideo') return { ...base, title: '', url: 'https://www.bilibili.com/', type: 'bilibili' };
+  if (section === 'health') return { ...base, title: '', text: '', icon: 'Heart', type: '提醒' };
+  if (section === 'game') return { ...base, title: '', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', type: '游戏链接' };
+  return base;
+}
+
 function getCurrentStatus(type) {
   const now = new Date();
   const hour = now.getHours();
@@ -452,10 +483,11 @@ function App() {
   };
 
   const openEditor = (section, item = null, mode = 'add') => {
+    const fallbackType = sectionTypeOptions[section]?.[0] || '照片';
     setEditor({
       section,
       mode,
-      item: item ? { ...item } : { author: '爸爸', title: '', text: '', mediaUrl: '', image: '', url: '', href: '', accent: 'from-emerald-400 to-lime-300', type: '照片', icon: 'Heart' }
+      item: item ? { ...buildBlankEditorItem(section), ...item } : { ...buildBlankEditorItem(section), type: fallbackType },
     });
   };
 
@@ -664,6 +696,9 @@ function App() {
     if (section === 'game') {
       setGamesLocal((current) => current.filter((entry) => !(entry.id === item.id || entry.title === item.title)));
     }
+    if (section === 'qna') {
+      setQaEntries((current) => current.filter((entry) => !(entry.id === item.id || entry.q === item.q)));
+    }
   };
 
   const saveQa = async () => {
@@ -863,7 +898,7 @@ function App() {
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '爸爸在加拿大' : 'Dad in Canada'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => canEditSection('dad') && openEditor('homeStory', { author: '爸爸', type: '照片', title: '', text: '', mediaUrl: heroImages[0], mediaType: 'image', originalTitle: '' }, 'add')}>
+                    <button type="button" className="section-editor" onClick={() => canEditSection('dad') && openEditor('homeStory', null, 'add')}>
                       + {lang === 'zh' ? '新增' : 'Add'}
                     </button>
                   </div>
@@ -896,7 +931,7 @@ function App() {
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '女儿的记录' : 'Daughter journal'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => canEditSection('daughter') && openEditor('homeStory', { author: 'yjh', type: '照片', title: '', text: '', mediaUrl: heroImages[2], mediaType: 'image', originalTitle: '' }, 'add')}>
+                    <button type="button" className="section-editor" onClick={() => canEditSection('daughter') && openEditor('homeStory', { ...buildBlankEditorItem('homeStory'), author: 'yjh' }, 'add')}>
                       + {lang === 'zh' ? '新增' : 'Add'}
                     </button>
                   </div>
@@ -953,7 +988,7 @@ function App() {
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '加国校园相册' : 'Campus album'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => openEditor('schoolAlbum', { title: '', text: '', image: heroImages[0], originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                    <button type="button" className="section-editor" onClick={() => openEditor('schoolAlbum', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                   </div>
                 </div>
                 <div className="school-album-grid">
@@ -977,7 +1012,7 @@ function App() {
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '加国校园视频' : 'Campus video'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => openEditor('schoolVideo', { title: '', url: '', type: 'bilibili', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                    <button type="button" className="section-editor" onClick={() => openEditor('schoolVideo', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                   </div>
                 </div>
                 <div className="school-video-panel">
@@ -1036,7 +1071,7 @@ function App() {
             <div className="section-toolbar">
               <h3>{lang === 'zh' ? '健康生活' : 'Healthy living'}</h3>
               <div className="toolbar-actions">
-                <button type="button" className="section-editor" onClick={() => openEditor('health', { title: '', text: '', icon: 'Heart', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                <button type="button" className="section-editor" onClick={() => openEditor('health', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
               </div>
             </div>
             <div className="card-grid three-up compact">
@@ -1060,7 +1095,7 @@ function App() {
             <div className="section-toolbar">
               <h3>{lang === 'zh' ? '游戏乐园' : 'Game corner'}</h3>
               <div className="toolbar-actions">
-                <button type="button" className="section-editor" onClick={() => openEditor('game', { title: '', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                <button type="button" className="section-editor" onClick={() => openEditor('game', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
               </div>
             </div>
             <div className="game-grid">
@@ -1131,7 +1166,7 @@ function App() {
                   <p><strong>A:</strong> {pair.a}</p>
                   <div className="story-actions compact-actions">
                     <button type="button" className="inline-action" onClick={() => { setQaMode('answer'); setQaDraft({ from: pair.from, question: pair.q, answer: pair.a }); setQaFormOpen(true); }}>{lang === 'zh' ? '回答' : 'Answer'}</button>
-                    <button type="button" className="inline-action danger" onClick={() => setQaEntries((current) => current.filter((entry) => entry.q !== pair.q))}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                    <button type="button" className="inline-action danger" onClick={async () => { await deleteSectionItem('qna', pair); }}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                   </div>
                 </div>
               ))}
@@ -1148,6 +1183,19 @@ function App() {
               <button type="button" onClick={closeEditor}>×</button>
             </div>
 
+            {editor.mode === 'add' && (
+              <div className="editor-grid">
+                <label className="full">
+                  <span>{lang === 'zh' ? '新增类型' : 'Add type'}</span>
+                  <select value={editor.item.type || (sectionTypeOptions[editor.section] || ['照片'])[0]} onChange={(event) => updateEditorField('type', event.target.value)}>
+                    {(sectionTypeOptions[editor.section] || ['照片']).map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
             {editor.section === 'homeStory' && (
               <div className="editor-grid">
                 <label><span>{lang === 'zh' ? '作者' : 'Author'}</span><select value={editor.item.author || '爸爸'} onChange={(event) => updateEditorField('author', event.target.value)}><option value="爸爸">爸爸</option><option value="yjh">yjh</option></select></label>
@@ -1160,9 +1208,10 @@ function App() {
 
             {editor.section === 'schoolAlbum' && (
               <div className="editor-grid">
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '图片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="图片">图片</option><option value="文字">文字</option><option value="链接">链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
-                <label className="full"><span>{lang === 'zh' ? '图片链接' : 'Image URL'}</span><input value={editor.item.image || ''} onChange={(event) => updateEditorField('image', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '图片/链接' : 'Image / Link URL'}</span><input value={editor.item.image || editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('image', event.target.value); updateEditorField('url', event.target.value); }} /></label>
               </div>
             )}
 
@@ -1176,6 +1225,7 @@ function App() {
 
             {editor.section === 'health' && (
               <div className="editor-grid">
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '提醒'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="提醒">提醒</option><option value="图片">图片</option><option value="链接">链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
                 <label><span>{lang === 'zh' ? '图标' : 'Icon'}</span><select value={editor.item.icon || 'Heart'} onChange={(event) => updateEditorField('icon', event.target.value)}><option value="Heart">Heart</option><option value="Sparkles">Sparkles</option><option value="CheckCircle2">CheckCircle2</option><option value="BookOpenText">BookOpenText</option></select></label>
@@ -1184,6 +1234,7 @@ function App() {
 
             {editor.section === 'game' && (
               <div className="editor-grid">
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '游戏链接'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="游戏链接">游戏链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.href || ''} onChange={(event) => updateEditorField('href', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '样式' : 'Style'}</span><select value={editor.item.accent || 'from-emerald-400 to-lime-300'} onChange={(event) => updateEditorField('accent', event.target.value)}><option value="from-emerald-400 to-lime-300">绿色</option><option value="from-amber-400 to-yellow-300">黄色</option><option value="from-sky-400 to-cyan-300">蓝色</option><option value="from-violet-400 to-fuchsia-300">紫色</option></select></label>
