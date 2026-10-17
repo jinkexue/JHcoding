@@ -388,7 +388,7 @@ function App() {
 
   const login = () => {
     const credentials = {
-      dad: { username: 'yqcw@qq.com', password: '123456' },
+      dad: { username: 'yq', password: '123456' },
       daughter: { username: 'yjh', password: '150113' },
     };
 
