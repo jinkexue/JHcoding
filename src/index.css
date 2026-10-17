@@ -77,9 +77,15 @@ button {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(59, 130, 246, 0.2));
-  color: #0f766e;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(249, 115, 22, 0.20), rgba(255, 255, 255, 0.75));
+  color: #b91c1c;
   border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 16px 32px rgba(153, 27, 27, 0.12);
+}
+
+.leaf-badge span {
+  font-size: 2.5rem;
+  line-height: 1;
 }
 
 .login-panel h1 {
@@ -102,6 +108,55 @@ button {
   flex-direction: column;
   gap: 12px;
   margin-top: 8px;
+}
+
+.auth-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px 4px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255,255,255,0.9);
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.12);
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #2563eb);
+  color: white;
+  font-weight: 700;
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .primary-btn, .secondary-btn, .ghost-btn, .tab, .mini-header button, .qa-row button {
@@ -234,6 +289,25 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.role-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.role-tag.dad {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+}
+
+.role-tag.daughter {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
 }
 
 .ghost-btn {
@@ -383,6 +457,90 @@ button {
   color: #475569;
 }
 
+.media-upload-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.76);
+  border-radius: 22px;
+}
+
+.media-upload-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.media-upload-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.1rem;
+}
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.upload-field span {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.upload-field input[type='file'] {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(59, 130, 246, 0.4);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.upload-url-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.upload-inline input {
+  flex: 1 1 180px;
+  padding: 0.72rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.upload-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 0.72rem 1rem;
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+  color: white;
+  font-weight: 700;
+}
+
+.upload-help {
+  color: #64748b;
+}
+
 .card-grid {
   display: grid;
   gap: 14px;
@@ -398,10 +556,33 @@ button {
   flex-direction: column;
 }
 
-.story-card img {
-  height: 180px;
+.media-frame {
+  position: relative;
   width: 100%;
+  background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+.media-image {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  display: block;
+}
+
+.video-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.unsupported-frame {
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 0.8rem;
 }
 
 .story-content {

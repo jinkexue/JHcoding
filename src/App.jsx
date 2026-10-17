@@ -97,11 +97,72 @@ const copy = {
   },
 };
 
-const moments = [
-  { author: '爸爸', type: '照片', title: '野生动物邻居', text: '今天早晨在小区里碰到了两只很可爱的小松鼠，像在和我们打招呼。', meta: '2小时前', image: heroImages[0], likes: 24, comments: 5 },
-  { author: 'yjh', type: '文字', title: '今天的快乐清单', text: '我吃了彩虹糖饼干，还把作业和阅读时间安排得很好，感觉自己很厉害。', meta: '昨晚', image: null, likes: 31, comments: 7 },
-  { author: '爸爸', type: '语音', title: '从公寓到森林', text: '今天我在卡尔加里的湖边走了一圈，风很轻，天很蓝。', meta: '今天上午', image: heroImages[2], likes: 18, comments: 3 },
+const initialMoments = [
+  { author: '爸爸', type: '照片', title: '野生动物邻居', text: '今天早晨在小区里碰到了两只很可爱的小松鼠，像在和我们打招呼。', meta: '2小时前', mediaUrl: heroImages[0], mediaType: 'image', likes: 24, comments: 5 },
+  { author: 'yjh', type: '文字', title: '今天的快乐清单', text: '我吃了彩虹糖饼干，还把作业和阅读时间安排得很好，感觉自己很厉害。', meta: '昨晚', mediaUrl: null, mediaType: 'text', likes: 31, comments: 7 },
+  { author: '爸爸', type: '语音', title: '从公寓到森林', text: '今天我在卡尔加里的湖边走了一圈，风很轻，天很蓝。', meta: '今天上午', mediaUrl: heroImages[2], mediaType: 'image', likes: 18, comments: 3 },
 ];
+
+function toEmbedUrl(rawUrl) {
+  if (!rawUrl) return '';
+  const url = rawUrl.trim();
+  if (!url) return '';
+
+  if (/bilibili\.com|b23\.tv/i.test(url)) {
+    const match = url.match(/BV[0-9A-Za-z]+|av\d+/i);
+    const bvid = match ? match[0] : '';
+    if (bvid) {
+      return `https://player.bilibili.com/player.html?bvid=${bvid}`;
+    }
+    return url;
+  }
+
+  if (/youtube\.com|youtu\.be/i.test(url)) {
+    const match = url.match(/(?:v=|\/)([A-Za-z0-9_-]{11})/i);
+    const videoId = match ? match[1] : '';
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+  }
+
+  return url;
+}
+
+function hasImageExtension(url) {
+  if (!url) return false;
+  return /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /images?\.|unsplash|pexels|cdn/gi.test(url);
+}
+
+function MediaFrame({ url, title, type }) {
+  if (!url) return null;
+
+  if (type === 'image' || hasImageExtension(url)) {
+    return (
+      <div className="media-frame image-frame">
+        <img src={url} alt={title} className="media-image" loading="lazy" />
+      </div>
+    );
+  }
+
+  const embedUrl = toEmbedUrl(url);
+  if (embedUrl) {
+    return (
+      <div className="media-frame video-frame">
+        <iframe
+          src={embedUrl}
+          title={title}
+          loading="lazy"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="media-frame unsupported-frame">
+      <span>{title}</span>
+    </div>
+  );
+}
 
 const qnaPairs = [
   { q: '为什么加拿大的树叶会在秋天变红？', a: '因为很多树会把叶绿素变少，而橙黄红色的色素显现出来，像在给大地换衣服。', from: '爸爸' },
@@ -171,6 +232,13 @@ function App() {
   const [role, setRole] = useState('dad');
   const [activeTab, setActiveTab] = useState('home');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [moments, setMoments] = useState(initialMoments);
+  const [uploadUrl, setUploadUrl] = useState('');
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   const t = copy[lang];
   const daysInCanada = useMemo(() => {
@@ -180,40 +248,149 @@ function App() {
 
   const dadStatus = getCurrentStatus('dad');
   const daughterStatus = getCurrentStatus('daughter');
+  const isDad = role === 'dad';
 
-  const login = (selectedRole) => {
+  const openLogin = (selectedRole) => {
     setRole(selectedRole);
-    if (selectedRole === 'dad') {
-      setIsLoggedIn(true);
+    setShowAuthForm(true);
+    setUsername('');
+    setPassword('');
+  };
+
+  const login = () => {
+    const credentials = {
+      dad: { username: 'yqcw@qq.com', password: '123456' },
+      daughter: { username: 'yjh', password: '150113' },
+    };
+
+    const selected = credentials[role];
+    if (!selected || username !== selected.username || password !== selected.password) {
+      alert(lang === 'zh' ? '用户名或密码不正确，请检查后再试。' : 'Incorrect username or password. Please try again.');
       return;
     }
+
     setIsLoggedIn(true);
+    setShowAuthForm(false);
   };
 
   const logout = () => setIsLoggedIn(false);
+
+  const addMediaItem = (item) => {
+    setMoments((current) => [{
+      author: isDad ? '爸爸' : 'yjh',
+      type: item.type || '照片',
+      title: item.title || '新媒体',
+      text: item.text || '新上传的家庭记忆。',
+      meta: '刚刚',
+      mediaUrl: item.mediaUrl || null,
+      mediaType: item.mediaType || (item.mediaUrl && hasImageExtension(item.mediaUrl) ? 'image' : 'video'),
+      likes: 0,
+      comments: 0,
+    }, ...current]);
+  };
+
+  const handleLocalUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name);
+
+      const response = await fetch('/api/media', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || '文件上传失败');
+      }
+
+      if (payload.url) {
+        addMediaItem({
+          type: file.type.startsWith('video/') ? '视频' : '照片',
+          title: uploadTitle || file.name,
+          text: '从 Cloudflare R2 上传的最新记忆。',
+          mediaUrl: payload.url,
+          mediaType: file.type.startsWith('video/') ? 'video' : 'image',
+        });
+      }
+
+      alert(lang === 'zh' ? '上传成功。' : 'Uploaded successfully.');
+    } catch (error) {
+      alert(error.message || (lang === 'zh' ? '上传失败，请检查云端 R2 绑定。' : 'Upload failed. Please check the Cloudflare R2 binding.'));
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleExternalUrlSubmit = (event) => {
+    event.preventDefault();
+    const url = uploadUrl.trim();
+    if (!url) return;
+
+    addMediaItem({
+      type: hasImageExtension(url) ? '照片' : '视频',
+      title: uploadTitle || '外部链接媒体',
+      text: '从外部链接插入的家庭故事。',
+      mediaUrl: url,
+      mediaType: hasImageExtension(url) ? 'image' : 'video',
+    });
+
+    setUploadUrl('');
+    setUploadTitle('');
+  };
 
   if (!isLoggedIn) {
     return (
       <div className="login-shell">
         <div className="login-panel">
-          <div className="leaf-badge">
-            <Leaf size={42} />
+          <div className="leaf-badge" aria-label="Canada maple leaf logo">
+            <span>🍁</span>
           </div>
           <h1>{t.title}</h1>
-          <p>{t.subtitle}</p>
 
           <div className="login-buttons">
-            <button type="button" className="primary-btn" onClick={() => login('dad')}>
+            <button type="button" className="primary-btn" onClick={() => openLogin('dad')}>
               {t.dadLogin}
             </button>
-            <button type="button" className="secondary-btn" onClick={() => login('daughter')}>
+            <button type="button" className="secondary-btn" onClick={() => openLogin('daughter')}>
               {t.daughterLogin}
             </button>
           </div>
 
-          <div className="login-footnote">
-            <span>{t.admin}:</span> {t.email} / {t.password}
-          </div>
+          {showAuthForm && (
+            <div className="auth-form">
+              <label>
+                <span>{lang === 'zh' ? '用户名' : 'Username'}</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={role === 'dad' ? 'yqcw@qq.com' : 'yjh'}
+                />
+              </label>
+
+              <label>
+                <span>{lang === 'zh' ? '密码' : 'Password'}</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={lang === 'zh' ? '请输入密码' : 'Enter password'}
+                />
+              </label>
+
+              <button type="button" className="submit-btn" onClick={login} disabled={!username || !password}>
+                {lang === 'zh' ? '进入基地' : 'Enter base'}
+              </button>
+            </div>
+          )}
+
           <button type="button" className="lang-toggle small" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
             {lang === 'zh' ? 'EN' : '中文'}
           </button>
@@ -255,6 +432,9 @@ function App() {
         </nav>
 
         <div className="top-actions">
+          <span className={isDad ? 'role-tag dad' : 'role-tag daughter'}>
+            {isDad ? '爸爸权限' : '女儿权限'}
+          </span>
           <button type="button" className="ghost-btn" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
             {lang === 'zh' ? 'EN' : '中文'}
           </button>
@@ -291,10 +471,51 @@ function App() {
               </div>
             </div>
 
+            <div className="media-upload-panel">
+              <div className="media-upload-header">
+                <div className="feature-icon purple"><Video size={18} /></div>
+                <h3>{lang === 'zh' ? '照片 / 视频存库' : 'Photo & Video Library'}</h3>
+              </div>
+
+              <div className="upload-grid">
+                <label className="upload-field upload-file">
+                  <span>{lang === 'zh' ? '上传到 R2' : 'Upload to R2'}</span>
+                  <input type="file" accept="image/*,video/*" onChange={handleLocalUpload} disabled={uploading} />
+                </label>
+
+                <form className="upload-field upload-url-form" onSubmit={handleExternalUrlSubmit}>
+                  <span>{lang === 'zh' ? '外部链接' : 'External link'}</span>
+                  <div className="upload-inline">
+                    <input
+                      type="text"
+                      value={uploadTitle}
+                      onChange={(event) => setUploadTitle(event.target.value)}
+                      placeholder={lang === 'zh' ? '标题（可选）' : 'Title (optional)'}
+                    />
+                    <input
+                      type="url"
+                      value={uploadUrl}
+                      onChange={(event) => setUploadUrl(event.target.value)}
+                      placeholder="https://..."
+                    />
+                    <button type="submit" className="upload-btn">
+                      {lang === 'zh' ? '插入' : 'Insert'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <small className="upload-help">
+                {lang === 'zh'
+                  ? '支持本地上传到 Cloudflare R2，也支持 Bilibili / 图片外链直接展示。'
+                  : 'Supports local uploads to Cloudflare R2 and direct embedding of Bilibili or image URLs.'}
+              </small>
+            </div>
+
             <div className="card-grid three-up">
               {moments.map((item) => (
                 <article key={item.title} className="story-card">
-                  {item.image && <img src={item.image} alt={item.title} />}
+                  {item.mediaUrl && <MediaFrame url={item.mediaUrl} title={item.title} type={item.mediaType || 'image'} />}
                   <div className="story-content">
                     <div className="meta-row">
                       <span className="author-tag">{item.author}</span>
@@ -318,7 +539,7 @@ function App() {
               <div className="mini-panel">
                 <div className="mini-header">
                   <h3>{t.taskBoard}</h3>
-                  <button type="button">+ {lang === 'zh' ? '新任务' : 'New Task'}</button>
+                  {isDad && <button type="button">+ {lang === 'zh' ? '新任务' : 'New Task'}</button>}
                 </div>
                 {tasks.map((task) => (
                   <div key={task.title} className="task-item">
@@ -334,7 +555,7 @@ function App() {
               <div className="mini-panel">
                 <div className="mini-header">
                   <h3>{t.qna}</h3>
-                  <button type="button">+ {lang === 'zh' ? '提问题' : 'Ask'}</button>
+                  <button type="button">+ {isDad ? (lang === 'zh' ? '提问题' : 'Ask') : (lang === 'zh' ? '记录' : 'Record')}</button>
                 </div>
                 {qnaPairs.map((pair) => (
                   <div key={pair.q} className="qa-item">
@@ -369,11 +590,10 @@ function App() {
                 <h3>{t.schoolVideo}</h3>
               </div>
               <div className="video-frame">
-                <iframe
-                  src="https://www.youtube.com/embed/5qap5aO4i9A?si=Q9x2M4PzF0A2b7nR"
+                <MediaFrame
+                  url="https://www.youtube.com/watch?v=5qap5aO4i9A"
                   title="school video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
+                  type="video"
                 />
               </div>
             </div>

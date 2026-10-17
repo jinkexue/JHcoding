@@ -13,6 +13,9 @@ database_id = "82905244-7558-449c-974d-9d630f348383"
 binding = "MY_BUCKET"
 bucket_name = "n8n"
 
+[vars]
+R2_PUBLIC_URL = "https://n8n.sivani.net"
+
 # Existing game archive can remain as a sub-page under this portal.
 [[kv_namespaces]]
 binding = "GAMES_KV"
