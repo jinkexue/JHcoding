@@ -193,6 +193,13 @@ const games = [
   { title: '射击小游戏', href: './shooting-game.html', accent: 'from-violet-400 to-fuchsia-300' },
 ];
 
+const healthIconMap = {
+  Heart,
+  Sparkles,
+  CheckCircle2,
+  BookOpenText,
+};
+
 function getCurrentStatus(type) {
   const now = new Date();
   const hour = now.getHours();
@@ -250,6 +257,9 @@ function App() {
     };
   });
   const [showQaPanel, setShowQaPanel] = useState(true);
+  const [qaFormOpen, setQaFormOpen] = useState(false);
+  const [qaMode, setQaMode] = useState('question');
+  const [qaDraft, setQaDraft] = useState({ from: '爸爸', question: '', answer: '' });
   const [schoolAlbums, setSchoolAlbums] = useState([
     { title: '校园风景', text: '秋天的教学楼在金色阳光下特别安静。', image: heroImages[1] },
     { title: '学习角落', text: '书桌上的小礼物和温暖的笔记本。', image: heroImages[2] },
@@ -262,6 +272,7 @@ function App() {
   const [healthCardsLocal, setHealthCardsLocal] = useState(healthCards);
   const [gamesLocal, setGamesLocal] = useState(games);
   const [qaEntries, setQaEntries] = useState(qnaPairs);
+  const [editor, setEditor] = useState(null);
 
   const t = copy[lang];
   const dadStatus = getCurrentStatus('dad');
@@ -384,32 +395,143 @@ function App() {
     setUploadTitle('');
   };
 
-  const insertSchoolAlbum = () => {
-    setSchoolAlbums((current) => [
-      { title: '新加国校园瞬间', text: '新的校园记忆正在写进故事。', image: heroImages[0] },
-      ...current,
-    ]);
+  const openEditor = (section, item = null, mode = 'add') => {
+    setEditor({
+      section,
+      mode,
+      item: item ? { ...item } : { author: '爸爸', title: '', text: '', mediaUrl: '', image: '', url: '', href: '', accent: 'from-emerald-400 to-lime-300', type: '照片', icon: 'Heart' }
+    });
   };
 
-  const insertSchoolVideo = () => {
-    setSchoolVideos((current) => [
-      { title: '新课堂记录', url: 'https://www.bilibili.com/', type: 'bilibili' },
-      ...current,
-    ]);
+  const closeEditor = () => setEditor(null);
+
+  const updateEditorField = (field, value) => {
+    setEditor((current) => current ? ({ ...current, item: { ...current.item, [field]: value } }) : current);
   };
 
-  const insertHealthCard = () => {
-    setHealthCardsLocal((current) => [
-      { title: '新健康提醒', text: '每一天都在尽力照顾身体与心情。', icon: Heart },
-      ...current,
-    ]);
+  const saveSectionEditor = () => {
+    if (!editor) return;
+    const { section, mode, item } = editor;
+
+    const resolveHealthIcon = (iconName) => healthIconMap[iconName] || Heart;
+
+    if (section === 'homeStory') {
+      if (mode === 'add') {
+        setMoments((current) => [{
+          author: item.author || '爸爸',
+          type: item.type || '照片',
+          title: item.title || '新记录',
+          text: item.text || '新的家庭记录。',
+          meta: '刚刚',
+          mediaUrl: item.mediaUrl || null,
+          mediaType: item.mediaType || (item.mediaUrl && hasImageExtension(item.mediaUrl) ? 'image' : 'video'),
+          likes: 0,
+          comments: 0,
+        }, ...current]);
+      } else {
+        setMoments((current) => current.map((entry) => entry.title === item.originalTitle ? {
+          ...entry,
+          author: item.author || entry.author,
+          type: item.type || entry.type,
+          title: item.title || entry.title,
+          text: item.text || entry.text,
+          mediaUrl: item.mediaUrl || entry.mediaUrl,
+          mediaType: item.mediaType || entry.mediaType,
+        } : entry));
+      }
+    }
+
+    if (section === 'schoolAlbum') {
+      if (mode === 'add') {
+        setSchoolAlbums((current) => [{ title: item.title || '新相册', text: item.text || '新的校园记录。', image: item.image || heroImages[0] }, ...current]);
+      } else {
+        setSchoolAlbums((current) => current.map((entry) => entry.title === item.originalTitle ? {
+          ...entry,
+          title: item.title || entry.title,
+          text: item.text || entry.text,
+          image: item.image || entry.image,
+        } : entry));
+      }
+    }
+
+    if (section === 'schoolVideo') {
+      if (mode === 'add') {
+        setSchoolVideos((current) => [{ title: item.title || '新视频', url: item.url || 'https://www.bilibili.com/', type: item.type || 'bilibili' }, ...current]);
+      } else {
+        setSchoolVideos((current) => current.map((entry) => entry.title === item.originalTitle ? {
+          ...entry,
+          title: item.title || entry.title,
+          url: item.url || entry.url,
+          type: item.type || entry.type,
+        } : entry));
+      }
+    }
+
+    if (section === 'health') {
+      const nextIcon = resolveHealthIcon(item.icon || 'Heart');
+      if (mode === 'add') {
+        setHealthCardsLocal((current) => [{ title: item.title || '新健康提醒', text: item.text || '新的温暖提醒。', icon: nextIcon }, ...current]);
+      } else {
+        setHealthCardsLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
+          ...entry,
+          title: item.title || entry.title,
+          text: item.text || entry.text,
+          icon: nextIcon,
+        } : entry));
+      }
+    }
+
+    if (section === 'game') {
+      if (mode === 'add') {
+        setGamesLocal((current) => [{ title: item.title || '新游戏', href: item.href || './snake-game.html', accent: item.accent || 'from-emerald-400 to-lime-300' }, ...current]);
+      } else {
+        setGamesLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
+          ...entry,
+          title: item.title || entry.title,
+          href: item.href || entry.href,
+          accent: item.accent || entry.accent,
+        } : entry));
+      }
+    }
+
+    closeEditor();
   };
 
-  const insertGameCard = () => {
-    setGamesLocal((current) => [
-      { title: '家庭小游戏', href: '/snake-game.html', accent: 'from-emerald-400 to-lime-300' },
-      ...current,
-    ]);
+  const deleteSectionItem = (section, item) => {
+    if (section === 'homeStory') {
+      setMoments((current) => current.filter((entry) => !(entry.title === item.title && entry.author === item.author)));
+    }
+    if (section === 'schoolAlbum') {
+      setSchoolAlbums((current) => current.filter((entry) => entry.title !== item.title));
+    }
+    if (section === 'schoolVideo') {
+      setSchoolVideos((current) => current.filter((entry) => !(entry.title === item.title && entry.url === item.url)));
+    }
+    if (section === 'health') {
+      setHealthCardsLocal((current) => current.filter((entry) => entry.title !== item.title));
+    }
+    if (section === 'game') {
+      setGamesLocal((current) => current.filter((entry) => entry.title !== item.title));
+    }
+  };
+
+  const saveQa = () => {
+    if (!qaDraft.question.trim()) return;
+    const pair = {
+      q: qaDraft.question.trim(),
+      a: qaDraft.answer.trim() || (qaMode === 'answer' ? '待回答' : '待补充'),
+      from: qaDraft.from || (isDad ? '爸爸' : 'yjh'),
+    };
+
+    if (qaMode === 'answer') {
+      setQaEntries((current) => current.map((entry) => entry.q === qaDraft.question ? { ...entry, a: pair.a, from: pair.from } : entry));
+    } else {
+      setQaEntries((current) => [pair, ...current]);
+    }
+
+    setQaFormOpen(false);
+    setQaMode('question');
+    setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: '', answer: '' });
   };
 
   if (!isLoggedIn) {
@@ -584,9 +706,11 @@ function App() {
               <div className="story-column">
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '爸爸在加拿大' : 'Dad in Canada'}</h3>
-                  <button type="button" className="section-editor" onClick={() => canEditSection('dad') && addMediaItem({ title: '爸爸新增记录', text: '新的加拿大生活正在记录中。', mediaUrl: heroImages[0], mediaType: 'image', type: '照片' })}>
-                    {lang === 'zh' ? '编辑' : 'Edit'}
-                  </button>
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => canEditSection('dad') && openEditor('homeStory', { author: '爸爸', type: '照片', title: '', text: '', mediaUrl: heroImages[0], mediaType: 'image', originalTitle: '' }, 'add')}>
+                      + {lang === 'zh' ? '新增' : 'Add'}
+                    </button>
+                  </div>
                 </div>
                 {moments.filter((item) => item.author === '爸爸').map((item) => (
                   <article key={`${item.author}-${item.title}`} className="story-card split-story">
@@ -600,7 +724,9 @@ function App() {
                       <p>{item.text}</p>
                       <div className="story-footer">
                         <span>{item.meta}</span>
-                        <div>
+                        <div className="story-actions">
+                          <button type="button" className="inline-action" onClick={() => canEditSection('dad') && openEditor('homeStory', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('homeStory', item)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                           <span><Heart size={12} /> {item.likes}</span>
                           <span><MessageCircle size={12} /> {item.comments}</span>
                         </div>
@@ -613,9 +739,11 @@ function App() {
               <div className="story-column">
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '女儿的记录' : 'Daughter journal'}</h3>
-                  <button type="button" className="section-editor" onClick={() => canEditSection('daughter') && addMediaItem({ title: '女儿新增记录', text: '新的成长和想法正在整理中。', mediaUrl: heroImages[2], mediaType: 'image', type: '照片' })}>
-                    {lang === 'zh' ? '编辑' : 'Edit'}
-                  </button>
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => canEditSection('daughter') && openEditor('homeStory', { author: 'yjh', type: '照片', title: '', text: '', mediaUrl: heroImages[2], mediaType: 'image', originalTitle: '' }, 'add')}>
+                      + {lang === 'zh' ? '新增' : 'Add'}
+                    </button>
+                  </div>
                 </div>
                 {moments.filter((item) => item.author === 'yjh').map((item) => (
                   <article key={`${item.author}-${item.title}`} className="story-card split-story">
@@ -629,7 +757,9 @@ function App() {
                       <p>{item.text}</p>
                       <div className="story-footer">
                         <span>{item.meta}</span>
-                        <div>
+                        <div className="story-actions">
+                          <button type="button" className="inline-action" onClick={() => canEditSection('daughter') && openEditor('homeStory', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('homeStory', item)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                           <span><Heart size={12} /> {item.likes}</span>
                           <span><MessageCircle size={12} /> {item.comments}</span>
                         </div>
@@ -640,7 +770,7 @@ function App() {
               </div>
             </div>
 
-            <div className="split-grid">
+            <div className="split-grid single-panel">
               <div className="mini-panel">
                 <div className="mini-header">
                   <h3>{t.taskBoard}</h3>
@@ -656,23 +786,6 @@ function App() {
                   </div>
                 ))}
               </div>
-
-              <div className="mini-panel">
-                <div className="mini-header">
-                  <h3>{t.qna}</h3>
-                  <button type="button">+ {isDad ? (lang === 'zh' ? '提问题' : 'Ask') : (lang === 'zh' ? '记录' : 'Record')}</button>
-                </div>
-                {qaEntries.map((pair) => (
-                  <div key={pair.q} className="qa-item">
-                    <p><strong>Q:</strong> {pair.q}</p>
-                    <p><strong>A:</strong> {pair.a}</p>
-                    <div className="qa-row">
-                      <span>由 {pair.from} 回答</span>
-                      <button type="button">已保存</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </section>
         )}
@@ -683,7 +796,9 @@ function App() {
               <div className="story-column">
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '加国校园相册' : 'Campus album'}</h3>
-                  {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertSchoolAlbum}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => openEditor('schoolAlbum', { title: '', text: '', image: heroImages[0], originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                  </div>
                 </div>
                 <div className="school-album-grid">
                   {schoolAlbums.map((item) => (
@@ -692,6 +807,10 @@ function App() {
                       <div className="story-content compact-content">
                         <h4>{item.title}</h4>
                         <p>{item.text}</p>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => openEditor('schoolAlbum', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('schoolAlbum', item)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                        </div>
                       </div>
                     </article>
                   ))}
@@ -701,7 +820,9 @@ function App() {
               <div className="story-column">
                 <div className="section-toolbar">
                   <h3>{lang === 'zh' ? '加国校园视频' : 'Campus video'}</h3>
-                  {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertSchoolVideo}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => openEditor('schoolVideo', { title: '', url: '', type: 'bilibili', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                  </div>
                 </div>
                 <div className="school-video-panel">
                   <form className="video-upload-form" onSubmit={(event) => {
@@ -740,7 +861,11 @@ function App() {
                           <strong>{item.title}</strong>
                           <small>{item.url}</small>
                         </div>
-                        <button type="button" onClick={() => window.open(toEmbedUrl(item.url), '_blank', 'noopener,noreferrer')}>{lang === 'zh' ? '播放' : 'Play'}</button>
+                        <div className="video-list-tools">
+                          <button type="button" className="inline-action" onClick={() => openEditor('schoolVideo', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('schoolVideo', item)}>{lang === 'zh' ? '删' : 'Del'}</button>
+                          <button type="button" onClick={() => window.open(toEmbedUrl(item.url), '_blank', 'noopener,noreferrer')}>{lang === 'zh' ? '播放' : 'Play'}</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -754,7 +879,9 @@ function App() {
           <section className="page-block">
             <div className="section-toolbar">
               <h3>{lang === 'zh' ? '健康生活' : 'Healthy living'}</h3>
-              {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertHealthCard}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+              <div className="toolbar-actions">
+                <button type="button" className="section-editor" onClick={() => openEditor('health', { title: '', text: '', icon: 'Heart', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+              </div>
             </div>
             <div className="card-grid three-up compact">
               {healthCardsLocal.map(({ title, text, icon: Icon }) => (
@@ -762,6 +889,10 @@ function App() {
                   <div className="feature-icon green"><Icon size={22} /></div>
                   <h3>{title}</h3>
                   <p>{text}</p>
+                  <div className="story-actions compact-actions">
+                    <button type="button" className="inline-action" onClick={() => openEditor('health', { title, text, icon: Icon?.displayName || 'Heart', originalTitle: title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                    <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('health', { title, text, icon: Icon })}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -772,20 +903,28 @@ function App() {
           <section className="page-block">
             <div className="section-toolbar">
               <h3>{lang === 'zh' ? '游戏乐园' : 'Game corner'}</h3>
-              {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertGameCard}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+              <div className="toolbar-actions">
+                <button type="button" className="section-editor" onClick={() => openEditor('game', { title: '', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+              </div>
             </div>
             <div className="game-grid">
               {gamesLocal.map((game) => (
-                <a key={game.title} href={game.href} target="_blank" rel="noreferrer" className={`game-card ${game.accent}`}>
-                  <div className="game-top">
-                    <Gamepad2 size={26} />
-                    <ChevronRight size={18} />
+                <div key={game.title} className="game-card-wrapper">
+                  <a href={game.href} target="_blank" rel="noreferrer" className={`game-card ${game.accent}`}>
+                    <div className="game-top">
+                      <Gamepad2 size={26} />
+                      <ChevronRight size={18} />
+                    </div>
+                    <div className="game-copy">
+                      <small>Mini game</small>
+                      <h3>{game.title}</h3>
+                    </div>
+                  </a>
+                  <div className="story-actions compact-actions">
+                    <button type="button" className="inline-action" onClick={() => openEditor('game', { ...game, originalTitle: game.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                    <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('game', game)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                   </div>
-                  <div className="game-copy">
-                    <small>Mini game</small>
-                    <h3>{game.title}</h3>
-                  </div>
-                </a>
+                </div>
               ))}
             </div>
           </section>
@@ -802,17 +941,106 @@ function App() {
               <strong>{lang === 'zh' ? '父女问答' : 'Parent & daughter Q&A'}</strong>
               <button type="button" onClick={() => setShowQaPanel(false)}>{lang === 'zh' ? '收起' : 'Hide'}</button>
             </div>
+            <div className="qa-actions-row">
+              <button type="button" className="qa-mini-btn" onClick={() => { setQaMode('question'); setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: '', answer: '' }); setQaFormOpen(true); }}>{lang === 'zh' ? '提问' : 'Ask'}</button>
+              <button type="button" className="qa-mini-btn" onClick={() => { setQaMode('answer'); setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: qaEntries[0]?.q || '', answer: '' }); setQaFormOpen(true); }}>{lang === 'zh' ? '回答' : 'Answer'}</button>
+            </div>
+            {qaFormOpen && (
+              <div className="qa-form-box">
+                <label>
+                  <span>{lang === 'zh' ? '提问者' : 'From'}</span>
+                  <select value={qaDraft.from} onChange={(event) => setQaDraft((current) => ({ ...current, from: event.target.value }))}>
+                    <option value="爸爸">爸爸</option>
+                    <option value="yjh">yjh</option>
+                  </select>
+                </label>
+                <label>
+                  <span>{lang === 'zh' ? '问题' : 'Question'}</span>
+                  <textarea value={qaDraft.question} onChange={(event) => setQaDraft((current) => ({ ...current, question: event.target.value }))} rows={3} />
+                </label>
+                <label>
+                  <span>{lang === 'zh' ? '回答' : 'Answer'}</span>
+                  <textarea value={qaDraft.answer} onChange={(event) => setQaDraft((current) => ({ ...current, answer: event.target.value }))} rows={3} />
+                </label>
+                <div className="qa-form-actions">
+                  <button type="button" className="qa-submit-btn" onClick={saveQa}>{lang === 'zh' ? '保存' : 'Save'}</button>
+                  <button type="button" className="qa-cancel-btn" onClick={() => setQaFormOpen(false)}>{lang === 'zh' ? '取消' : 'Cancel'}</button>
+                </div>
+              </div>
+            )}
             <div className="qa-panel-list">
               {qaEntries.map((pair) => (
                 <div key={pair.q} className="qa-item-floating">
                   <p><strong>Q:</strong> {pair.q}</p>
                   <p><strong>A:</strong> {pair.a}</p>
+                  <div className="story-actions compact-actions">
+                    <button type="button" className="inline-action" onClick={() => { setQaMode('answer'); setQaDraft({ from: pair.from, question: pair.q, answer: pair.a }); setQaFormOpen(true); }}>{lang === 'zh' ? '回答' : 'Answer'}</button>
+                    <button type="button" className="inline-action danger" onClick={() => setQaEntries((current) => current.filter((entry) => entry.q !== pair.q))}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
       </div>
+
+      {editor && (
+        <div className="editor-modal-overlay" onClick={closeEditor}>
+          <div className="editor-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="editor-modal-header">
+              <h3>{editor.mode === 'add' ? (lang === 'zh' ? '新增内容' : 'Add item') : (lang === 'zh' ? '编辑内容' : 'Edit item')}</h3>
+              <button type="button" onClick={closeEditor}>×</button>
+            </div>
+
+            {editor.section === 'homeStory' && (
+              <div className="editor-grid">
+                <label><span>{lang === 'zh' ? '作者' : 'Author'}</span><select value={editor.item.author || '爸爸'} onChange={(event) => updateEditorField('author', event.target.value)}><option value="爸爸">爸爸</option><option value="yjh">yjh</option></select></label>
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '照片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="视频">视频</option></select></label>
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '图片/视频链接' : 'Media URL'}</span><input value={editor.item.mediaUrl || ''} onChange={(event) => updateEditorField('mediaUrl', event.target.value)} /></label>
+              </div>
+            )}
+
+            {editor.section === 'schoolAlbum' && (
+              <div className="editor-grid">
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '图片链接' : 'Image URL'}</span><input value={editor.item.image || ''} onChange={(event) => updateEditorField('image', event.target.value)} /></label>
+              </div>
+            )}
+
+            {editor.section === 'schoolVideo' && (
+              <div className="editor-grid">
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || 'bilibili'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="bilibili">Bilibili</option><option value="local">本地</option></select></label>
+                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || ''} onChange={(event) => updateEditorField('url', event.target.value)} /></label>
+              </div>
+            )}
+
+            {editor.section === 'health' && (
+              <div className="editor-grid">
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                <label><span>{lang === 'zh' ? '图标' : 'Icon'}</span><select value={editor.item.icon || 'Heart'} onChange={(event) => updateEditorField('icon', event.target.value)}><option value="Heart">Heart</option><option value="Sparkles">Sparkles</option><option value="CheckCircle2">CheckCircle2</option><option value="BookOpenText">BookOpenText</option></select></label>
+              </div>
+            )}
+
+            {editor.section === 'game' && (
+              <div className="editor-grid">
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.href || ''} onChange={(event) => updateEditorField('href', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '样式' : 'Style'}</span><select value={editor.item.accent || 'from-emerald-400 to-lime-300'} onChange={(event) => updateEditorField('accent', event.target.value)}><option value="from-emerald-400 to-lime-300">绿色</option><option value="from-amber-400 to-yellow-300">黄色</option><option value="from-sky-400 to-cyan-300">蓝色</option><option value="from-violet-400 to-fuchsia-300">紫色</option></select></label>
+              </div>
+            )}
+
+            <div className="editor-actions">
+              <button type="button" className="qa-submit-btn" onClick={saveSectionEditor}>{lang === 'zh' ? '保存' : 'Save'}</button>
+              <button type="button" className="qa-cancel-btn" onClick={closeEditor}>{lang === 'zh' ? '取消' : 'Cancel'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
