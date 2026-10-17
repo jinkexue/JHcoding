@@ -260,6 +260,7 @@ function App() {
   const [qaFormOpen, setQaFormOpen] = useState(false);
   const [qaMode, setQaMode] = useState('question');
   const [qaDraft, setQaDraft] = useState({ from: '爸爸', question: '', answer: '' });
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [schoolAlbums, setSchoolAlbums] = useState([
     { title: '校园风景', text: '秋天的教学楼在金色阳光下特别安静。', image: heroImages[1] },
     { title: '学习角落', text: '书桌上的小礼物和温暖的笔记本。', image: heroImages[2] },
@@ -291,6 +292,53 @@ function App() {
       });
     }, 1000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  const persistFamilySection = async (section, item, mode = 'save') => {
+    try {
+      const response = await fetch('/api/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: mode === 'delete' ? 'delete' : 'save', section, item }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || '保存失败');
+      }
+
+      return payload.item || payload;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  };
+
+  const loadContent = async () => {
+    setIsLoadingContent(true);
+    try {
+      const response = await fetch('/api/content');
+      const payload = await response.json();
+      if (!response.ok || !payload.success || !payload.sections) {
+        return;
+      }
+
+      const sections = payload.sections;
+      if (Array.isArray(sections.homeStory)) setMoments(sections.homeStory);
+      if (Array.isArray(sections.schoolAlbum)) setSchoolAlbums(sections.schoolAlbum);
+      if (Array.isArray(sections.schoolVideo)) setSchoolVideos(sections.schoolVideo);
+      if (Array.isArray(sections.health)) setHealthCardsLocal(sections.health.map((item) => ({ ...item, icon: healthIconMap[item.icon] || Heart })));
+      if (Array.isArray(sections.game)) setGamesLocal(sections.game);
+      if (Array.isArray(sections.qna)) setQaEntries(sections.qna);
+    } catch (error) {
+      console.error('Failed to load family content', error);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContent();
   }, []);
 
   const canEditSection = (section) => {
@@ -325,8 +373,8 @@ function App() {
 
   const logout = () => setIsLoggedIn(false);
 
-  const addMediaItem = (item) => {
-    setMoments((current) => [{
+  const addMediaItem = async (item) => {
+    const nextItem = {
       author: isDad ? '爸爸' : 'yjh',
       type: item.type || '照片',
       title: item.title || '新媒体',
@@ -336,7 +384,15 @@ function App() {
       mediaType: item.mediaType || (item.mediaUrl && hasImageExtension(item.mediaUrl) ? 'image' : 'video'),
       likes: 0,
       comments: 0,
-    }, ...current]);
+    };
+
+    const saved = await persistFamilySection('homeStory', nextItem, 'save');
+    if (saved) {
+      setMoments((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      return;
+    }
+
+    setMoments((current) => [nextItem, ...current]);
   };
 
   const handleLocalUpload = async (event) => {
@@ -360,7 +416,7 @@ function App() {
       }
 
       if (payload.url) {
-        addMediaItem({
+        await addMediaItem({
           type: file.type.startsWith('video/') ? '视频' : '照片',
           title: uploadTitle || file.name,
           text: '从 Cloudflare R2 上传的最新记忆。',
@@ -378,12 +434,12 @@ function App() {
     }
   };
 
-  const handleExternalUrlSubmit = (event) => {
+  const handleExternalUrlSubmit = async (event) => {
     event.preventDefault();
     const url = uploadUrl.trim();
     if (!url) return;
 
-    addMediaItem({
+    await addMediaItem({
       type: hasImageExtension(url) ? '照片' : '视频',
       title: uploadTitle || '外部链接媒体',
       text: '从外部链接插入的家庭故事。',
@@ -409,113 +465,208 @@ function App() {
     setEditor((current) => current ? ({ ...current, item: { ...current.item, [field]: value } }) : current);
   };
 
-  const saveSectionEditor = () => {
+  const saveSectionEditor = async () => {
     if (!editor) return;
     const { section, mode, item } = editor;
 
     const resolveHealthIcon = (iconName) => healthIconMap[iconName] || Heart;
 
-    if (section === 'homeStory') {
-      if (mode === 'add') {
-        setMoments((current) => [{
+    const payload = (() => {
+      if (section === 'homeStory') {
+        return {
+          id: item.id || item.originalTitle || undefined,
           author: item.author || '爸爸',
           type: item.type || '照片',
           title: item.title || '新记录',
           text: item.text || '新的家庭记录。',
-          meta: '刚刚',
-          mediaUrl: item.mediaUrl || null,
+          mediaUrl: item.mediaUrl || '',
           mediaType: item.mediaType || (item.mediaUrl && hasImageExtension(item.mediaUrl) ? 'image' : 'video'),
-          likes: 0,
-          comments: 0,
-        }, ...current]);
+        };
+      }
+
+      if (section === 'schoolAlbum') {
+        return {
+          id: item.id || item.originalTitle || undefined,
+          title: item.title || '新相册',
+          text: item.text || '新的校园记录。',
+          image: item.image || heroImages[0],
+        };
+      }
+
+      if (section === 'schoolVideo') {
+        return {
+          id: item.id || item.originalTitle || undefined,
+          title: item.title || '新视频',
+          url: item.url || 'https://www.bilibili.com/',
+          type: item.type || 'bilibili',
+        };
+      }
+
+      if (section === 'health') {
+        const nextIcon = resolveHealthIcon(item.icon || 'Heart');
+        return {
+          id: item.id || item.originalTitle || undefined,
+          title: item.title || '新健康提醒',
+          text: item.text || '新的温暖提醒。',
+          icon: nextIcon.displayName || item.icon || 'Heart',
+        };
+      }
+
+      if (section === 'game') {
+        return {
+          id: item.id || item.originalTitle || undefined,
+          title: item.title || '新游戏',
+          href: item.href || './snake-game.html',
+          accent: item.accent || 'from-emerald-400 to-lime-300',
+        };
+      }
+
+      return item;
+    })();
+
+    const saved = await persistFamilySection(section, payload, mode === 'edit' ? 'save' : 'save');
+
+    if (section === 'homeStory') {
+      if (saved) {
+        setMoments((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || (entry.title === item.originalTitle && entry.author === (item.author || entry.author))) ? saved : entry));
       } else {
-        setMoments((current) => current.map((entry) => entry.title === item.originalTitle ? {
-          ...entry,
-          author: item.author || entry.author,
-          type: item.type || entry.type,
-          title: item.title || entry.title,
-          text: item.text || entry.text,
-          mediaUrl: item.mediaUrl || entry.mediaUrl,
-          mediaType: item.mediaType || entry.mediaType,
-        } : entry));
+        if (mode === 'add') {
+          setMoments((current) => [{
+            author: payload.author || '爸爸',
+            type: payload.type || '照片',
+            title: payload.title || '新记录',
+            text: payload.text || '新的家庭记录。',
+            meta: '刚刚',
+            mediaUrl: payload.mediaUrl || null,
+            mediaType: payload.mediaType || (payload.mediaUrl && hasImageExtension(payload.mediaUrl) ? 'image' : 'video'),
+            likes: 0,
+            comments: 0,
+          }, ...current]);
+        } else {
+          setMoments((current) => current.map((entry) => entry.title === item.originalTitle ? {
+            ...entry,
+            author: payload.author || entry.author,
+            type: payload.type || entry.type,
+            title: payload.title || entry.title,
+            text: payload.text || entry.text,
+            mediaUrl: payload.mediaUrl || entry.mediaUrl,
+            mediaType: payload.mediaType || entry.mediaType,
+          } : entry));
+        }
       }
     }
 
     if (section === 'schoolAlbum') {
-      if (mode === 'add') {
-        setSchoolAlbums((current) => [{ title: item.title || '新相册', text: item.text || '新的校园记录。', image: item.image || heroImages[0] }, ...current]);
+      if (saved) {
+        setSchoolAlbums((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? saved : entry));
       } else {
-        setSchoolAlbums((current) => current.map((entry) => entry.title === item.originalTitle ? {
-          ...entry,
-          title: item.title || entry.title,
-          text: item.text || entry.text,
-          image: item.image || entry.image,
-        } : entry));
+        if (mode === 'add') {
+          setSchoolAlbums((current) => [{ title: payload.title || '新相册', text: payload.text || '新的校园记录。', image: payload.image || heroImages[0] }, ...current]);
+        } else {
+          setSchoolAlbums((current) => current.map((entry) => entry.title === item.originalTitle ? {
+            ...entry,
+            title: payload.title || entry.title,
+            text: payload.text || entry.text,
+            image: payload.image || entry.image,
+          } : entry));
+        }
       }
     }
 
     if (section === 'schoolVideo') {
-      if (mode === 'add') {
-        setSchoolVideos((current) => [{ title: item.title || '新视频', url: item.url || 'https://www.bilibili.com/', type: item.type || 'bilibili' }, ...current]);
+      if (saved) {
+        setSchoolVideos((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? saved : entry));
       } else {
-        setSchoolVideos((current) => current.map((entry) => entry.title === item.originalTitle ? {
-          ...entry,
-          title: item.title || entry.title,
-          url: item.url || entry.url,
-          type: item.type || entry.type,
-        } : entry));
+        if (mode === 'add') {
+          setSchoolVideos((current) => [{ title: payload.title || '新视频', url: payload.url || 'https://www.bilibili.com/', type: payload.type || 'bilibili' }, ...current]);
+        } else {
+          setSchoolVideos((current) => current.map((entry) => entry.title === item.originalTitle ? {
+            ...entry,
+            title: payload.title || entry.title,
+            url: payload.url || entry.url,
+            type: payload.type || entry.type,
+          } : entry));
+        }
       }
     }
 
     if (section === 'health') {
-      const nextIcon = resolveHealthIcon(item.icon || 'Heart');
-      if (mode === 'add') {
-        setHealthCardsLocal((current) => [{ title: item.title || '新健康提醒', text: item.text || '新的温暖提醒。', icon: nextIcon }, ...current]);
+      const nextIcon = resolveHealthIcon(payload.icon || 'Heart');
+      if (saved) {
+        setHealthCardsLocal((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? { ...saved, icon: nextIcon } : entry));
       } else {
-        setHealthCardsLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
-          ...entry,
-          title: item.title || entry.title,
-          text: item.text || entry.text,
-          icon: nextIcon,
-        } : entry));
+        if (mode === 'add') {
+          setHealthCardsLocal((current) => [{ title: payload.title || '新健康提醒', text: payload.text || '新的温暖提醒。', icon: nextIcon }, ...current]);
+        } else {
+          setHealthCardsLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
+            ...entry,
+            title: payload.title || entry.title,
+            text: payload.text || entry.text,
+            icon: nextIcon,
+          } : entry));
+        }
       }
     }
 
     if (section === 'game') {
-      if (mode === 'add') {
-        setGamesLocal((current) => [{ title: item.title || '新游戏', href: item.href || './snake-game.html', accent: item.accent || 'from-emerald-400 to-lime-300' }, ...current]);
+      if (saved) {
+        setGamesLocal((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? saved : entry));
       } else {
-        setGamesLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
-          ...entry,
-          title: item.title || entry.title,
-          href: item.href || entry.href,
-          accent: item.accent || entry.accent,
-        } : entry));
+        if (mode === 'add') {
+          setGamesLocal((current) => [{ title: payload.title || '新游戏', href: payload.href || './snake-game.html', accent: payload.accent || 'from-emerald-400 to-lime-300' }, ...current]);
+        } else {
+          setGamesLocal((current) => current.map((entry) => entry.title === item.originalTitle ? {
+            ...entry,
+            title: payload.title || entry.title,
+            href: payload.href || entry.href,
+            accent: payload.accent || entry.accent,
+          } : entry));
+        }
       }
     }
 
     closeEditor();
   };
 
-  const deleteSectionItem = (section, item) => {
+  const deleteSectionItem = async (section, item) => {
+    const result = await persistFamilySection(section, item, 'delete');
+    if (result === null) {
+      if (section === 'homeStory') {
+        setMoments((current) => current.filter((entry) => !(entry.title === item.title && entry.author === item.author)));
+      }
+      if (section === 'schoolAlbum') {
+        setSchoolAlbums((current) => current.filter((entry) => entry.title !== item.title));
+      }
+      if (section === 'schoolVideo') {
+        setSchoolVideos((current) => current.filter((entry) => !(entry.title === item.title && entry.url === item.url)));
+      }
+      if (section === 'health') {
+        setHealthCardsLocal((current) => current.filter((entry) => entry.title !== item.title));
+      }
+      if (section === 'game') {
+        setGamesLocal((current) => current.filter((entry) => entry.title !== item.title));
+      }
+      return;
+    }
+
     if (section === 'homeStory') {
-      setMoments((current) => current.filter((entry) => !(entry.title === item.title && entry.author === item.author)));
+      setMoments((current) => current.filter((entry) => !(entry.id === item.id || (entry.title === item.title && entry.author === item.author))));
     }
     if (section === 'schoolAlbum') {
-      setSchoolAlbums((current) => current.filter((entry) => entry.title !== item.title));
+      setSchoolAlbums((current) => current.filter((entry) => !(entry.id === item.id || entry.title === item.title)));
     }
     if (section === 'schoolVideo') {
-      setSchoolVideos((current) => current.filter((entry) => !(entry.title === item.title && entry.url === item.url)));
+      setSchoolVideos((current) => current.filter((entry) => !(entry.id === item.id || (entry.title === item.title && entry.url === item.url))));
     }
     if (section === 'health') {
-      setHealthCardsLocal((current) => current.filter((entry) => entry.title !== item.title));
+      setHealthCardsLocal((current) => current.filter((entry) => !(entry.id === item.id || entry.title === item.title)));
     }
     if (section === 'game') {
-      setGamesLocal((current) => current.filter((entry) => entry.title !== item.title));
+      setGamesLocal((current) => current.filter((entry) => !(entry.id === item.id || entry.title === item.title)));
     }
   };
 
-  const saveQa = () => {
+  const saveQa = async () => {
     if (!qaDraft.question.trim()) return;
     const pair = {
       q: qaDraft.question.trim(),
@@ -523,10 +674,15 @@ function App() {
       from: qaDraft.from || (isDad ? '爸爸' : 'yjh'),
     };
 
+    const saved = await persistFamilySection('qna', pair, 'save');
+
     if (qaMode === 'answer') {
-      setQaEntries((current) => current.map((entry) => entry.q === qaDraft.question ? { ...entry, a: pair.a, from: pair.from } : entry));
+      setQaEntries((current) => {
+        const next = current.map((entry) => entry.q === qaDraft.question ? { ...entry, a: pair.a, from: pair.from } : entry);
+        return saved ? next : next;
+      });
     } else {
-      setQaEntries((current) => [pair, ...current]);
+      setQaEntries((current) => saved ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : [pair, ...current]);
     }
 
     setQaFormOpen(false);
