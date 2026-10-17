@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASD + 鼠标射击游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            overflow: hidden; /* 防止出现滚动条 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            pointer-events: none; /* 让点击穿透到 Canvas */
+        }
+      #instructions {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #aaa;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        /* 触摸控制 */
+        .touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            display: none;
+            pointer-events: none;
+        }
+
+        /* 虚拟摇杆 */
+        #joystickArea {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #joystickKnob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        /* 射击按钮 */
+        #shootBtn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 90px;
+            height: 90px;
+            background: rgba(255, 50, 50, 0.4);
+            border: 3px solid rgba(255, 100, 100, 0.6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+            font-weight: bold;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #shootBtn:active {
+            background: rgba(255, 50, 50, 0.7);
+            transform: scale(0.9);
+        }
+
+        /* 瞄准指示器 */
+        #aimBtn {
+            position: absolute;
+            bottom: 140px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (max-width: 768px) {
+            .touch-controls { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">分数: <span id="scoreEl">0</span></div>
+    <div id="instructions">WASD 移动 | 鼠标瞄准 | 左键射击</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 触摸控制 -->
+    <div class="touch-controls">
+        <div id="joystickArea"><div id="joystickKnob"></div></div>
+        <div id="aimBtn">🎯</div>
+        <div id="shootBtn">射击</div>
+    </div>
+
+<script>
+    // 音效系统
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playShootSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    function playExplosionSound() {
+        if (!audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 0.35;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+        }
+        const source = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, audioCtx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.3);
+        source.buffer = buffer;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        source.start(audioCtx.currentTime);
+    }
+
+    function playGameOverSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.8);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.8);
+    }
+
+    document.addEventListener('click', initAudio, { once: true });
+    document.addEventListener('touchstart', initAudio, { once: true });
+
+    let shootCooldown = 0;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('scoreEl');
+
+    // 设置画布大小为全屏
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 游戏状态
+    let score = 0;
+    let gameActive = true;
+
+    // 输入状态对象
+    const keys = {
+        w: false,
+        a: false,
+        s: false,
+        d: false
+    };
+
+    // 鼠标位置
+    const mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+    // --- 类定义 ---
+
+    class Player {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.radius = 15;
+            this.color = '#3498db';
+            this.speed = 5;
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            
+            // 绘制一个指向鼠标的小指针，增加方向感
+            const angle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + Math.cos(angle) * 25, this.y + Math.sin(angle) * 25);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+      update() {
+            // WASD 移动逻辑
+            if (keys.w && this.y - this.radius > 0) this.y -= this.speed;
+            if (keys.s && this.y + this.radius < canvas.height) this.y += this.speed;
+            if (keys.a && this.x - this.radius > 0) this.x -= this.speed;
+            if (keys.d && this.x + this.radius < canvas.width) this.x += this.speed;
+
+            // 触摸移动
+            if (touchMove.x !== 0 || touchMove.y !== 0) {
+                if (this.y + touchMove.y * this.speed - this.radius > 0) this.y += touchMove.y * this.speed;
+                if (this.y + touchMove.y * this.speed + this.radius < canvas.height) this.y += touchMove.y * this.speed;
+                if (this.x + touchMove.x * this.speed - this.radius > 0) this.x += touchMove.x * this.speed;
+                if (this.x + touchMove.x * this.speed + this.radius < canvas.width) this.x += touchMove.x * this.speed;
+            }
+
+            this.draw();
+        }
+    }
+
+    class Projectile {
+        constructor(x, y, velocity) {
+            this.x = x;
+            this.y = y;
+            this.radius = 5;
+            this.color = '#fff';
+            this.velocity = velocity;
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+
+        update() {
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            this.draw();
+        }
+    }
+
+    class Enemy {
+        constructor(x, y, radius, color, velocity) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.color = color;
+            this.velocity = velocity;
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+
+        update() {
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            this.draw();
+        }
+    }
+
+    // 爆炸粒子效果
+    class Particle {
+        constructor(x, y, radius, color, velocity) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.color = color;
+            this.velocity = velocity;
+            this.alpha = 1;
+        }
+
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        update() {
+            this.draw();
+            this.velocity.x *= 0.98; // 摩擦力
+            this.velocity.y *= 0.98;
+            this.x += this.velocity.x;
+            this.y += this.velocity.y;
+            this.alpha -= 0.02; // 逐渐消失
+        }
+    }
+
+    // --- 初始化变量 ---
+    const x = canvas.width / 2;
+    const y = canvas.height / 2;
+    
+    let player = new Player(x, y);
+    let projectiles = [];
+    let enemies = [];
+    let particles = [];
+
+    // --- 事件监听器 ---
+
+    window.addEventListener('keydown', (e) => {
+        switch(e.key.toLowerCase()) {
+            case 'w': keys.w = true; break;
+            case 'a': keys.a = true; break;
+            case 's': keys.s = true; break;
+            case 'd': keys.d = true; break;
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        switch(e.key.toLowerCase()) {
+            case 'w': keys.w = false; break;
+            case 'a': keys.a = false; break;
+            case 's': keys.s = false; break;
+            case 'd': keys.d = false; break;
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+
+  window.addEventListener('click', (event) => {
+        if (!gameActive) return;
+
+        // 计算子弹角度
+        const angle = Math.atan2(event.clientY - player.y, event.clientX - player.x);
+
+        // 设置子弹速度
+        const velocity = {
+            x: Math.cos(angle) * 10, // 子弹速度大小
+            y: Math.sin(angle) * 10
+        };
+
+        projectiles.push(new Projectile(player.x, player.y, velocity));
+    });
+
+    // ===== 触摸控制 =====
+    let touchMove = { x: 0, y: 0 };
+    let touchAimAngle = 0;
+    const joystickArea = document.getElementById('joystickArea');
+    const joystickKnob = document.getElementById('joystickKnob');
+    let joystickCenter = { x: 0, y: 0 };
+    let joystickActive = false;
+
+    if (joystickArea) {
+        joystickArea.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = joystickArea.getBoundingClientRect();
+            joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            joystickActive = true;
+            updateJoystick(e.touches[0]);
+        }, { passive: false });
+
+        joystickArea.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (joystickActive) updateJoystick(e.touches[0]);
+        }, { passive: false });
+
+        joystickArea.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            joystickActive = false;
+            touchMove.x = 0;
+            touchMove.y = 0;
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+        }, { passive: false });
+
+        joystickArea.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            joystickActive = false;
+            touchMove.x = 0;
+            touchMove.y = 0;
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+        }, { passive: false });
+
+        // 鼠标支持
+        joystickArea.addEventListener('mousedown', (e) => {
+            const rect = joystickArea.getBoundingClientRect();
+            joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            joystickActive = true;
+            updateJoystick(e);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (joystickActive) updateJoystick(e);
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (joystickActive) {
+                joystickActive = false;
+                touchMove.x = 0;
+                touchMove.y = 0;
+                joystickKnob.style.transform = 'translate(-50%, -50%)';
+            }
+        });
+    }
+
+    function updateJoystick(touch) {
+        const dx = touch.clientX - joystickCenter.x;
+        const dy = touch.clientY - joystickCenter.y;
+        const dist = Math.min(Math.sqrt(dx * dx + dy * dy), 40);
+        const angle = Math.atan2(dy, dx);
+        const knobX = Math.cos(angle) * dist;
+        const knobY = Math.sin(angle) * dist;
+
+        joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+        touchMove.x = knobX / 40;
+        touchMove.y = knobY / 40;
+    }
+
+    // 瞄准按钮 - 点击朝向最近敌人或默认向上
+    const aimBtn = document.getElementById('aimBtn');
+    if (aimBtn) {
+        let lastAimTime = 0;
+        aimBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const now = Date.now();
+            if (now - lastAimTime < 300) return; // 防抖
+            lastAimTime = now;
+
+            // 找最近敌人
+            let closestEnemy = null;
+            let closestDist = Infinity;
+            enemies.forEach(enemy => {
+                const d = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+                if (d < closestDist) { closestDist = d; closestEnemy = enemy; }
+            });
+
+            if (closestEnemy && closestDist < 500) {
+                touchAimAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            } else {
+                touchAimAngle = -Math.PI / 2;
+            }
+        }, { passive: false });
+
+        aimBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            let closestEnemy = null;
+            let closestDist = Infinity;
+            enemies.forEach(enemy => {
+                const d = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+                if (d < closestDist) { closestDist = d; closestEnemy = enemy; }
+            });
+            if (closestEnemy && closestDist < 500) {
+                touchAimAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            } else {
+                touchAimAngle = -Math.PI / 2;
+            }
+        });
+    }
+
+    // 射击按钮
+    const shootBtn = document.getElementById('shootBtn');
+    if (shootBtn) {
+        let shootCooldown = 0;
+        shootBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const now = Date.now();
+            if (now - shootCooldown < 200) return;
+            shootCooldown = now;
+
+            const angle = touchAimAngle || Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            const velocity = { x: Math.cos(angle) * 10, y: Math.sin(angle) * 10 };
+            projectiles.push(new Projectile(player.x, player.y, velocity));
+            playShootSound();
+        }, { passive: false });
+
+        shootBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const now = Date.now();
+            if (now - shootCooldown < 200) return;
+            shootCooldown = now;
+
+            const angle = touchAimAngle || Math.atan2(mouse.y - player.y, mouse.x - player.x);
+            const velocity = { x: Math.cos(angle) * 10, y: Math.sin(angle) * 10 };
+            projectiles.push(new Projectile(player.x, player.y, velocity));
+            playShootSound();
+        });
+    }
+
+    // 触摸时禁用鼠标瞄准
+    window.addEventListener('mousemove', (e) => {
+        if (document.querySelector('.touch-controls') && getComputedStyle(document.querySelector('.touch-controls')).display !== 'none') {
+            // 在移动端，触摸事件会触发 mouse 事件，忽略
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+
+    // --- 游戏逻辑函数 ---
+
+    function spawnEnemies() {
+        // 每秒生成一个敌人 (简化版，这里直接在循环里控制概率)
+        if (Math.random() < 0.02) {
+            const radius = Math.random() * (30 - 10) + 10;
+            let x, y;
+
+            // 随机从屏幕边缘生成
+            if (Math.random() < 0.5) {
+                x = Math.random() < 0.5 ? 0 - radius : canvas.width + radius;
+                y = Math.random() * canvas.height;
+            } else {
+                x = Math.random() * canvas.width;
+                y = Math.random() < 0.5 ? 0 - radius : canvas.height + radius;
+            }
+
+            const color = `hsl(${Math.random() * 360}, 50%, 50%)`;
+            
+            // 计算朝向玩家的速度向量
+            const angle = Math.atan2(player.y - y, player.x - x);
+            const velocity = {
+                x: Math.cos(angle) * (1 + Math.random()), // 随机速度
+                y: Math.sin(angle) * (1 + Math.random())
+            };
+
+            enemies.push(new Enemy(x, y, radius, color, velocity));
+        }
+    }
+
+    function animate() {
+        if (!gameActive) return;
+        
+        requestAnimationFrame(animate);
+        
+        // 绘制半透明背景以产生拖尾效果
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.3)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        player.update();
+
+        // 更新粒子
+        particles.forEach((particle, index) => {
+            if (particle.alpha <= 0) {
+                particles.splice(index, 1);
+            } else {
+                particle.update();
+            }
+        });
+
+        // 更新子弹
+        projectiles.forEach((projectile, index) => {
+            projectile.update();
+
+            // 移除超出屏幕的子弹
+            if (projectile.x + projectile.radius < 0 || 
+                projectile.x - projectile.radius > canvas.width ||
+                projectile.y + projectile.radius < 0 ||
+                projectile.y - projectile.radius > canvas.height) {
+                setTimeout(() => {
+                    projectiles.splice(index, 1);
+                }, 0);
+            }
+        });
+
+        // 更新敌人
+        enemies.forEach((enemy, index) => {
+            enemy.update();
+
+           // 玩家与敌人碰撞检测 (游戏结束逻辑)
+            const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+            if (dist - enemy.radius - player.radius < 1) {
+                gameActive = false;
+                playGameOverSound();
+                setTimeout(() => { alert('游戏结束! 得分: ' + score); }, 500);
+                return;
+            }
+
+            // 子弹与敌人碰撞检测
+            projectiles.forEach((projectile, pIndex) => {
+                const dist = Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y);
+
+                // 碰撞发生
+                if (dist - enemy.radius - projectile.radius < 1) {
+                    playExplosionSound();
+                    
+                    // 创建爆炸粒子
+                    for (let i = 0; i < enemy.radius * 2; i++) {
+                        particles.push(new Particle(
+                            projectile.x, 
+                            projectile.y, 
+                            Math.random() * 2, 
+                            enemy.color, 
+                            {
+                                x: (Math.random() - 0.5) * (Math.random() * 6),
+                                y: (Math.random() - 0.5) * (Math.random() * 6)
+                            }
+                        ));
+                    }
+
+                    // 增加分数
+                    score += 100;
+                    scoreEl.innerHTML = score;
+
+                    // 移除子弹和敌人
+                    setTimeout(() => {
+                        enemies.splice(index, 1);
+                        projectiles.splice(pIndex, 1);
+                    }, 0);
+                }
+            });
+        });
+
+        spawnEnemies();
+    }
+
+    // 开始游戏循环
+    animate();
+
+</script>
+</body>
+</html>

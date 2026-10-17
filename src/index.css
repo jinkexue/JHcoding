@@ -137,6 +137,11 @@ button {
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: rgba(255,255,255,0.9);
   outline: none;
+  color: #0f172a;
+}
+
+.auth-form input::placeholder {
+  color: transparent;
 }
 
 .auth-form input:focus {
@@ -457,6 +462,58 @@ button {
   color: #475569;
 }
 
+.clock-tiny {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+
+.home-two-column,
+.school-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.story-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+}
+
+.section-toolbar h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.section-editor {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.7);
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.38rem 0.8rem;
+}
+
+.split-story {
+  overflow: hidden;
+}
+
+.daughter-tag {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
 .media-upload-panel {
   display: flex;
   flex-direction: column;
@@ -541,6 +598,75 @@ button {
   color: #64748b;
 }
 
+.qa-floating {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.qa-toggle {
+  border: none;
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: white;
+  box-shadow: 0 12px 30px rgba(59, 130, 246, 0.25);
+  font-weight: 700;
+}
+
+.qa-panel {
+  width: min(360px, calc(100vw - 28px));
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 20px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  padding: 12px 12px 8px;
+}
+
+.qa-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.qa-panel-header strong {
+  color: #0f172a;
+}
+
+.qa-panel-header button {
+  border: none;
+  background: transparent;
+  color: #64748b;
+}
+
+.qa-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.qa-item-floating {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(240,249,255,0.9);
+  border: 1px solid rgba(147, 197, 253, 0.2);
+}
+
+.qa-item-floating p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
 .card-grid {
   display: grid;
   gap: 14px;
@@ -554,6 +680,9 @@ button {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.76);
+  border-radius: 22px;
 }
 
 .media-frame {
@@ -569,6 +698,118 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.school-album-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.album-card {
+  overflow: hidden;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 22px;
+}
+
+.compact-content {
+  padding: 12px 14px 14px;
+}
+
+.school-video-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 22px;
+  padding: 14px;
+}
+
+.video-upload-form {
+  display: flex;
+  gap: 8px;
+}
+
+.video-upload-form input {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255,255,255,0.9);
+}
+
+.video-upload-form button,
+.video-list-item button {
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+  color: white;
+  padding: 0.7rem 0.9rem;
+  font-weight: 700;
+}
+
+.upload-inline-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 12px;
+  background: rgba(248,250,252,0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 10px 12px;
+}
+
+.upload-inline-compact span {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.school-video-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(248,250,252,0.9);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.video-list-badge {
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.video-list-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.video-list-copy strong {
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.video-list-copy small {
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-frame iframe {

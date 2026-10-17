@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打地鼠游戏</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f8ff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background 0.3s;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        button:hover {
+            background-color: #e64a19;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .stats {
+            font-size: 24px;
+            margin: 0 20px;
+            color: #333;
+        }
+
+        /* 游戏区域网格 */
+        .game {
+            width: 90vw;
+            max-width: 600px;
+            height: 400px;
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 auto;
+        }
+
+        /* 每个洞 (Hole) */
+        .hole {
+            flex: 1 0 33.33%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 洞的样式（看起来像个坑） */
+        .hole:after {
+            content: '';
+            display: block;
+            background: url('data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg"><ellipse cx="50" cy="25" rx="40" ry="15" fill="%235d4037" /></svg>') bottom center no-repeat;
+            background-size: contain;
+            width: 100%;
+            height: 70px;
+            position: absolute;
+            z-index: 2;
+            bottom: -30px;
+        }
+
+        /* 地鼠 (Mole) */
+        .mole {
+            background-color: #8d6e63; /* 棕色 */
+            border-radius: 50% 50% 0 0;
+            position: absolute;
+            top: 100%;
+            width: 60%;
+            height: 80%;
+            left: 20%;
+            transition: all 0.4s;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 60px; /* 地鼠emoji的大小 */
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        /* 地鼠出现时的样式 */
+        .hole.up .mole {
+            top: 0;
+        }
+
+   /* 移动端适配 */
+        @media (max-width: 600px) {
+            .game {
+                width: 100%;
+                height: 300px;
+            }
+            .hole {
+                flex: 1 0 50%;
+            }
+            h1 {
+                font-size: 28px;
+            }
+            .stats {
+                font-size: 20px;
+            }
+            button {
+                padding: 12px 24px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .game {
+                height: 250px;
+            }
+            .mole {
+                font-size: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>打地鼠游戏!</h1>
+    
+    <div class="controls">
+        <span class="stats">得分: <span id="score">0</span></span>
+        <button onClick="startGame()" id="startBtn">开始游戏</button>
+    </div>
+
+    <div class="game">
+        <div class="hole hole1"><div class="mole">🐹</div></div>
+        <div class="hole hole2"><div class="mole">🐹</div></div>
+        <div class="hole hole3"><div class="mole">🐹</div></div>
+        <div class="hole hole4"><div class="mole">🐹</div></div>
+        <div class="hole hole5"><div class="mole">🐹</div></div>
+        <div class="hole hole6"><div class="mole">🐹</div></div>
+    </div>
+
+    <script>
+        // 音效系统
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playHitSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        function playPeepSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.12);
+        }
+
+        function playGameOverSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+
+       document.addEventListener('click', initAudio, { once: true });
+        document.addEventListener('touchstart', initAudio, { once: true });
+
+        const holes = document.querySelectorAll('.hole');
+        const scoreBoard = document.getElementById('score');
+        const moles = document.querySelectorAll('.mole');
+        const startBtn = document.getElementById('startBtn');
+        
+        let lastHole;
+        let timeUp = false;
+        let score = 0;
+
+        // 生成随机时间（地鼠停留的时间）
+        function randomTime(min, max) {
+            return Math.round(Math.random() * (max - min) + min);
+        }
+
+        // 随机选择一个洞
+        function randomHole(holes) {
+            const idx = Math.floor(Math.random() * holes.length);
+            const hole = holes[idx];
+            
+            // 防止连续两次出现在同一个洞
+            if (hole === lastHole) {
+                return randomHole(holes);
+            }
+            
+            lastHole = hole;
+            return hole;
+        }
+
+        // 地鼠冒头逻辑
+        function peep() {
+            const time = randomTime(400, 1000); // 停留时间 0.4秒 到 1秒
+            const hole = randomHole(holes);
+            
+            hole.classList.add('up');
+            playPeepSound();
+            
+            setTimeout(() => {
+                hole.classList.remove('up');
+                if (!timeUp) peep(); // 如果游戏没结束，继续冒头
+            }, time);
+        }
+
+        // 开始游戏
+        function startGame() {
+            scoreBoard.textContent = 0;
+            score = 0;
+            timeUp = false;
+            startBtn.disabled = true;
+            
+            peep();
+            
+            // 游戏时长设为 10 秒
+            setTimeout(() => {
+                timeUp = true;
+                startBtn.disabled = false;
+                playGameOverSound();
+                setTimeout(() => { alert('时间到！你的最终得分是: ' + score); }, 300);
+            }, 10000);
+        }
+
+        // 打击地鼠处理
+        function bonk(e) {
+            if(!e.isTrusted) return; // 防止脚本作弊
+            
+            score++;
+            this.parentNode.classList.remove('up'); // 被打中后立即缩回去
+            scoreBoard.textContent = score;
+            playHitSound();
+            
+            // 简单的视觉反馈：变色
+            const originalColor = this.style.backgroundColor;
+            this.style.backgroundColor = '#ffeb3b'; // 击中变黄
+            setTimeout(() => {
+                this.style.backgroundColor = originalColor;
+            }, 200);
+        }
+
+        // 给每个地鼠添加点击事件
+        moles.forEach(mole => mole.addEventListener('click', bonk));
+        
+        // 兼容移动端触摸事件
+        moles.forEach(mole => {
+            mole.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                bonk.call(mole, e);
+            }, { passive: false });
+        });
+
+    </script>
+</body>
+</html>

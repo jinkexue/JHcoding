@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   BookOpenText,
@@ -239,16 +239,55 @@ function App() {
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [clock, setClock] = useState(() => {
+    const diff = Date.now() - START_DATE.getTime();
+    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+    return {
+      days: Math.floor(totalSeconds / 86400),
+      hours: Math.floor((totalSeconds % 86400) / 3600),
+      minutes: Math.floor((totalSeconds % 3600) / 60),
+      seconds: totalSeconds % 60,
+    };
+  });
+  const [showQaPanel, setShowQaPanel] = useState(true);
+  const [schoolAlbums, setSchoolAlbums] = useState([
+    { title: '校园风景', text: '秋天的教学楼在金色阳光下特别安静。', image: heroImages[1] },
+    { title: '学习角落', text: '书桌上的小礼物和温暖的笔记本。', image: heroImages[2] },
+    { title: '运动日', text: '跑步和打球的快乐从来不缺。', image: heroImages[0] },
+  ]);
+  const [schoolVideos, setSchoolVideos] = useState([
+    { title: '校园故事短片', url: 'https://www.bilibili.com/video/BV1GJ411x7h7/?share_source=copy_web&vd_source=38d745f4d4a2c2b32a4a0e1e8d44a1f0', type: 'bilibili' },
+    { title: '课堂纪录', url: 'https://www.bilibili.com/video/BV1Q5411T7Ln/?share_source=copy_web&vd_source=38d745f4d4a2c2b32a4a0e1e8d44a1f0', type: 'bilibili' },
+  ]);
+  const [healthCardsLocal, setHealthCardsLocal] = useState(healthCards);
+  const [gamesLocal, setGamesLocal] = useState(games);
+  const [qaEntries, setQaEntries] = useState(qnaPairs);
 
   const t = copy[lang];
-  const daysInCanada = useMemo(() => {
-    const diff = Date.now() - START_DATE.getTime();
-    return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)) + 1);
-  }, []);
-
   const dadStatus = getCurrentStatus('dad');
   const daughterStatus = getCurrentStatus('daughter');
   const isDad = role === 'dad';
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const diff = Date.now() - START_DATE.getTime();
+      const totalSeconds = Math.max(0, Math.floor(diff / 1000));
+      setClock({
+        days: Math.floor(totalSeconds / 86400),
+        hours: Math.floor((totalSeconds % 86400) / 3600),
+        minutes: Math.floor((totalSeconds % 3600) / 60),
+        seconds: totalSeconds % 60,
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const canEditSection = (section) => {
+    if (!isLoggedIn) return false;
+    if (section === 'dad') return isDad;
+    if (section === 'daughter') return !isDad;
+    return true;
+  };
 
   const openLogin = (selectedRole) => {
     setRole(selectedRole);
@@ -343,6 +382,34 @@ function App() {
 
     setUploadUrl('');
     setUploadTitle('');
+  };
+
+  const insertSchoolAlbum = () => {
+    setSchoolAlbums((current) => [
+      { title: '新加国校园瞬间', text: '新的校园记忆正在写进故事。', image: heroImages[0] },
+      ...current,
+    ]);
+  };
+
+  const insertSchoolVideo = () => {
+    setSchoolVideos((current) => [
+      { title: '新课堂记录', url: 'https://www.bilibili.com/', type: 'bilibili' },
+      ...current,
+    ]);
+  };
+
+  const insertHealthCard = () => {
+    setHealthCardsLocal((current) => [
+      { title: '新健康提醒', text: '每一天都在尽力照顾身体与心情。', icon: Heart },
+      ...current,
+    ]);
+  };
+
+  const insertGameCard = () => {
+    setGamesLocal((current) => [
+      { title: '家庭小游戏', href: '/snake-game.html', accent: 'from-emerald-400 to-lime-300' },
+      ...current,
+    ]);
   };
 
   if (!isLoggedIn) {
@@ -451,8 +518,9 @@ function App() {
             <div className="hero-card">
               <div className="days-box">
                 <div className="days-copy">
-                  <span>{t.days}</span>
-                  <strong>{daysInCanada}</strong>
+                  <span>爸爸来到加拿大</span>
+                  <strong>{clock.days}</strong>
+                  <small className="clock-tiny">天 {clock.hours} 小时 {clock.minutes} 分 {clock.seconds} 秒</small>
                 </div>
                 <div className="calendar-badge"><CalendarDays size={24} /></div>
               </div>
@@ -512,34 +580,71 @@ function App() {
               </small>
             </div>
 
-            <div className="card-grid three-up">
-              {moments.map((item) => (
-                <article key={item.title} className="story-card">
-                  {item.mediaUrl && <MediaFrame url={item.mediaUrl} title={item.title} type={item.mediaType || 'image'} />}
-                  <div className="story-content">
-                    <div className="meta-row">
-                      <span className="author-tag">{item.author}</span>
-                      <span>{item.type}</span>
-                    </div>
-                    <h4>{item.title}</h4>
-                    <p>{item.text}</p>
-                    <div className="story-footer">
-                      <span>{item.meta}</span>
-                      <div>
-                        <span><Heart size={12} /> {item.likes}</span>
-                        <span><MessageCircle size={12} /> {item.comments}</span>
+            <div className="home-two-column">
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '爸爸在加拿大' : 'Dad in Canada'}</h3>
+                  <button type="button" className="section-editor" onClick={() => canEditSection('dad') && addMediaItem({ title: '爸爸新增记录', text: '新的加拿大生活正在记录中。', mediaUrl: heroImages[0], mediaType: 'image', type: '照片' })}>
+                    {lang === 'zh' ? '编辑' : 'Edit'}
+                  </button>
+                </div>
+                {moments.filter((item) => item.author === '爸爸').map((item) => (
+                  <article key={`${item.author}-${item.title}`} className="story-card split-story">
+                    {item.mediaUrl && <MediaFrame url={item.mediaUrl} title={item.title} type={item.mediaType || 'image'} />}
+                    <div className="story-content">
+                      <div className="meta-row">
+                        <span className="author-tag">{item.author}</span>
+                        <span>{item.type}</span>
+                      </div>
+                      <h4>{item.title}</h4>
+                      <p>{item.text}</p>
+                      <div className="story-footer">
+                        <span>{item.meta}</span>
+                        <div>
+                          <span><Heart size={12} /> {item.likes}</span>
+                          <span><MessageCircle size={12} /> {item.comments}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
+
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '女儿的记录' : 'Daughter journal'}</h3>
+                  <button type="button" className="section-editor" onClick={() => canEditSection('daughter') && addMediaItem({ title: '女儿新增记录', text: '新的成长和想法正在整理中。', mediaUrl: heroImages[2], mediaType: 'image', type: '照片' })}>
+                    {lang === 'zh' ? '编辑' : 'Edit'}
+                  </button>
+                </div>
+                {moments.filter((item) => item.author === 'yjh').map((item) => (
+                  <article key={`${item.author}-${item.title}`} className="story-card split-story">
+                    {item.mediaUrl && <MediaFrame url={item.mediaUrl} title={item.title} type={item.mediaType || 'image'} />}
+                    <div className="story-content">
+                      <div className="meta-row">
+                        <span className="author-tag daughter-tag">{item.author}</span>
+                        <span>{item.type}</span>
+                      </div>
+                      <h4>{item.title}</h4>
+                      <p>{item.text}</p>
+                      <div className="story-footer">
+                        <span>{item.meta}</span>
+                        <div>
+                          <span><Heart size={12} /> {item.likes}</span>
+                          <span><MessageCircle size={12} /> {item.comments}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
 
             <div className="split-grid">
               <div className="mini-panel">
                 <div className="mini-header">
                   <h3>{t.taskBoard}</h3>
-                  {isDad && <button type="button">+ {lang === 'zh' ? '新任务' : 'New Task'}</button>}
+                  {canEditSection('dad') && <button type="button">+ {lang === 'zh' ? '新任务' : 'New Task'}</button>}
                 </div>
                 {tasks.map((task) => (
                   <div key={task.title} className="task-item">
@@ -557,7 +662,7 @@ function App() {
                   <h3>{t.qna}</h3>
                   <button type="button">+ {isDad ? (lang === 'zh' ? '提问题' : 'Ask') : (lang === 'zh' ? '记录' : 'Record')}</button>
                 </div>
-                {qnaPairs.map((pair) => (
+                {qaEntries.map((pair) => (
                   <div key={pair.q} className="qa-item">
                     <p><strong>Q:</strong> {pair.q}</p>
                     <p><strong>A:</strong> {pair.a}</p>
@@ -574,27 +679,72 @@ function App() {
 
         {activeTab === 'school' && (
           <section className="page-block">
-            <div className="card-grid three-up compact">
-              {schoolCards.map(({ title, text, icon: Icon }) => (
-                <article key={title} className="feature-card">
-                  <div className="feature-icon"><Icon size={22} /></div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                </article>
-              ))}
-            </div>
-
-            <div className="video-card">
-              <div className="video-header">
-                <div className="feature-icon purple"><Video size={20} /></div>
-                <h3>{t.schoolVideo}</h3>
+            <div className="school-two-column">
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '加国校园相册' : 'Campus album'}</h3>
+                  {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertSchoolAlbum}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+                </div>
+                <div className="school-album-grid">
+                  {schoolAlbums.map((item) => (
+                    <article key={item.title} className="album-card">
+                      <MediaFrame url={item.image} title={item.title} type="image" />
+                      <div className="story-content compact-content">
+                        <h4>{item.title}</h4>
+                        <p>{item.text}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
-              <div className="video-frame">
-                <MediaFrame
-                  url="https://www.youtube.com/watch?v=5qap5aO4i9A"
-                  title="school video"
-                  type="video"
-                />
+
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '加国校园视频' : 'Campus video'}</h3>
+                  {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertSchoolVideo}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+                </div>
+                <div className="school-video-panel">
+                  <form className="video-upload-form" onSubmit={(event) => {
+                    event.preventDefault();
+                    const videoUrl = event.currentTarget.videoUrl.value.trim();
+                    if (!videoUrl) return;
+                    setSchoolVideos((current) => [{ title: '新增记录', url: videoUrl, type: 'bilibili' }, ...current]);
+                    event.currentTarget.reset();
+                  }}>
+                    <input type="url" name="videoUrl" placeholder="https://www.bilibili.com/video/..." />
+                    <button type="submit">{lang === 'zh' ? '插入 B站链接' : 'Add Bilibili link'}</button>
+                  </form>
+
+                  <label className="upload-inline upload-inline-compact">
+                    <span>{lang === 'zh' ? '本地上传' : 'Local upload'}</span>
+                    <input type="file" accept="video/*" onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      const form = new FormData();
+                      form.append('file', file);
+                      form.append('title', file.name);
+                      const res = await fetch('/api/media', { method: 'POST', body: form });
+                      const data = await res.json();
+                      if (data.success && data.url) {
+                        setSchoolVideos((current) => [{ title: file.name, url: data.url, type: 'local' }, ...current]);
+                      }
+                      event.target.value = '';
+                    }} />
+                  </label>
+
+                  <div className="school-video-list">
+                    {schoolVideos.map((item) => (
+                      <div key={`${item.title}-${item.url}`} className="video-list-item">
+                        <div className="video-list-badge">{item.type === 'bilibili' ? 'B站' : '本地'}</div>
+                        <div className="video-list-copy">
+                          <strong>{item.title}</strong>
+                          <small>{item.url}</small>
+                        </div>
+                        <button type="button" onClick={() => window.open(toEmbedUrl(item.url), '_blank', 'noopener,noreferrer')}>{lang === 'zh' ? '播放' : 'Play'}</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -602,8 +752,12 @@ function App() {
 
         {activeTab === 'health' && (
           <section className="page-block">
+            <div className="section-toolbar">
+              <h3>{lang === 'zh' ? '健康生活' : 'Healthy living'}</h3>
+              {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertHealthCard}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+            </div>
             <div className="card-grid three-up compact">
-              {healthCards.map(({ title, text, icon: Icon }) => (
+              {healthCardsLocal.map(({ title, text, icon: Icon }) => (
                 <article key={title} className="feature-card green">
                   <div className="feature-icon green"><Icon size={22} /></div>
                   <h3>{title}</h3>
@@ -616,8 +770,12 @@ function App() {
 
         {activeTab === 'games' && (
           <section className="page-block">
+            <div className="section-toolbar">
+              <h3>{lang === 'zh' ? '游戏乐园' : 'Game corner'}</h3>
+              {canEditSection('dad') && <button type="button" className="section-editor" onClick={insertGameCard}>{lang === 'zh' ? '编辑' : 'Edit'}</button>}
+            </div>
             <div className="game-grid">
-              {games.map((game) => (
+              {gamesLocal.map((game) => (
                 <a key={game.title} href={game.href} target="_blank" rel="noreferrer" className={`game-card ${game.accent}`}>
                   <div className="game-top">
                     <Gamepad2 size={26} />
@@ -633,6 +791,28 @@ function App() {
           </section>
         )}
       </main>
+
+      <div className="qa-floating">
+        <button type="button" className="qa-toggle" onClick={() => setShowQaPanel((value) => !value)}>
+          {showQaPanel ? (lang === 'zh' ? '关闭问答' : 'Close Q&A') : 'Q&A'}
+        </button>
+        {showQaPanel && (
+          <div className="qa-panel">
+            <div className="qa-panel-header">
+              <strong>{lang === 'zh' ? '父女问答' : 'Parent & daughter Q&A'}</strong>
+              <button type="button" onClick={() => setShowQaPanel(false)}>{lang === 'zh' ? '收起' : 'Hide'}</button>
+            </div>
+            <div className="qa-panel-list">
+              {qaEntries.map((pair) => (
+                <div key={pair.q} className="qa-item-floating">
+                  <p><strong>Q:</strong> {pair.q}</p>
+                  <p><strong>A:</strong> {pair.a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
