@@ -1,35 +1,24 @@
-name = "yjh"
-pages_build_output_dir = "."
+name = "yjh-family-portal"
+main = "./src/main.jsx"
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
 
+# Cloudflare Pages static app with D1 + R2 bindings for the family portal.
 [[d1_databases]]
 binding = "DB"
-database_name = "yjh"
-database_id = "0f13b6a3-f8ae-4fcd-bc39-4a0f171bda08"
+database_name = "yjh-family-db"
+database_id = "82905244-7558-449c-974d-9d630f348383"
 
-# 仍需在 Cloudflare Pages 项目中绑定已有 KV 命名空间，绑定名必须是 GAMES_KV，用于保存 AI 生成游戏 HTML。
-# 已在 wrangler.toml 中固化 KV 绑定，Cloudflare Pages 会在部署时自动应用。
+[[r2_buckets]]
+binding = "MY_BUCKET"
+bucket_name = "n8n"
+
+# Existing game archive can remain as a sub-page under this portal.
 [[kv_namespaces]]
 binding = "GAMES_KV"
 id = "bfbf60372a2a443899d6d4d20437fa17"
 preview_id = "bfbf60372a2a443899d6d4d20437fa17"
 
-# =============================================================
-# AI 供应商切换：所有 API baseUrl / key / model 均在 Cloudflare
-# Pages 控制台的「Environment Variables」里配置，不写在代码或
-# 本 toml 中。切换供应商时只需要改一个 AI_PROVIDER 变量。
-#
-# 需要在 Cloudflare Pages → Settings → Environment Variables 里配置：
-#   AI_PROVIDER              例如 OPENAI / DEEPSEEK / KIMI / SILICONFLOW
-#   {PROVIDER}_API_KEY       （Secret 类型）
-#   {PROVIDER}_BASE_URL      例如 https://api.deepseek.com/v1
-#   {PROVIDER}_MODEL         例如 deepseek-chat
-#   {PROVIDER}_CHAT_MODEL    （可选，AI 助手对话用的模型）
-#   {PROVIDER}_TOKEN_PARAM   （可选，max_tokens 或 max_completion_tokens）
-#   {PROVIDER}_MAX_TOKENS
-#   {PROVIDER}_CHAT_MAX_TOKENS
-#   {PROVIDER}_USE_RESPONSE_FORMAT   true / false
-#
-# 兼容旧配置：如果未配置 AI_PROVIDER 或对应前缀变量，会自动回退到
-# 传统的 OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL 等变量。
-# 详见 functions/api/_provider.js。
-# =============================================================
+# Example Cloudflare Pages environment variables to add in dashboard:
+# - VITE_APP_LANG=zh-CN
+# - VITE_APP_R2_ENDPOINT=https://42144f305dad68d45a1eece1f2966bac.r2.cloudflarestorage.com/n8n
