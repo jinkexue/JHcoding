@@ -56,7 +56,7 @@ const copy = {
     email: 'yqcw@qq.com',
     password: '123456',
     home: '首页',
-    school: '校园生活',
+    school: '加国校园',
     health: '健康生活',
     games: '游戏乐园',
     logout: '退出',
@@ -86,7 +86,7 @@ const copy = {
     email: 'yqcw@qq.com',
     password: '123456',
     home: 'Home',
-    school: 'School Life',
+    school: 'Canada Campus',
     health: 'Health',
     games: 'Game Corner',
     logout: 'Log out',
@@ -116,8 +116,8 @@ const initialMoments = [
 ];
 
 const defaultWishBoard = [
-  { id: 1, author: '爸爸', target: 'yjh', title: '一起去看枫叶', detail: '周末想和你一起去湖边看枫叶，拍一组照片留念。', type: '文字', status: 'pending', response: '' },
-  { id: 2, author: 'yjh', target: '爸爸', title: '想学做加拿大小点心', detail: '我想和你一起试试做甜点，学一份简单的加拿大小点心。', type: '照片', status: 'pending', response: '' },
+  { id: 1, author: '爸爸', target: 'yjh', title: '想要一张加拿大明信片', detail: '周末我想为你准备一张加拿大风景明信片，留作纪念。', type: '文字', status: 'pending', response: '' },
+  { id: 2, author: 'yjh', target: '爸爸', title: '想学做加拿大小点心', detail: '我想试试做一份简单的加拿大小点心，记录自己的第一次尝试。', type: '照片', status: 'pending', response: '' },
 ];
 
 function toEmbedUrl(rawUrl) {
@@ -146,6 +146,15 @@ function toEmbedUrl(rawUrl) {
 function hasImageExtension(url) {
   if (!url) return false;
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /images?\.|unsplash|pexels|cdn/gi.test(url);
+}
+
+function parseMediaLinks(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value)
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function MediaFrame({ url, title, type }) {
@@ -210,6 +219,8 @@ const games = [
   { title: '射击小游戏', href: './shooting-game.html', accent: 'from-violet-400 to-fuchsia-300' },
   { title: '校园求生', href: './campus-survival.html', accent: 'from-pink-400 to-rose-300' },
   { title: '围棋对战', href: './go-game.html', accent: 'from-slate-500 to-slate-300' },
+  { title: '彩虹俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-cyan-400 to-indigo-400' },
+  { title: '英语学习', href: './english.html', accent: 'from-red-400 to-orange-300' },
   { title: 'AI 编程', href: './index2.html', accent: 'from-cyan-400 to-indigo-400' },
 ];
 
@@ -649,30 +660,32 @@ function App() {
     }
 
     const payload = (() => {
+      const firstMediaLink = parseMediaLinks(item.mediaUrl || item.url || item.mediaLinks || '')[0] || '';
+
       if (section === 'homeStory') {
         return {
           id: item.id || item.originalTitle || undefined,
-          author: item.author || '爸爸',
+          author: item.author || (isAdmin ? '管理员' : isDad ? '爸爸' : 'yjh'),
           type: item.type || '照片',
           title: item.title || '新记录',
           text: item.text || '新的家庭记录。',
-          mediaUrl: item.mediaUrl || '',
-          mediaType: item.mediaType || (item.mediaUrl && hasImageExtension(item.mediaUrl) ? 'image' : 'video'),
+          mediaUrl: firstMediaLink,
+          mediaType: item.mediaType || (firstMediaLink && hasImageExtension(firstMediaLink) ? 'image' : 'video'),
         };
       }
 
       if (section === 'school') {
         const schoolType = item.type || '照片';
         if (schoolType === '照片') {
-          return { type: '照片', title: item.title || '新学校照片', text: item.text || '新的校园记录。', image: item.image || item.mediaUrl || heroImages[0] };
+          return { type: '照片', title: item.title || '新学校照片', text: item.text || '新的校园记录。', image: item.image || firstMediaLink || heroImages[0] };
         }
         if (schoolType === '文字') {
-          return { type: '文字', title: item.title || '校园故事', text: item.text || '新的校园故事。', url: item.url || '' };
+          return { type: '文字', title: item.title || '校园故事', text: item.text || '新的校园故事。', url: firstMediaLink || '' };
         }
         if (schoolType === '音频') {
-          return { type: '音频', title: item.title || '校园声音', text: item.text || '校园声音记录。', url: item.url || item.mediaUrl || '' };
+          return { type: '音频', title: item.title || '校园声音', text: item.text || '校园声音记录。', url: firstMediaLink || '' };
         }
-        return { type: '视频', title: item.title || '校园视频', url: item.url || item.mediaUrl || 'https://www.bilibili.com/', text: item.text || '' };
+        return { type: '视频', title: item.title || '校园视频', url: firstMediaLink || 'https://www.bilibili.com/', text: item.text || '' };
       }
 
       if (section === 'health') {
@@ -683,8 +696,8 @@ function App() {
           text: item.text || '新的温暖提醒。',
           icon: nextIcon.displayName || item.icon || 'Heart',
           type: item.type || '文字',
-          mediaUrl: item.mediaUrl || '',
-          url: item.url || '',
+          mediaUrl: firstMediaLink,
+          url: firstMediaLink,
         };
       }
 
@@ -1345,45 +1358,51 @@ function App() {
               </label>
             </div>
 
-            {editor.section === 'homeStory' && (
+            {['homeStory', 'school', 'health'].includes(editor.section) && (
               <div className="editor-grid">
-                <label className="full"><span>{lang === 'zh' ? '作者' : 'Author'}</span><input value={currentAuthor} readOnly /></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
-                <label className="full"><span>{lang === 'zh' ? '外部链接' : 'External URL'}</span><input value={editor.item.mediaUrl || ''} onChange={(event) => updateEditorField('mediaUrl', event.target.value)} placeholder="https://..." /></label>
+                <label className="full"><span>{lang === 'zh' ? '外部链接（可填多个，每行一个）' : 'External link(s), one per line'}</span><textarea rows={3} value={parseMediaLinks(editor.item.mediaUrl || editor.item.url || editor.item.mediaLinks || '').join('\n')} onChange={(event) => {
+                  const nextValue = event.target.value.trim();
+                  updateEditorField('mediaUrl', nextValue || '');
+                  updateEditorField('mediaLinks', nextValue || '');
+                  if (editor.item.type === '照片' && nextValue) {
+                    updateEditorField('image', nextValue.split(/\r?\n|,/)[0].trim());
+                  }
+                  if ((editor.item.type === '音频' || editor.item.type === '视频') && nextValue) {
+                    updateEditorField('url', nextValue.split(/\r?\n|,/)[0].trim());
+                  }
+                }} placeholder="https://..." /></label>
                 <label className="full upload-inline upload-inline-compact">
-                  <span>{lang === 'zh' ? '本地上传到 R2' : 'Upload to R2'}</span>
-                  <input type="file" accept="image/*,video/*" onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('title', file.name);
-                    const response = await fetch('/api/media', { method: 'POST', body: formData });
-                    const payload = await response.json();
-                    if (response.ok && payload.success && payload.url) {
-                      updateEditorField('mediaUrl', payload.url);
+                  <span>{lang === 'zh' ? '本地上传（可多选，图片/音频/视频通用）' : 'Upload files (multiple allowed; image/audio/video)'}</span>
+                  <input type="file" accept="image/*,audio/*,video/*" multiple onChange={async (event) => {
+                    const files = Array.from(event.target.files || []);
+                    if (!files.length) return;
+                    const uploaded = [];
+                    for (const file of files) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      formData.append('title', file.name);
+                      const response = await fetch('/api/media', { method: 'POST', body: formData });
+                      const payload = await response.json();
+                      if (response.ok && payload.success && payload.url) {
+                        uploaded.push(payload.url);
+                      }
+                    }
+                    const existing = parseMediaLinks(editor.item.mediaUrl || editor.item.url || editor.item.mediaLinks || '');
+                    const merged = [...existing, ...uploaded].filter(Boolean);
+                    const combined = merged.join('\n');
+                    updateEditorField('mediaUrl', combined);
+                    updateEditorField('mediaLinks', combined);
+                    if (editor.item.type === '照片') {
+                      updateEditorField('image', merged[0] || '');
+                    }
+                    if (editor.item.type === '音频' || editor.item.type === '视频') {
+                      updateEditorField('url', merged[0] || '');
                     }
                     event.target.value = '';
                   }} />
                 </label>
-              </div>
-            )}
-
-            {editor.section === 'school' && (
-              <div className="editor-grid">
-                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '照片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="音频">音频</option><option value="视频">视频</option></select></label>
-                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
-                <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
-                {(editor.item.type === '照片' || editor.item.type === '图片') && (
-                  <label className="full"><span>{lang === 'zh' ? '图片链接' : 'Image URL'}</span><input value={editor.item.image || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('image', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
-                )}
-                {(editor.item.type === '音频' || editor.item.type === 'audio') && (
-                  <label className="full"><span>{lang === 'zh' ? '音频链接' : 'Audio URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
-                )}
-                {(editor.item.type === '视频' || editor.item.type === 'video') && (
-                  <label className="full"><span>{lang === 'zh' ? '视频链接' : 'Video URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
-                )}
               </div>
             )}
 
