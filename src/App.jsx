@@ -306,7 +306,10 @@ function App() {
   const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [siteLogo, setSiteLogo] = useState(DEFAULT_SITE_LOGO);
+  const [siteLogo, setSiteLogo] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_SITE_LOGO;
+    return localStorage.getItem('secret-base-logo') || DEFAULT_SITE_LOGO;
+  });
   const [moments, setMoments] = useState(initialMoments);
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
@@ -336,7 +339,19 @@ function App() {
     { title: '课堂纪录', url: 'https://www.bilibili.com/video/BV1Q5411T7Ln/?share_source=copy_web&vd_source=38d745f4d4a2c2b32a4a0e1e8d44a1f0', type: 'bilibili' },
   ]);
   const [healthCardsLocal, setHealthCardsLocal] = useState(healthCards);
-  const [gamesLocal, setGamesLocal] = useState(games);
+  const [gamesLocal, setGamesLocal] = useState(() => {
+    if (typeof window === 'undefined') return games;
+    try {
+      const stored = localStorage.getItem('secret-base-games');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (error) {
+      console.warn('Failed to recover stored games', error);
+    }
+    return games;
+  });
   const [qaEntries, setQaEntries] = useState(qnaPairs);
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
   const [schoolStories, setSchoolStories] = useState([
@@ -459,6 +474,18 @@ function App() {
   useEffect(() => {
     loadContent();
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('secret-base-logo', siteLogo || DEFAULT_SITE_LOGO);
+    }
+  }, [siteLogo]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('secret-base-games', JSON.stringify(gamesLocal));
+    }
+  }, [gamesLocal]);
 
   const canEditSection = (section) => {
     if (!isLoggedIn) return false;
