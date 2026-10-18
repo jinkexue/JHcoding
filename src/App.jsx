@@ -20,9 +20,30 @@ import {
   Video,
 } from 'lucide-react';
 
-const START_DATE = new Date('2026-03-10T00:00:00');
+const START_DATE = new Date('2026-03-10T00:00:00-06:00');
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_SITE_LOGO = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
+const CANADA_TIME_ZONE = 'America/Edmonton';
+
+const getCanadaElapsed = () => {
+  const now = new Date();
+  const canadaNow = new Date(now.toLocaleString('en-US', { timeZone: CANADA_TIME_ZONE }));
+  const diff = Math.max(0, canadaNow.getTime() - START_DATE.getTime());
+  const totalSeconds = Math.floor(diff / 1000);
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+};
+
+const getSortDate = (item) => {
+  if (!item) return 0;
+  return new Date(item.sortAt || item.createdAt || item.metaAt || Date.now()).getTime();
+};
+
+const sortByDateDesc = (items = []) => [...items].sort((a, b) => getSortDate(b) - getSortDate(a));
 const heroImages = [
   'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
   'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=1200&q=80',
@@ -56,7 +77,7 @@ const copy = {
     email: 'yqcw@qq.com',
     password: '123456',
     home: '首页',
-    school: '加国校园',
+    school: '认识社会',
     health: '健康生活',
     games: '游戏乐园',
     logout: '退出',
@@ -86,7 +107,7 @@ const copy = {
     email: 'yqcw@qq.com',
     password: '123456',
     home: 'Home',
-    school: 'Canada Campus',
+    school: 'Social Learning',
     health: 'Health',
     games: 'Game Corner',
     logout: 'Log out',
@@ -213,15 +234,15 @@ const healthCards = [
 ];
 
 const games = [
-  { title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300' },
-  { title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300' },
-  { title: '赛车', href: './racing-game.html', accent: 'from-sky-400 to-cyan-300' },
-  { title: '射击小游戏', href: './shooting-game.html', accent: 'from-violet-400 to-fuchsia-300' },
-  { title: '校园求生', href: './campus-survival.html', accent: 'from-pink-400 to-rose-300' },
-  { title: '围棋对战', href: './go-game.html', accent: 'from-slate-500 to-slate-300' },
-  { title: '彩虹俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-cyan-400 to-indigo-400' },
-  { title: '英语学习', href: './english.html', accent: 'from-red-400 to-orange-300' },
-  { title: 'AI 编程', href: './index2.html', accent: 'from-cyan-400 to-indigo-400' },
+  { title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', visual: '🐍' },
+  { title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300', visual: '🦔' },
+  { title: '赛车', href: './racing-game.html', accent: 'from-sky-400 to-cyan-300', visual: '🏎️' },
+  { title: '射击小游戏', href: './shooting-game.html', accent: 'from-violet-400 to-fuchsia-300', visual: '🎯' },
+  { title: '校园求生', href: './campus-survival.html', accent: 'from-pink-400 to-rose-300', visual: '🧭' },
+  { title: '围棋对战', href: './go-game.html', accent: 'from-slate-500 to-slate-300', visual: '🔵' },
+  { title: '彩虹俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-cyan-400 to-indigo-400', visual: '🧩' },
+  { title: '英语学习', href: './english.html', accent: 'from-red-400 to-orange-300', visual: '📘' },
+  { title: 'AI 编程', href: './index2.html', accent: 'from-cyan-400 to-indigo-400', visual: '🤖' },
 ];
 
 const healthIconMap = {
@@ -314,16 +335,7 @@ function App() {
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [clock, setClock] = useState(() => {
-    const diff = Date.now() - START_DATE.getTime();
-    const totalSeconds = Math.max(0, Math.floor(diff / 1000));
-    return {
-      days: Math.floor(totalSeconds / 86400),
-      hours: Math.floor((totalSeconds % 86400) / 3600),
-      minutes: Math.floor((totalSeconds % 3600) / 60),
-      seconds: totalSeconds % 60,
-    };
-  });
+  const [clock, setClock] = useState(() => getCanadaElapsed());
   const [showQaPanel, setShowQaPanel] = useState(true);
   const [qaFormOpen, setQaFormOpen] = useState(false);
   const [qaMode, setQaMode] = useState('question');
@@ -372,14 +384,7 @@ function App() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      const diff = Date.now() - START_DATE.getTime();
-      const totalSeconds = Math.max(0, Math.floor(diff / 1000));
-      setClock({
-        days: Math.floor(totalSeconds / 86400),
-        hours: Math.floor((totalSeconds % 86400) / 3600),
-        minutes: Math.floor((totalSeconds % 3600) / 60),
-        seconds: totalSeconds % 60,
-      });
+      setClock(getCanadaElapsed());
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -482,6 +487,24 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const sessionUser = localStorage.getItem('secret-base-user');
+      if (sessionUser) {
+        try {
+          const parsed = JSON.parse(sessionUser);
+          if (parsed?.role) {
+            setRole(parsed.role);
+            setIsLoggedIn(true);
+            setShowAuthForm(false);
+          }
+        } catch (error) {
+          console.warn('Failed to restore session user', error);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
       localStorage.setItem('secret-base-logo', siteLogo || DEFAULT_SITE_LOGO);
     }
   }, [siteLogo]);
@@ -526,6 +549,10 @@ function App() {
       return;
     }
 
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('secret-base-user', JSON.stringify({ username, role }));
+    }
+
     setLastActivityAt(Date.now());
     setSessionLocked(false);
     setIsLoggedIn(true);
@@ -533,6 +560,9 @@ function App() {
   };
 
   const logout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('secret-base-user');
+    }
     setSessionLocked(false);
     setIsLoggedIn(false);
     setShowAuthForm(false);
@@ -595,6 +625,7 @@ function App() {
         type: '文字',
         mediaUrl: '',
         audioUrl: '',
+        sortAt: new Date().toISOString(),
       },
     });
   };
@@ -690,15 +721,20 @@ function App() {
         type: item.type || '文字',
         status: 'pending',
         response: '',
+        sortAt: item.sortAt || item.createdAt || new Date().toISOString(),
       };
 
-      setWishBoard((current) => mode === 'add' ? [nextWish, ...current] : current.map((wish) => (wish.id === nextWish.id ? { ...wish, ...nextWish } : wish)));
+      setWishBoard((current) => {
+        const next = mode === 'add' ? [nextWish, ...current] : current.map((wish) => (wish.id === nextWish.id ? { ...wish, ...nextWish } : wish));
+        return sortByDateDesc(next);
+      });
       closeEditor();
       return;
     }
 
     const payload = (() => {
       const firstMediaLink = parseMediaLinks(item.mediaUrl || item.url || item.mediaLinks || '')[0] || '';
+      const sortAt = item.sortAt || item.createdAt || new Date().toISOString();
 
       if (section === 'homeStory') {
         return {
@@ -709,21 +745,22 @@ function App() {
           text: item.text || '新的家庭记录。',
           mediaUrl: firstMediaLink,
           mediaType: item.mediaType || (firstMediaLink && hasImageExtension(firstMediaLink) ? 'image' : 'video'),
+          sortAt,
         };
       }
 
       if (section === 'school') {
         const schoolType = item.type || '照片';
         if (schoolType === '照片') {
-          return { type: '照片', title: item.title || '新学校照片', text: item.text || '新的校园记录。', image: item.image || firstMediaLink || heroImages[0] };
+          return { type: '照片', title: item.title || '新学校照片', text: item.text || '新的校园记录。', image: item.image || firstMediaLink || heroImages[0], sortAt };
         }
         if (schoolType === '文字') {
-          return { type: '文字', title: item.title || '校园故事', text: item.text || '新的校园故事。', url: firstMediaLink || '' };
+          return { type: '文字', title: item.title || '校园故事', text: item.text || '新的校园故事。', url: firstMediaLink || '', sortAt };
         }
         if (schoolType === '音频') {
-          return { type: '音频', title: item.title || '校园声音', text: item.text || '校园声音记录。', url: firstMediaLink || '' };
+          return { type: '音频', title: item.title || '校园声音', text: item.text || '校园声音记录。', url: firstMediaLink || '', sortAt };
         }
-        return { type: '视频', title: item.title || '校园视频', url: firstMediaLink || 'https://www.bilibili.com/', text: item.text || '' };
+        return { type: '视频', title: item.title || '校园视频', url: firstMediaLink || 'https://www.bilibili.com/', text: item.text || '', sortAt };
       }
 
       if (section === 'health') {
@@ -736,6 +773,7 @@ function App() {
           type: item.type || '文字',
           mediaUrl: firstMediaLink,
           url: firstMediaLink,
+          sortAt,
         };
       }
 
@@ -745,6 +783,8 @@ function App() {
           title: item.title || '新游戏',
           href: item.href || './snake-game.html',
           accent: item.accent || 'from-emerald-400 to-lime-300',
+          visual: item.visual || '🎮',
+          sortAt,
         };
       }
 
@@ -884,6 +924,7 @@ function App() {
       q: qaDraft.question.trim(),
       a: qaDraft.answer.trim() || (qaMode === 'answer' ? '待回答' : '待补充'),
       from: qaDraft.from || (isDad ? '爸爸' : 'yjh'),
+      sortAt: new Date().toISOString(),
     };
 
     const saved = await persistFamilySection('qna', pair, 'save');
@@ -891,7 +932,7 @@ function App() {
     if (qaMode === 'answer') {
       setQaEntries((current) => {
         const next = current.map((entry) => entry.q === qaDraft.question ? { ...entry, a: pair.a, from: pair.from } : entry);
-        return saved ? next : next;
+        return next;
       });
     } else {
       setQaEntries((current) => saved ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : [pair, ...current]);
@@ -1120,8 +1161,8 @@ function App() {
                 </div>
                 <div className="wish-split-grid">
                   <div className="wish-column">
-                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
-                    {wishBoard.filter((wish) => wish.author === '爸爸').map((wish) => (
+                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
+                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === 'yjh')).map((wish) => (
                       <div key={wish.id} className="task-item">
                         <div>
                           <strong>{wish.title}</strong>
@@ -1139,8 +1180,8 @@ function App() {
                     ))}
                   </div>
                   <div className="wish-column">
-                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
-                    {wishBoard.filter((wish) => wish.author === 'yjh').map((wish) => (
+                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
+                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === '爸爸')).map((wish) => (
                       <div key={wish.id} className="task-item">
                         <div>
                           <strong>{wish.title}</strong>
@@ -1168,7 +1209,7 @@ function App() {
             <div className="school-two-column">
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '校园相册' : 'Campus album'}</h3>
+                  <h3>{lang === 'zh' ? '新闻' : 'News'}</h3>
                   <div className="toolbar-actions">
                     {canCreateInSection('school') && (
                       <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '照片', title: '', text: '', image: heroImages[0], originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
@@ -1194,7 +1235,7 @@ function App() {
 
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '校园故事' : 'Campus story'}</h3>
+                  <h3>{lang === 'zh' ? '故事' : 'Story'}</h3>
                   <div className="toolbar-actions">
                     {canCreateInSection('school') && (
                       <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '文字', title: '', text: '', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
@@ -1221,7 +1262,7 @@ function App() {
             <div className="school-two-column" style={{ marginTop: '18px' }}>
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '校园声音' : 'Campus sound'}</h3>
+                  <h3>{lang === 'zh' ? '真知' : 'Wisdom'}</h3>
                   <div className="toolbar-actions">
                     {canCreateInSection('school') && (
                       <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '音频', title: '', url: 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
@@ -1246,7 +1287,7 @@ function App() {
 
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '校园视频' : 'Campus video'}</h3>
+                  <h3>{lang === 'zh' ? '灼见' : 'Insight'}</h3>
                   <div className="toolbar-actions">
                     {canCreateInSection('school') && (
                       <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '视频', title: '', url: 'https://www.bilibili.com/', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
@@ -1310,15 +1351,15 @@ function App() {
               </div>
             </div>
             <div className="game-grid">
-              {gamesLocal.map((game) => (
+              {sortByDateDesc(gamesLocal).map((game) => (
                 <div key={game.title} className="game-card-wrapper">
                   <a href={game.href} target="_blank" rel="noreferrer" className={`game-card ${game.accent}`}>
                     <div className="game-top">
-                      <Gamepad2 size={26} />
+                      <span className="game-visual" aria-hidden="true">{game.visual || '🎮'}</span>
                       <ChevronRight size={18} />
                     </div>
                     <div className="game-copy">
-                      <small>Mini game</small>
+                      <small>{lang === 'zh' ? '小游戏' : 'Mini game'}</small>
                       <h3>{game.title}</h3>
                     </div>
                   </a>
@@ -1353,28 +1394,18 @@ function App() {
                   <span>{lang === 'zh' ? '问题' : 'Question'}</span>
                   <textarea value={qaDraft.question} onChange={(event) => setQaDraft((current) => ({ ...current, question: event.target.value }))} rows={3} />
                 </label>
-                <label>
-                  <span>{lang === 'zh' ? '回答' : 'Answer'}</span>
-                  <textarea value={qaDraft.answer} onChange={(event) => setQaDraft((current) => ({ ...current, answer: event.target.value }))} rows={3} />
-                </label>
+                {qaMode === 'answer' && (
+                  <label>
+                    <span>{lang === 'zh' ? '回答' : 'Answer'}</span>
+                    <textarea value={qaDraft.answer} onChange={(event) => setQaDraft((current) => ({ ...current, answer: event.target.value }))} rows={3} />
+                  </label>
+                )}
                 <div className="qa-form-actions">
                   <button type="button" className="qa-submit-btn" onClick={saveQa}>{lang === 'zh' ? '保存' : 'Save'}</button>
                   <button type="button" className="qa-cancel-btn" onClick={() => setQaFormOpen(false)}>{lang === 'zh' ? '取消' : 'Cancel'}</button>
                 </div>
               </div>
             )}
-            <div className="qa-panel-list">
-              {qaEntries.map((pair) => (
-                <div key={pair.q} className="qa-item-floating">
-                  <p><strong>Q:</strong> {pair.q}</p>
-                  <p><strong>A:</strong> {pair.a}</p>
-                  <div className="story-actions compact-actions">
-                    <button type="button" className="inline-action" onClick={() => { setQaMode('answer'); setQaDraft({ from: pair.from, question: pair.q, answer: pair.a }); setQaFormOpen(true); }}>{lang === 'zh' ? '回答' : 'Answer'}</button>
-                    <button type="button" className="inline-action danger" onClick={async () => { await deleteSectionItem('qna', pair); }}>{lang === 'zh' ? '删除' : 'Delete'}</button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
@@ -1395,6 +1426,10 @@ function App() {
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
+              </label>
+              <label className="full">
+                <span>{lang === 'zh' ? '日期时间（排序）' : 'Date & time (sort)'}</span>
+                <input type="datetime-local" value={editor.item.sortAt ? editor.item.sortAt.slice(0, 16) : new Date().toISOString().slice(0, 16)} onChange={(event) => updateEditorField('sortAt', new Date(event.target.value).toISOString())} />
               </label>
             </div>
 
@@ -1522,6 +1557,7 @@ function App() {
               <div className="editor-grid">
                 <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '游戏链接'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="游戏链接">游戏链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '图标' : 'Icon'}</span><input value={editor.item.visual || '🎮'} onChange={(event) => updateEditorField('visual', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.href || ''} onChange={(event) => updateEditorField('href', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '样式' : 'Style'}</span><select value={editor.item.accent || 'from-emerald-400 to-lime-300'} onChange={(event) => updateEditorField('accent', event.target.value)}><option value="from-emerald-400 to-lime-300">绿色</option><option value="from-amber-400 to-yellow-300">黄色</option><option value="from-sky-400 to-cyan-300">蓝色</option><option value="from-violet-400 to-fuchsia-300">紫色</option></select></label>
               </div>
