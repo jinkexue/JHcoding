@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 
 const START_DATE = new Date('2026-03-10T00:00:00');
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_SITE_LOGO = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80';
 const heroImages = [
   'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
   'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=1200&q=80',
@@ -206,6 +208,9 @@ const games = [
   { title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300' },
   { title: '赛车', href: './racing-game.html', accent: 'from-sky-400 to-cyan-300' },
   { title: '射击小游戏', href: './shooting-game.html', accent: 'from-violet-400 to-fuchsia-300' },
+  { title: '校园求生', href: './campus-survival.html', accent: 'from-pink-400 to-rose-300' },
+  { title: '围棋对战', href: './go-game.html', accent: 'from-slate-500 to-slate-300' },
+  { title: 'AI 编程', href: './index2.html', accent: 'from-cyan-400 to-indigo-400' },
 ];
 
 const healthIconMap = {
@@ -286,6 +291,8 @@ function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
+  const [sessionLocked, setSessionLocked] = useState(false);
+  const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [moments, setMoments] = useState(initialMoments);
@@ -332,6 +339,8 @@ function App() {
   const dadStatus = getCurrentStatus('dad');
   const daughterStatus = getCurrentStatus('daughter');
   const isDad = role === 'dad';
+  const isAdmin = role === 'admin';
+  const currentAuthor = isDad ? '爸爸' : isAdmin ? '管理员' : 'yjh';
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -346,6 +355,51 @@ function App() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const handleActivity = () => {
+      setLastActivityAt(Date.now());
+      setSessionLocked(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        setSessionLocked(true);
+        setIsLoggedIn(false);
+        setShowAuthForm(true);
+        setPassword('');
+        return;
+      }
+
+      if (document.visibilityState === 'visible' && sessionLocked) {
+        setShowAuthForm(true);
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastActivityAt >= SESSION_TIMEOUT_MS) {
+        setSessionLocked(true);
+        setIsLoggedIn(false);
+        setShowAuthForm(true);
+        setPassword('');
+      }
+    }, 1000);
+
+    window.addEventListener('pointerdown', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pointerdown', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(timer);
+    };
+  }, [isLoggedIn, lastActivityAt, sessionLocked]);
 
   const persistFamilySection = async (section, item, mode = 'save') => {
     try {
@@ -396,6 +450,7 @@ function App() {
 
   const canEditSection = (section) => {
     if (!isLoggedIn) return false;
+    if (isAdmin) return true;
     if (section === 'dad') return isDad;
     if (section === 'daughter') return !isDad;
     return true;
@@ -412,6 +467,7 @@ function App() {
     const credentials = {
       dad: { username: 'yq', password: '123456' },
       daughter: { username: 'yjh', password: '150113' },
+      admin: { username: 'yqcw@qq.com', password: '123456' },
     };
 
     const selected = credentials[role];
@@ -420,11 +476,39 @@ function App() {
       return;
     }
 
+    setLastActivityAt(Date.now());
+    setSessionLocked(false);
     setIsLoggedIn(true);
     setShowAuthForm(false);
   };
 
-  const logout = () => setIsLoggedIn(false);
+  const logout = () => {
+    setSessionLocked(false);
+    setIsLoggedIn(false);
+    setShowAuthForm(false);
+    setPassword('');
+  };
+
+  const handleLogoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name);
+      const response = await fetch('/api/media', { method: 'POST', body: formData });
+      const payload = await response.json();
+      if (!response.ok || !payload.success || !payload.url) {
+        throw new Error(payload.error || '上传 Logo 失败');
+      }
+      setSiteLogo(payload.url);
+      alert(lang === 'zh' ? '站点 Logo 已更新。' : 'Site logo updated.');
+    } catch (error) {
+      alert(error.message || 'Logo upload failed');
+    } finally {
+      event.target.value = '';
+    }
+  };
 
   const addMediaItem = async (item) => {
     const nextItem = {
@@ -770,10 +854,17 @@ function App() {
     return (
       <div className="login-shell">
         <div className="login-panel">
-          <div className="leaf-badge" aria-label="Canada flag logo">
-            <span>🇨🇦</span>
+          <div className="leaf-badge" aria-label="Site logo">
+            {siteLogo ? <img src={siteLogo} alt="site logo" className="logo-image" /> : <span>🇨🇦</span>}
           </div>
           <h1>{t.title}</h1>
+          {sessionLocked && (
+            <p className="login-lock-note">
+              {lang === 'zh'
+                ? '页面已自动锁定，请在 5 分钟内操作，或重新登录后再继续查看。'
+                : 'This session was locked for safety. Please sign in again to continue.'}
+            </p>
+          )}
 
           <div className="login-buttons">
             <button type="button" className="primary-btn" onClick={() => openLogin('dad')}>
@@ -781,6 +872,9 @@ function App() {
             </button>
             <button type="button" className="secondary-btn" onClick={() => openLogin('daughter')}>
               {t.daughterLogin}
+            </button>
+            <button type="button" className="secondary-btn" onClick={() => openLogin('admin')}>
+              {lang === 'zh' ? '管理员登录' : 'Admin login'}
             </button>
           </div>
 
@@ -792,7 +886,7 @@ function App() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={role === 'dad' ? 'yq' : 'yjh'}
+                  placeholder={role === 'dad' ? 'yq' : role === 'admin' ? 'yqcw@qq.com' : 'yjh'}
                 />
               </label>
 
@@ -831,7 +925,9 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-group">
-          <div className="brand-mark" aria-label="Canada flag logo">🇨🇦</div>
+          <div className="brand-mark" aria-label="Site logo">
+            {siteLogo ? <img src={siteLogo} alt="site logo" className="brand-logo" /> : '🇨🇦'}
+          </div>
           <div>
             <small>Secret</small>
             <strong>Base</strong>
@@ -853,9 +949,15 @@ function App() {
         </nav>
 
         <div className="top-actions">
-          <span className={isDad ? 'role-tag dad' : 'role-tag daughter'}>
-            {isDad ? '爸爸权限' : '女儿权限'}
+          <span className={isAdmin ? 'role-tag admin' : isDad ? 'role-tag dad' : 'role-tag daughter'}>
+            {isAdmin ? '管理员权限' : isDad ? '爸爸权限' : '女儿权限'}
           </span>
+          {isAdmin && (
+            <label className="ghost-btn upload-mini-btn">
+              <span>{lang === 'zh' ? 'Logo' : 'Logo'}</span>
+              <input type="file" accept="image/*" onChange={handleLogoUpload} hidden />
+            </label>
+          )}
           <button type="button" className="ghost-btn" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
             {lang === 'zh' ? 'EN' : '中文'}
           </button>
@@ -969,8 +1071,8 @@ function App() {
                 </div>
                 <div className="wish-split-grid">
                   <div className="wish-column">
-                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
-                    {wishBoard.filter((wish) => wish.author === '爸爸').map((wish) => (
+                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
+                    {wishBoard.filter((wish) => wish.author === 'yjh').map((wish) => (
                       <div key={wish.id} className="task-item">
                         <div>
                           <strong>{wish.title}</strong>
@@ -988,8 +1090,8 @@ function App() {
                     ))}
                   </div>
                   <div className="wish-column">
-                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
-                    {wishBoard.filter((wish) => wish.author === 'yjh').map((wish) => (
+                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
+                    {wishBoard.filter((wish) => wish.author === '爸爸').map((wish) => (
                       <div key={wish.id} className="task-item">
                         <div>
                           <strong>{wish.title}</strong>
@@ -1231,26 +1333,39 @@ function App() {
               <button type="button" onClick={closeEditor}>×</button>
             </div>
 
-            {editor.mode === 'add' && (
-              <div className="editor-grid">
-                <label className="full">
-                  <span>{lang === 'zh' ? '新增类型' : 'Add type'}</span>
-                  <select value={editor.item.type || (sectionTypeOptions[editor.section] || ['照片'])[0]} onChange={(event) => updateEditorField('type', event.target.value)}>
-                    {(sectionTypeOptions[editor.section] || ['照片']).map((option) => (
-                      <option key={option} value={option}>{option}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
+            <div className="editor-grid">
+              <label className="full">
+                <span>{lang === 'zh' ? '类型' : 'Type'}</span>
+                <select value={editor.item.type || (sectionTypeOptions[editor.section] || ['照片'])[0]} onChange={(event) => updateEditorField('type', event.target.value)}>
+                  {(sectionTypeOptions[editor.section] || ['照片']).map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             {editor.section === 'homeStory' && (
               <div className="editor-grid">
-                <label><span>{lang === 'zh' ? '作者' : 'Author'}</span><select value={editor.item.author || '爸爸'} onChange={(event) => updateEditorField('author', event.target.value)}><option value="爸爸">爸爸</option><option value="yjh">yjh</option></select></label>
-                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '照片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="视频">视频</option></select></label>
+                <label className="full"><span>{lang === 'zh' ? '作者' : 'Author'}</span><input value={currentAuthor} readOnly /></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
-                <label className="full"><span>{lang === 'zh' ? '图片/视频链接' : 'Media URL'}</span><input value={editor.item.mediaUrl || ''} onChange={(event) => updateEditorField('mediaUrl', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '外部链接' : 'External URL'}</span><input value={editor.item.mediaUrl || ''} onChange={(event) => updateEditorField('mediaUrl', event.target.value)} placeholder="https://..." /></label>
+                <label className="full upload-inline upload-inline-compact">
+                  <span>{lang === 'zh' ? '本地上传到 R2' : 'Upload to R2'}</span>
+                  <input type="file" accept="image/*,video/*" onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('title', file.name);
+                    const response = await fetch('/api/media', { method: 'POST', body: formData });
+                    const payload = await response.json();
+                    if (response.ok && payload.success && payload.url) {
+                      updateEditorField('mediaUrl', payload.url);
+                    }
+                    event.target.value = '';
+                  }} />
+                </label>
               </div>
             )}
 
@@ -1273,26 +1388,74 @@ function App() {
 
             {editor.section === 'schoolAlbum' && (
               <div className="editor-grid">
-                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '图片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="图片">图片</option><option value="文字">文字</option><option value="链接">链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
-                <label className="full"><span>{lang === 'zh' ? '图片/链接' : 'Image / Link URL'}</span><input value={editor.item.image || editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('image', event.target.value); updateEditorField('url', event.target.value); }} /></label>
+                <label className="full"><span>{lang === 'zh' ? '图片 / 外部链接' : 'Image / external URL'}</span><input value={editor.item.image || editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('image', event.target.value); updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} placeholder="https://..." /></label>
+                <label className="full upload-inline upload-inline-compact">
+                  <span>{lang === 'zh' ? '本地上传图片到 R2' : 'Upload image to R2'}</span>
+                  <input type="file" accept="image/*" onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('title', file.name);
+                    const response = await fetch('/api/media', { method: 'POST', body: formData });
+                    const payload = await response.json();
+                    if (response.ok && payload.success && payload.url) {
+                      updateEditorField('image', payload.url);
+                      updateEditorField('mediaUrl', payload.url);
+                    }
+                    event.target.value = '';
+                  }} />
+                </label>
               </div>
             )}
 
             {editor.section === 'schoolVideo' && (
               <div className="editor-grid">
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
-                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || 'bilibili'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="bilibili">Bilibili</option><option value="local">本地</option></select></label>
-                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || ''} onChange={(event) => updateEditorField('url', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || ''} onChange={(event) => updateEditorField('url', event.target.value)} placeholder="https://..." /></label>
+                <label className="full upload-inline upload-inline-compact">
+                  <span>{lang === 'zh' ? '本地上传视频到 R2' : 'Upload video to R2'}</span>
+                  <input type="file" accept="video/*" onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('title', file.name);
+                    const response = await fetch('/api/media', { method: 'POST', body: formData });
+                    const payload = await response.json();
+                    if (response.ok && payload.success && payload.url) {
+                      updateEditorField('url', payload.url);
+                    }
+                    event.target.value = '';
+                  }} />
+                </label>
               </div>
             )}
 
             {editor.section === 'health' && (
               <div className="editor-grid">
-                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '提醒'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="提醒">提醒</option><option value="图片">图片</option><option value="链接">链接</option></select></label>
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} placeholder="https://..." /></label>
+                <label className="full upload-inline upload-inline-compact">
+                  <span>{lang === 'zh' ? '本地上传图片/音频/视频到 R2' : 'Upload media to R2'}</span>
+                  <input type="file" accept="image/*,audio/*,video/*" onChange={async (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('title', file.name);
+                    const response = await fetch('/api/media', { method: 'POST', body: formData });
+                    const payload = await response.json();
+                    if (response.ok && payload.success && payload.url) {
+                      updateEditorField('url', payload.url);
+                      updateEditorField('mediaUrl', payload.url);
+                    }
+                    event.target.value = '';
+                  }} />
+                </label>
                 <label><span>{lang === 'zh' ? '图标' : 'Icon'}</span><select value={editor.item.icon || 'Heart'} onChange={(event) => updateEditorField('icon', event.target.value)}><option value="Heart">Heart</option><option value="Sparkles">Sparkles</option><option value="CheckCircle2">CheckCircle2</option><option value="BookOpenText">BookOpenText</option></select></label>
               </div>
             )}
