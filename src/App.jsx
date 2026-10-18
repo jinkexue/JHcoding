@@ -506,6 +506,7 @@ function App() {
   };
 
   const openLogin = (selectedRole) => {
+    if (selectedRole === 'admin') return;
     setRole(selectedRole);
     setShowAuthForm(true);
     setUsername('');
