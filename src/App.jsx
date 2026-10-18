@@ -71,6 +71,7 @@ const copy = {
   zh: {
     title: '我们的秘密基地',
     subtitle: '温暖的父女时光，藏在每一张照片和每一次对话里。',
+    loginBase: '登录基地',
     dadLogin: '爸爸登录',
     daughterLogin: '女儿登录',
     admin: '管理员',
@@ -101,6 +102,7 @@ const copy = {
   en: {
     title: 'Our Secret Base',
     subtitle: 'A warm father-daughter space made of memories, stories, and small adventures.',
+    loginBase: 'Login base',
     dadLogin: 'Dad Login',
     daughterLogin: 'Daughter Login',
     admin: 'Admin',
@@ -528,29 +530,35 @@ function App() {
     return section === 'homeStory' && !isDad;
   };
 
-  const openLogin = (selectedRole) => {
-    if (selectedRole === 'admin') return;
-    setRole(selectedRole);
+  const openLogin = () => {
     setShowAuthForm(true);
     setUsername('');
     setPassword('');
+    setRole('dad');
   };
 
   const login = () => {
-    const credentials = {
-      dad: { username: 'yq', password: '123456' },
-      daughter: { username: 'yjh', password: '150113' },
-      admin: { username: 'yqcw@qq.com', password: '123456' },
-    };
+    const trimmedUsername = String(username || '').trim();
+    const trimmedPassword = String(password || '').trim();
 
-    const selected = credentials[role];
-    if (!selected || username !== selected.username || password !== selected.password) {
+    const resolvedRole =
+      trimmedUsername === 'yq' && trimmedPassword === '123456'
+        ? 'dad'
+        : trimmedUsername === 'yjh' && trimmedPassword === '150113'
+          ? 'daughter'
+          : trimmedUsername === 'yqcw@qq.com' && trimmedPassword === '123456'
+            ? 'admin'
+            : null;
+
+    if (!resolvedRole) {
       alert(lang === 'zh' ? '用户名或密码不正确，请检查后再试。' : 'Incorrect username or password. Please try again.');
       return;
     }
 
+    setRole(resolvedRole);
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem('secret-base-user', JSON.stringify({ username, role }));
+      localStorage.setItem('secret-base-user', JSON.stringify({ username: trimmedUsername, role: resolvedRole }));
     }
 
     setLastActivityAt(Date.now());
@@ -959,14 +967,11 @@ function App() {
             </p>
           )}
 
-          <div className="login-buttons">
-            <button type="button" className="primary-btn" onClick={() => openLogin('dad')}>
-              {t.dadLogin}
+          {!showAuthForm && (
+            <button type="button" className="primary-btn" onClick={openLogin}>
+              {t.loginBase}
             </button>
-            <button type="button" className="secondary-btn" onClick={() => openLogin('daughter')}>
-              {t.daughterLogin}
-            </button>
-          </div>
+          )}
 
           {showAuthForm && (
             <div className="auth-form">
@@ -976,7 +981,7 @@ function App() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={role === 'dad' ? 'yq' : role === 'admin' ? 'yqcw@qq.com' : 'yjh'}
+                  placeholder={lang === 'zh' ? '输入用户名' : 'Enter username'}
                 />
               </label>
 
@@ -991,7 +996,7 @@ function App() {
               </label>
 
               <button type="button" className="submit-btn" onClick={login} disabled={!username || !password}>
-                {lang === 'zh' ? '进入基地' : 'Enter base'}
+                {lang === 'zh' ? '登录基地' : 'Login base'}
               </button>
             </div>
           )}
