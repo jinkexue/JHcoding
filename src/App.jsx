@@ -34,6 +34,16 @@ const tabs = [
   { key: 'games', icon: Gamepad2 },
 ];
 
+const dailyQuote = {
+  zh: '自由的思考，温暖的陪伴。',
+  en: 'Free thinking, warm companionship.',
+};
+
+const dailyMessage = {
+  zh: '把每个小小成长瞬间，视为一张珍贵的地图。',
+  en: 'Every small growth moment becomes a precious map of our life.',
+};
+
 const copy = {
   zh: {
     title: '我们的秘密基地',
@@ -101,6 +111,11 @@ const initialMoments = [
   { author: '爸爸', type: '照片', title: '野生动物邻居', text: '今天早晨在小区里碰到了两只很可爱的小松鼠，像在和我们打招呼。', meta: '2小时前', mediaUrl: heroImages[0], mediaType: 'image', likes: 24, comments: 5 },
   { author: 'yjh', type: '文字', title: '今天的快乐清单', text: '我吃了彩虹糖饼干，还把作业和阅读时间安排得很好，感觉自己很厉害。', meta: '昨晚', mediaUrl: null, mediaType: 'text', likes: 31, comments: 7 },
   { author: '爸爸', type: '语音', title: '从公寓到森林', text: '今天我在卡尔加里的湖边走了一圈，风很轻，天很蓝。', meta: '今天上午', mediaUrl: heroImages[2], mediaType: 'image', likes: 18, comments: 3 },
+];
+
+const defaultWishBoard = [
+  { id: 1, author: '爸爸', target: 'yjh', title: '一起去看枫叶', detail: '周末想和你一起去湖边看枫叶，拍一组照片留念。', type: '文字', status: 'pending', response: '' },
+  { id: 2, author: 'yjh', target: '爸爸', title: '想学做加拿大小点心', detail: '我想和你一起试试做甜点，学一份简单的加拿大小点心。', type: '照片', status: 'pending', response: '' },
 ];
 
 function toEmbedUrl(rawUrl) {
@@ -201,11 +216,11 @@ const healthIconMap = {
 };
 
 const sectionTypeOptions = {
-  homeStory: ['照片', '文字', '视频'],
-  schoolAlbum: ['图片', '文字', '链接'],
-  schoolVideo: ['bilibili', 'local'],
-  health: ['提醒', '图片', '链接'],
+  homeStory: ['文字', '照片', '音频', '视频'],
+  school: ['照片', '文字', '音频', '视频'],
+  health: ['文字', '照片', '音频', '视频'],
   game: ['游戏链接'],
+  wish: ['文字', '照片', '音频', '视频'],
 };
 
 function buildBlankEditorItem(section) {
@@ -304,6 +319,13 @@ function App() {
   const [healthCardsLocal, setHealthCardsLocal] = useState(healthCards);
   const [gamesLocal, setGamesLocal] = useState(games);
   const [qaEntries, setQaEntries] = useState(qnaPairs);
+  const [wishBoard, setWishBoard] = useState(defaultWishBoard);
+  const [schoolStories, setSchoolStories] = useState([
+    { title: '校园故事', text: '今天老师让我们和同学一起做小海报，大家都很认真，气氛特别温暖。', type: '文字' },
+  ]);
+  const [schoolAudios, setSchoolAudios] = useState([
+    { title: '校园声音', url: 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3', type: '音频' },
+  ]);
   const [editor, setEditor] = useState(null);
 
   const t = copy[lang];
@@ -426,6 +448,27 @@ function App() {
     setMoments((current) => [nextItem, ...current]);
   };
 
+  const openWishEditor = (targetRole = 'yjh') => {
+    setEditor({
+      section: 'wish',
+      mode: 'add',
+      item: {
+        id: Date.now(),
+        author: isDad ? '爸爸' : 'yjh',
+        target: targetRole,
+        title: '',
+        detail: '',
+        type: '文字',
+        mediaUrl: '',
+        audioUrl: '',
+      },
+    });
+  };
+
+  const updateWishStatus = (wishId, nextStatus, reason = '') => {
+    setWishBoard((current) => current.map((wish) => wish.id === wishId ? { ...wish, status: nextStatus, response: reason || (nextStatus === 'accepted' ? '已接受，安排实施中。' : '暂时无法接受，先调整计划。') } : wish));
+  };
+
   const handleLocalUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -487,7 +530,7 @@ function App() {
     setEditor({
       section,
       mode,
-      item: item ? { ...buildBlankEditorItem(section), ...item } : { ...buildBlankEditorItem(section), type: fallbackType },
+      item: item ? { ...buildBlankEditorItem(section), ...item, type: item.type || fallbackType } : { ...buildBlankEditorItem(section), type: fallbackType },
     });
   };
 
@@ -503,6 +546,23 @@ function App() {
 
     const resolveHealthIcon = (iconName) => healthIconMap[iconName] || Heart;
 
+    if (section === 'wish') {
+      const nextWish = {
+        id: item.id || Date.now(),
+        author: item.author || '爸爸',
+        target: item.target || 'yjh',
+        title: item.title || '新愿望',
+        detail: item.detail || item.text || '新的愿望。',
+        type: item.type || '文字',
+        status: 'pending',
+        response: '',
+      };
+
+      setWishBoard((current) => mode === 'add' ? [nextWish, ...current] : current.map((wish) => (wish.id === nextWish.id ? { ...wish, ...nextWish } : wish)));
+      closeEditor();
+      return;
+    }
+
     const payload = (() => {
       if (section === 'homeStory') {
         return {
@@ -516,22 +576,18 @@ function App() {
         };
       }
 
-      if (section === 'schoolAlbum') {
-        return {
-          id: item.id || item.originalTitle || undefined,
-          title: item.title || '新相册',
-          text: item.text || '新的校园记录。',
-          image: item.image || heroImages[0],
-        };
-      }
-
-      if (section === 'schoolVideo') {
-        return {
-          id: item.id || item.originalTitle || undefined,
-          title: item.title || '新视频',
-          url: item.url || 'https://www.bilibili.com/',
-          type: item.type || 'bilibili',
-        };
+      if (section === 'school') {
+        const schoolType = item.type || '照片';
+        if (schoolType === '照片') {
+          return { type: '照片', title: item.title || '新学校照片', text: item.text || '新的校园记录。', image: item.image || item.mediaUrl || heroImages[0] };
+        }
+        if (schoolType === '文字') {
+          return { type: '文字', title: item.title || '校园故事', text: item.text || '新的校园故事。', url: item.url || '' };
+        }
+        if (schoolType === '音频') {
+          return { type: '音频', title: item.title || '校园声音', text: item.text || '校园声音记录。', url: item.url || item.mediaUrl || '' };
+        }
+        return { type: '视频', title: item.title || '校园视频', url: item.url || item.mediaUrl || 'https://www.bilibili.com/', text: item.text || '' };
       }
 
       if (section === 'health') {
@@ -541,6 +597,9 @@ function App() {
           title: item.title || '新健康提醒',
           text: item.text || '新的温暖提醒。',
           icon: nextIcon.displayName || item.icon || 'Heart',
+          type: item.type || '文字',
+          mediaUrl: item.mediaUrl || '',
+          url: item.url || '',
         };
       }
 
@@ -588,37 +647,19 @@ function App() {
       }
     }
 
-    if (section === 'schoolAlbum') {
-      if (saved) {
-        setSchoolAlbums((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? saved : entry));
-      } else {
-        if (mode === 'add') {
-          setSchoolAlbums((current) => [{ title: payload.title || '新相册', text: payload.text || '新的校园记录。', image: payload.image || heroImages[0] }, ...current]);
-        } else {
-          setSchoolAlbums((current) => current.map((entry) => entry.title === item.originalTitle ? {
-            ...entry,
-            title: payload.title || entry.title,
-            text: payload.text || entry.text,
-            image: payload.image || entry.image,
-          } : entry));
-        }
+    if (section === 'school') {
+      const schoolType = item.type || '照片';
+      if (schoolType === '照片') {
+        setSchoolAlbums((current) => mode === 'add' ? [{ title: item.title || '新校园照片', text: item.text || '新的校园记录。', image: item.image || item.mediaUrl || heroImages[0] }, ...current] : current.map((entry) => entry.title === item.originalTitle ? { ...entry, title: item.title || entry.title, text: item.text || entry.text, image: item.image || item.mediaUrl || entry.image } : entry));
       }
-    }
-
-    if (section === 'schoolVideo') {
-      if (saved) {
-        setSchoolVideos((current) => mode === 'add' ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : current.map((entry) => (entry.id === saved.id || entry.title === item.originalTitle) ? saved : entry));
-      } else {
-        if (mode === 'add') {
-          setSchoolVideos((current) => [{ title: payload.title || '新视频', url: payload.url || 'https://www.bilibili.com/', type: payload.type || 'bilibili' }, ...current]);
-        } else {
-          setSchoolVideos((current) => current.map((entry) => entry.title === item.originalTitle ? {
-            ...entry,
-            title: payload.title || entry.title,
-            url: payload.url || entry.url,
-            type: payload.type || entry.type,
-          } : entry));
-        }
+      if (schoolType === '文字') {
+        setSchoolStories((current) => mode === 'add' ? [{ title: item.title || '校园故事', text: item.text || '新的校园故事。' }, ...current] : current.map((entry) => entry.title === item.originalTitle ? { ...entry, title: item.title || entry.title, text: item.text || entry.text } : entry));
+      }
+      if (schoolType === '音频') {
+        setSchoolAudios((current) => mode === 'add' ? [{ title: item.title || '校园声音', url: item.url || item.mediaUrl || 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3' }, ...current] : current.map((entry) => entry.title === item.originalTitle ? { ...entry, title: item.title || entry.title, url: item.url || item.mediaUrl || entry.url } : entry));
+      }
+      if (schoolType === '视频') {
+        setSchoolVideos((current) => mode === 'add' ? [{ title: item.title || '校园视频', url: item.url || item.mediaUrl || 'https://www.bilibili.com/', type: 'bilibili' }, ...current] : current.map((entry) => entry.title === item.originalTitle ? { ...entry, title: item.title || entry.title, url: item.url || item.mediaUrl || entry.url } : entry));
       }
     }
 
@@ -729,8 +770,8 @@ function App() {
     return (
       <div className="login-shell">
         <div className="login-panel">
-          <div className="leaf-badge" aria-label="Canada maple leaf logo">
-            <span>🍁</span>
+          <div className="leaf-badge" aria-label="Canada flag logo">
+            <span>🇨🇦</span>
           </div>
           <h1>{t.title}</h1>
 
@@ -751,7 +792,7 @@ function App() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder={role === 'dad' ? 'yqcw@qq.com' : 'yjh'}
+                  placeholder={role === 'dad' ? 'yq' : 'yjh'}
                 />
               </label>
 
@@ -790,7 +831,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-group">
-          <div className="brand-mark"><Leaf size={18} /></div>
+          <div className="brand-mark" aria-label="Canada flag logo">🇨🇦</div>
           <div>
             <small>Secret</small>
             <strong>Base</strong>
@@ -847,50 +888,9 @@ function App() {
               <div className="quote-icon"><Sparkles size={18} /></div>
               <div>
                 <span>{t.today}</span>
-                <h3>{t.message}</h3>
-                <p>{t.goodMorning}</p>
+                <h3>{dailyQuote[lang]}</h3>
+                <p>{dailyMessage[lang]}</p>
               </div>
-            </div>
-
-            <div className="media-upload-panel">
-              <div className="media-upload-header">
-                <div className="feature-icon purple"><Video size={18} /></div>
-                <h3>{lang === 'zh' ? '照片 / 视频存库' : 'Photo & Video Library'}</h3>
-              </div>
-
-              <div className="upload-grid">
-                <label className="upload-field upload-file">
-                  <span>{lang === 'zh' ? '上传到 R2' : 'Upload to R2'}</span>
-                  <input type="file" accept="image/*,video/*" onChange={handleLocalUpload} disabled={uploading} />
-                </label>
-
-                <form className="upload-field upload-url-form" onSubmit={handleExternalUrlSubmit}>
-                  <span>{lang === 'zh' ? '外部链接' : 'External link'}</span>
-                  <div className="upload-inline">
-                    <input
-                      type="text"
-                      value={uploadTitle}
-                      onChange={(event) => setUploadTitle(event.target.value)}
-                      placeholder={lang === 'zh' ? '标题（可选）' : 'Title (optional)'}
-                    />
-                    <input
-                      type="url"
-                      value={uploadUrl}
-                      onChange={(event) => setUploadUrl(event.target.value)}
-                      placeholder="https://..."
-                    />
-                    <button type="submit" className="upload-btn">
-                      {lang === 'zh' ? '插入' : 'Insert'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              <small className="upload-help">
-                {lang === 'zh'
-                  ? '支持本地上传到 Cloudflare R2，也支持 Bilibili / 图片外链直接展示。'
-                  : 'Supports local uploads to Cloudflare R2 and direct embedding of Bilibili or image URLs.'}
-              </small>
             </div>
 
             <div className="home-two-column">
@@ -964,18 +964,49 @@ function App() {
             <div className="split-grid single-panel">
               <div className="mini-panel">
                 <div className="mini-header">
-                  <h3>{t.taskBoard}</h3>
-                  {canEditSection('dad') && <button type="button">+ {lang === 'zh' ? '新任务' : 'New Task'}</button>}
+                  <h3>{lang === 'zh' ? '愿望墙' : 'Wish wall'}</h3>
+                  <button type="button" onClick={() => (isDad ? openWishEditor('yjh') : openWishEditor('爸爸'))}>+ {lang === 'zh' ? '新增愿望' : 'New wish'}</button>
                 </div>
-                {tasks.map((task) => (
-                  <div key={task.title} className="task-item">
-                    <div>
-                      <strong>{task.title}</strong>
-                      <p>{task.detail}</p>
-                    </div>
-                    <span className={task.status === '已完成' ? 'done' : 'pending'}>{task.status}</span>
+                <div className="wish-split-grid">
+                  <div className="wish-column">
+                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
+                    {wishBoard.filter((wish) => wish.author === '爸爸').map((wish) => (
+                      <div key={wish.id} className="task-item">
+                        <div>
+                          <strong>{wish.title}</strong>
+                          <p>{wish.detail}</p>
+                          {wish.response && <small>{wish.response}</small>}
+                        </div>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => {
+                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
+                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
+                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  <div className="wish-column">
+                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
+                    {wishBoard.filter((wish) => wish.author === 'yjh').map((wish) => (
+                      <div key={wish.id} className="task-item">
+                        <div>
+                          <strong>{wish.title}</strong>
+                          <p>{wish.detail}</p>
+                          {wish.response && <small>{wish.response}</small>}
+                        </div>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => {
+                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
+                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
+                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -986,9 +1017,9 @@ function App() {
             <div className="school-two-column">
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '加国校园相册' : 'Campus album'}</h3>
+                  <h3>{lang === 'zh' ? '校园相册' : 'Campus album'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => openEditor('schoolAlbum', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                    <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '照片', title: '', text: '', image: heroImages[0], originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                   </div>
                 </div>
                 <div className="school-album-grid">
@@ -999,7 +1030,7 @@ function App() {
                         <h4>{item.title}</h4>
                         <p>{item.text}</p>
                         <div className="story-actions compact-actions">
-                          <button type="button" className="inline-action" onClick={() => openEditor('schoolAlbum', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                          <button type="button" className="inline-action" onClick={() => openEditor('school', { ...item, type: '照片', originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
                           <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('schoolAlbum', item)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                         </div>
                       </div>
@@ -1010,56 +1041,73 @@ function App() {
 
               <div className="story-column">
                 <div className="section-toolbar">
-                  <h3>{lang === 'zh' ? '加国校园视频' : 'Campus video'}</h3>
+                  <h3>{lang === 'zh' ? '校园故事' : 'Campus story'}</h3>
                   <div className="toolbar-actions">
-                    <button type="button" className="section-editor" onClick={() => openEditor('schoolVideo', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                    <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '文字', title: '', text: '', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                   </div>
                 </div>
-                <div className="school-video-panel">
-                  <form className="video-upload-form" onSubmit={(event) => {
-                    event.preventDefault();
-                    const videoUrl = event.currentTarget.videoUrl.value.trim();
-                    if (!videoUrl) return;
-                    setSchoolVideos((current) => [{ title: '新增记录', url: videoUrl, type: 'bilibili' }, ...current]);
-                    event.currentTarget.reset();
-                  }}>
-                    <input type="url" name="videoUrl" placeholder="https://www.bilibili.com/video/..." />
-                    <button type="submit">{lang === 'zh' ? '插入 B站链接' : 'Add Bilibili link'}</button>
-                  </form>
-
-                  <label className="upload-inline upload-inline-compact">
-                    <span>{lang === 'zh' ? '本地上传' : 'Local upload'}</span>
-                    <input type="file" accept="video/*" onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
-                      const form = new FormData();
-                      form.append('file', file);
-                      form.append('title', file.name);
-                      const res = await fetch('/api/media', { method: 'POST', body: form });
-                      const data = await res.json();
-                      if (data.success && data.url) {
-                        setSchoolVideos((current) => [{ title: file.name, url: data.url, type: 'local' }, ...current]);
-                      }
-                      event.target.value = '';
-                    }} />
-                  </label>
-
-                  <div className="school-video-list">
-                    {schoolVideos.map((item) => (
-                      <div key={`${item.title}-${item.url}`} className="video-list-item">
-                        <div className="video-list-badge">{item.type === 'bilibili' ? 'B站' : '本地'}</div>
-                        <div className="video-list-copy">
-                          <strong>{item.title}</strong>
-                          <small>{item.url}</small>
-                        </div>
-                        <div className="video-list-tools">
-                          <button type="button" className="inline-action" onClick={() => openEditor('schoolVideo', { ...item, originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
-                          <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('schoolVideo', item)}>{lang === 'zh' ? '删' : 'Del'}</button>
-                          <button type="button" onClick={() => window.open(toEmbedUrl(item.url), '_blank', 'noopener,noreferrer')}>{lang === 'zh' ? '播放' : 'Play'}</button>
-                        </div>
+                <div className="school-video-list">
+                  {schoolStories.map((item) => (
+                    <div key={item.title} className="video-list-item">
+                      <div className="video-list-copy">
+                        <strong>{item.title}</strong>
+                        <small>{item.text}</small>
                       </div>
-                    ))}
+                      <div className="video-list-tools">
+                        <button type="button" className="inline-action" onClick={() => openEditor('school', { ...item, type: '文字', originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                        <button type="button" className="inline-action danger" onClick={() => setSchoolStories((current) => current.filter((entry) => entry.title !== item.title))}>{lang === 'zh' ? '删' : 'Del'}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="school-two-column" style={{ marginTop: '18px' }}>
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '校园声音' : 'Campus sound'}</h3>
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '音频', title: '', url: 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                   </div>
+                </div>
+                <div className="school-video-list">
+                  {schoolAudios.map((item) => (
+                    <div key={item.title} className="video-list-item">
+                      <div className="video-list-copy">
+                        <strong>{item.title}</strong>
+                        <audio controls src={item.url} style={{ width: '100%', marginTop: '8px' }} />
+                      </div>
+                      <div className="video-list-tools">
+                        <button type="button" className="inline-action" onClick={() => openEditor('school', { ...item, type: '音频', originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                        <button type="button" className="inline-action danger" onClick={() => setSchoolAudios((current) => current.filter((entry) => entry.title !== item.title))}>{lang === 'zh' ? '删' : 'Del'}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="story-column">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '校园视频' : 'Campus video'}</h3>
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => openEditor('school', { type: '视频', title: '', url: 'https://www.bilibili.com/', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                  </div>
+                </div>
+                <div className="school-video-list">
+                  {schoolVideos.map((item) => (
+                    <div key={`${item.title}-${item.url}`} className="video-list-item">
+                      <div className="video-list-copy">
+                        <strong>{item.title}</strong>
+                        <small>{item.url}</small>
+                      </div>
+                      <div className="video-list-tools">
+                        <button type="button" className="inline-action" onClick={() => openEditor('school', { ...item, type: '视频', originalTitle: item.title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                        <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('schoolVideo', item)}>{lang === 'zh' ? '删' : 'Del'}</button>
+                        <button type="button" onClick={() => window.open(toEmbedUrl(item.url), '_blank', 'noopener,noreferrer')}>{lang === 'zh' ? '播放' : 'Play'}</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1071,7 +1119,7 @@ function App() {
             <div className="section-toolbar">
               <h3>{lang === 'zh' ? '健康生活' : 'Healthy living'}</h3>
               <div className="toolbar-actions">
-                <button type="button" className="section-editor" onClick={() => openEditor('health', null, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                <button type="button" className="section-editor" onClick={() => openEditor('health', { type: '文字', title: '', text: '', icon: 'Heart', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
               </div>
             </div>
             <div className="card-grid three-up compact">
@@ -1081,7 +1129,7 @@ function App() {
                   <h3>{title}</h3>
                   <p>{text}</p>
                   <div className="story-actions compact-actions">
-                    <button type="button" className="inline-action" onClick={() => openEditor('health', { title, text, icon: Icon?.displayName || 'Heart', originalTitle: title }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                    <button type="button" className="inline-action" onClick={() => openEditor('health', { title, text, icon: Icon?.displayName || 'Heart', originalTitle: title, type: '文字' }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
                     <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('health', { title, text, icon: Icon })}>{lang === 'zh' ? '删除' : 'Delete'}</button>
                   </div>
                 </article>
@@ -1203,6 +1251,23 @@ function App() {
                 <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={5} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
                 <label className="full"><span>{lang === 'zh' ? '图片/视频链接' : 'Media URL'}</span><input value={editor.item.mediaUrl || ''} onChange={(event) => updateEditorField('mediaUrl', event.target.value)} /></label>
+              </div>
+            )}
+
+            {editor.section === 'school' && (
+              <div className="editor-grid">
+                <label><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={editor.item.type || '照片'} onChange={(event) => updateEditorField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="音频">音频</option><option value="视频">视频</option></select></label>
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '说明' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                {(editor.item.type === '照片' || editor.item.type === '图片') && (
+                  <label className="full"><span>{lang === 'zh' ? '图片链接' : 'Image URL'}</span><input value={editor.item.image || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('image', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
+                )}
+                {(editor.item.type === '音频' || editor.item.type === 'audio') && (
+                  <label className="full"><span>{lang === 'zh' ? '音频链接' : 'Audio URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
+                )}
+                {(editor.item.type === '视频' || editor.item.type === 'video') && (
+                  <label className="full"><span>{lang === 'zh' ? '视频链接' : 'Video URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} /></label>
+                )}
               </div>
             )}
 
