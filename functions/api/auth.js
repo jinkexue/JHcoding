@@ -19,7 +19,8 @@ function normalizeUserRole(role) {
     const value = String(role || '').trim();
     if (value === 'game_admin') return 'daughter';
     if (value === 'system_admin') return 'admin';
-    if (value === 'father' || value === 'daughter' || value === 'admin' || value === 'member') return value;
+    if (value === 'father' || value === 'dad') return 'dad';
+    if (value === 'daughter' || value === 'admin' || value === 'member') return value;
     return 'member';
 }
 
@@ -506,7 +507,7 @@ async function getSession(db, request, body = {}) {
 
 function requireAnyAdmin(session, fn) {
     const role = normalizeUserRole(session.user.role);
-    if (!['game_admin', 'system_admin', 'admin', 'father', 'daughter'].includes(role) && !['admin', 'father', 'daughter'].includes(role)) {
+    if (!['admin', 'dad', 'daughter'].includes(role)) {
         return json({ success: false, error: '只有管理员可以操作。' }, 403);
     }
     return fn();
@@ -514,13 +515,13 @@ function requireAnyAdmin(session, fn) {
 
 function requireSystemAdmin(session, fn) {
     const role = normalizeUserRole(session.user.role);
-    if (!['system_admin', 'admin'].includes(role)) return json({ success: false, error: '只有系统管理员可以操作。' }, 403);
+    if (role !== 'admin') return json({ success: false, error: '只有系统管理员可以操作。' }, 403);
     return fn();
 }
 
 function requireMember(session, fn) {
     const role = normalizeUserRole(session.user.role);
-    if (!['member', 'daughter', 'father', 'admin'].includes(role)) return json({ success: false, error: '只有注册会员可以操作。' }, 403);
+    if (!['member', 'daughter', 'dad', 'admin'].includes(role)) return json({ success: false, error: '只有注册会员可以操作。' }, 403);
     return fn();
 }
 
