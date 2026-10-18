@@ -15,6 +15,14 @@ const FEATURED_OWNER_PASSWORD = '123456';
 const FEATURED_OWNER_DISPLAY = 'yjh@sivani.net';
 const MAX_MEMBER_CARDS = 3;
 
+function normalizeUserRole(role) {
+    const value = String(role || '').trim();
+    if (value === 'game_admin') return 'daughter';
+    if (value === 'system_admin') return 'admin';
+    if (value === 'father' || value === 'daughter' || value === 'admin' || value === 'member') return value;
+    return 'member';
+}
+
 const DEFAULT_SETTINGS = {
     signup_bonus_points: '200',
     ai_create_cost: '100',
@@ -321,24 +329,61 @@ export async function migrateBuiltinOverridesToFeaturedOwner(db, kv) {
 }
 
 async function migrateDb(db) {
-    const migrations = [
+    const info = await db.prepare('PRAGMA table_info(users)').all();
+    const columns = new Set((info.results || []).map(row => row.name));
+
+    const userMigrations = [
+        ['password', 'ALTER TABLE users ADD COLUMN password TEXT DEFAULT \'\''],
+        ['points', 'ALTER TABLE users ADD COLUMN points INTEGER NOT NULL DEFAULT 0'],
+        ['updated_at', 'ALTER TABLE users ADD COLUMN updated_at TEXT DEFAULT \'\''],
+        ['last_login_at', 'ALTER TABLE users ADD COLUMN last_login_at TEXT DEFAULT \'\''],
+        ['password_hash', 'ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT \'\'']
+    ];
+
+    for (const [columnName, sql] of userMigrations) {
+        if (columns.has(columnName)) continue;
+        try {
+            await db.prepare(sql).run();
+            columns.add(columnName);
+        } catch (error) {
+            // 某些旧表/字段已在之前的迁移中存在,忽略继续
+        }
+    }
+
+    const passwordSyncSql = `
+        UPDATE users
+        SET password = COALESCE(password, password_hash),
+            password_hash = COALESCE(password_hash, password),
+            updated_at = COALESCE(updated_at, created_at, datetime('now')),
+            points = COALESCE(points, 0)
+        WHERE (COALESCE(password, '') = '' OR COALESCE(password_hash, '') = '')
+           OR COALESCE(points, 0) = 0
+    `;
+    try {
+        await db.prepare(passwordSyncSql).run();
+    } catch (error) {
+        // 兼容旧表结构且失败时不阻塞主流程
+    }
+
+    const playMigrations = [
         'ALTER TABLE game_plays ADD COLUMN play_key TEXT DEFAULT \'\''
     ];
-    for (const sql of migrations) {
+    for (const sql of playMigrations) {
         try { await db.prepare(sql).run(); } catch (error) { /* 字段已存在时忽略 */ }
     }
 }
 
 async function seedUser(db, username, password, role, displayName, points) {
     const now = new Date().toISOString();
+    const normalizedRole = normalizeUserRole(role);
     const existing = await db.prepare('SELECT id, role, password, display_name FROM users WHERE username = ?').bind(username).first();
     if (existing) {
         await db.prepare('UPDATE users SET role = ?, password = ?, display_name = ?, updated_at = ? WHERE id = ?')
-            .bind(role, password, existing.display_name || displayName, now, existing.id).run();
+            .bind(normalizedRole, password, existing.display_name || displayName, now, existing.id).run();
         return;
     }
     await db.prepare('INSERT INTO users (username, password, role, display_name, points, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .bind(username, password, role, displayName, points, now, now).run();
+        .bind(username, password, normalizedRole, displayName, points, now, now).run();
 }
 
 async function seedFeaturedLeaderboardGames(db) {
@@ -396,7 +441,8 @@ async function login(db, body) {
     const password = String(body.password || '').trim();
     if (!username || !password) return json({ success: false, error: '请输入账号和密码。' }, 400);
     const user = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
-    if (!user || String(user.password || '') !== password) return json({ success: false, error: '账号或密码错误。' }, 403);
+    const storedPassword = user ? (user.password ?? user.password_hash ?? '') : '';
+    if (!user || String(storedPassword || '') !== password) return json({ success: false, error: '账号或密码错误。' }, 403);
     const token = createToken();
     const now = new Date();
     const expires = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -459,17 +505,22 @@ async function getSession(db, request, body = {}) {
 }
 
 function requireAnyAdmin(session, fn) {
-    if (!['game_admin', 'system_admin'].includes(session.user.role)) return json({ success: false, error: '只有管理员可以操作。' }, 403);
+    const role = normalizeUserRole(session.user.role);
+    if (!['game_admin', 'system_admin', 'admin', 'father', 'daughter'].includes(role) && !['admin', 'father', 'daughter'].includes(role)) {
+        return json({ success: false, error: '只有管理员可以操作。' }, 403);
+    }
     return fn();
 }
 
 function requireSystemAdmin(session, fn) {
-    if (session.user.role !== 'system_admin') return json({ success: false, error: '只有系统管理员可以操作。' }, 403);
+    const role = normalizeUserRole(session.user.role);
+    if (!['system_admin', 'admin'].includes(role)) return json({ success: false, error: '只有系统管理员可以操作。' }, 403);
     return fn();
 }
 
 function requireMember(session, fn) {
-    if (session.user.role !== 'member') return json({ success: false, error: '只有注册会员可以操作。' }, 403);
+    const role = normalizeUserRole(session.user.role);
+    if (!['member', 'daughter', 'father', 'admin'].includes(role)) return json({ success: false, error: '只有注册会员可以操作。' }, 403);
     return fn();
 }
 
