@@ -295,6 +295,7 @@ function App() {
   const [lastActivityAt, setLastActivityAt] = useState(Date.now());
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [siteLogo, setSiteLogo] = useState(DEFAULT_SITE_LOGO);
   const [moments, setMoments] = useState(initialMoments);
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadTitle, setUploadTitle] = useState('');
