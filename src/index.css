@@ -322,6 +322,51 @@ button {
   line-height: 1.1;
 }
 
+.admin-manager-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-sidebar,
+.admin-form-card {
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: var(--panel-strong);
+  padding: 14px;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  max-height: 430px;
+  overflow: auto;
+}
+
+.admin-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.05);
+  padding: 10px;
+}
+
+.admin-list-item strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.admin-list-item small {
+  color: var(--text-muted);
+  display: block;
+  margin-top: 2px;
+}
+
 .admin-panel-note {
   padding: 14px 16px;
   border-radius: 14px;
@@ -465,6 +510,10 @@ button {
 
   .editor-grid,
   .qa-form-box {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-manager-layout {
     grid-template-columns: 1fr;
   }
 }

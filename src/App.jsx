@@ -464,6 +464,24 @@ function App() {
     { title: '校园声音', url: 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3', type: '音频' },
   ]);
   const [editor, setEditor] = useState(null);
+  const [adminSection, setAdminSection] = useState('homeStory');
+  const [adminDraft, setAdminDraft] = useState({
+    id: '',
+    author: '爸爸',
+    title: '',
+    text: '',
+    type: '照片',
+    mediaUrl: '',
+    url: '',
+    image: '',
+    href: './snake-game.html',
+    visual: '🎮',
+    accent: 'from-emerald-400 to-lime-300',
+    q: '',
+    a: '',
+    from: '爸爸',
+    sortAt: new Date().toISOString(),
+  });
 
   const t = copy[lang];
   const dadStatus = getCurrentStatus('dad');
@@ -1179,6 +1197,264 @@ function App() {
       ]
     : tabs;
 
+  const makeAdminDraft = (section, item = null) => {
+    const next = {
+      id: item?.id || '',
+      author: item?.author || '爸爸',
+      title: item?.title || '',
+      text: item?.text || item?.detail || '',
+      type: item?.type || '照片',
+      mediaUrl: item?.mediaUrl || item?.image || item?.url || '',
+      url: item?.url || item?.mediaUrl || item?.image || '',
+      image: item?.image || item?.mediaUrl || '',
+      href: item?.href || './snake-game.html',
+      visual: item?.visual || '🎮',
+      accent: item?.accent || 'from-emerald-400 to-lime-300',
+      q: item?.q || '',
+      a: item?.a || '',
+      from: item?.from || '爸爸',
+      sortAt: item?.sortAt || item?.createdAt || new Date().toISOString(),
+    };
+
+    if (section === 'qna') {
+      return {
+        id: item?.id || '',
+        q: item?.q || '',
+        a: item?.a || '',
+        from: item?.from || '爸爸',
+        sortAt: item?.sortAt || item?.createdAt || new Date().toISOString(),
+      };
+    }
+
+    if (section === 'game') {
+      return {
+        id: item?.id || '',
+        title: item?.title || '',
+        href: item?.href || './snake-game.html',
+        visual: item?.visual || '🎮',
+        accent: item?.accent || 'from-emerald-400 to-lime-300',
+        sortAt: item?.sortAt || item?.createdAt || new Date().toISOString(),
+      };
+    }
+
+    if (section === 'health') {
+      return {
+        id: item?.id || '',
+        title: item?.title || '',
+        text: item?.text || '',
+        type: item?.type || '文字',
+        mediaUrl: item?.mediaUrl || item?.url || '',
+        url: item?.url || item?.mediaUrl || '',
+        icon: item?.icon || 'Heart',
+        sortAt: item?.sortAt || item?.createdAt || new Date().toISOString(),
+      };
+    }
+
+    if (section === 'school') {
+      return {
+        id: item?.id || '',
+        title: item?.title || '',
+        text: item?.text || '',
+        type: item?.type || '照片',
+        mediaUrl: item?.mediaUrl || item?.image || item?.url || '',
+        url: item?.url || item?.mediaUrl || item?.image || '',
+        image: item?.image || item?.mediaUrl || '',
+        sortAt: item?.sortAt || item?.createdAt || new Date().toISOString(),
+      };
+    }
+
+    return next;
+  };
+
+  const adminSectionList = useMemo(() => {
+    switch (adminSection) {
+      case 'homeStory':
+        return moments;
+      case 'school':
+        return [
+          ...schoolAlbums.map((item) => ({ ...item, __type: '照片', __section: 'school' })),
+          ...schoolStories.map((item) => ({ ...item, __type: '文字', __section: 'school' })),
+          ...schoolAudios.map((item) => ({ ...item, __type: '音频', __section: 'school' })),
+          ...schoolVideos.map((item) => ({ ...item, __type: '视频', __section: 'school' })),
+        ];
+      case 'health':
+        return healthCardsLocal;
+      case 'game':
+        return gamesLocal;
+      case 'qna':
+        return qaEntries;
+      default:
+        return moments;
+    }
+  }, [adminSection, moments, schoolAlbums, schoolStories, schoolAudios, schoolVideos, healthCardsLocal, gamesLocal, qaEntries]);
+
+  const handleAdminField = (field, value) => {
+    setAdminDraft((current) => ({ ...current, [field]: value }));
+  };
+
+  const resetAdminDraft = (nextSection = adminSection) => {
+    setAdminDraft(makeAdminDraft(nextSection));
+  };
+
+  const saveAdminDraft = async () => {
+    if (!isAdmin) return;
+
+    if (adminSection === 'homeStory') {
+      const item = {
+        id: adminDraft.id || undefined,
+        author: adminDraft.author || '爸爸',
+        type: adminDraft.type || '照片',
+        title: adminDraft.title || '新记录',
+        text: adminDraft.text || '',
+        mediaUrl: adminDraft.mediaUrl || '',
+        mediaType: adminDraft.mediaUrl && hasImageExtension(adminDraft.mediaUrl) ? 'image' : 'video',
+        sortAt: adminDraft.sortAt || new Date().toISOString(),
+      };
+      const saved = await persistFamilySection('homeStory', item, 'save');
+      if (saved) setMoments((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      else setMoments((current) => [item, ...current]);
+      resetAdminDraft('homeStory');
+      return;
+    }
+
+    if (adminSection === 'school') {
+      const type = adminDraft.type || '照片';
+      const payload = {
+        id: adminDraft.id || undefined,
+        type,
+        title: adminDraft.title || '新校园内容',
+        text: adminDraft.text || '',
+        image: adminDraft.image || adminDraft.mediaUrl || '',
+        url: adminDraft.url || adminDraft.mediaUrl || '',
+        mediaUrl: adminDraft.mediaUrl || adminDraft.url || adminDraft.image || '',
+        sortAt: adminDraft.sortAt || new Date().toISOString(),
+      };
+      const saved = await persistFamilySection('school', payload, 'save');
+      if (type === '照片') {
+        const nextAlbum = { title: payload.title, text: payload.text, image: payload.image || payload.mediaUrl || heroImages[0] };
+        setSchoolAlbums((current) => {
+          if (adminDraft.id) return current.map((entry) => entry.title === adminDraft.title ? nextAlbum : entry);
+          return [nextAlbum, ...current];
+        });
+      }
+      if (type === '文字') {
+        const nextStory = { title: payload.title, text: payload.text };
+        setSchoolStories((current) => {
+          if (adminDraft.id) return current.map((entry) => entry.title === adminDraft.title ? nextStory : entry);
+          return [nextStory, ...current];
+        });
+      }
+      if (type === '音频') {
+        const nextAudio = { title: payload.title, url: payload.url || 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3' };
+        setSchoolAudios((current) => {
+          if (adminDraft.id) return current.map((entry) => entry.title === adminDraft.title ? nextAudio : entry);
+          return [nextAudio, ...current];
+        });
+      }
+      if (type === '视频') {
+        const nextVideo = { title: payload.title, url: payload.url || 'https://www.bilibili.com/', type: 'bilibili' };
+        setSchoolVideos((current) => {
+          if (adminDraft.id) return current.map((entry) => entry.title === adminDraft.title ? nextVideo : entry);
+          return [nextVideo, ...current];
+        });
+      }
+      if (saved) {
+        const normalized = normalizeSchoolContent([saved]);
+        if (normalized.albums.length) setSchoolAlbums((current) => [normalized.albums[0], ...current.filter((entry) => entry.title !== normalized.albums[0].title)]);
+        if (normalized.stories.length) setSchoolStories((current) => [normalized.stories[0], ...current.filter((entry) => entry.title !== normalized.stories[0].title)]);
+        if (normalized.audios.length) setSchoolAudios((current) => [normalized.audios[0], ...current.filter((entry) => entry.title !== normalized.audios[0].title)]);
+        if (normalized.videos.length) setSchoolVideos((current) => [normalized.videos[0], ...current.filter((entry) => entry.title !== normalized.videos[0].title)]);
+      }
+      resetAdminDraft('school');
+      return;
+    }
+
+    if (adminSection === 'health') {
+      const item = {
+        id: adminDraft.id || undefined,
+        title: adminDraft.title || '新健康提醒',
+        text: adminDraft.text || '',
+        type: adminDraft.type || '文字',
+        mediaUrl: adminDraft.mediaUrl || '',
+        url: adminDraft.url || adminDraft.mediaUrl || '',
+        icon: adminDraft.icon || 'Heart',
+        sortAt: adminDraft.sortAt || new Date().toISOString(),
+      };
+      const saved = await persistFamilySection('health', item, 'save');
+      if (saved) setHealthCardsLocal((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      else setHealthCardsLocal((current) => [item, ...current]);
+      resetAdminDraft('health');
+      return;
+    }
+
+    if (adminSection === 'game') {
+      const item = {
+        id: adminDraft.id || undefined,
+        title: adminDraft.title || '新游戏',
+        href: adminDraft.href || './snake-game.html',
+        visual: adminDraft.visual || '🎮',
+        accent: adminDraft.accent || 'from-emerald-400 to-lime-300',
+        sortAt: adminDraft.sortAt || new Date().toISOString(),
+      };
+      const saved = await persistFamilySection('game', item, 'save');
+      if (saved) setGamesLocal((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+      else setGamesLocal((current) => [item, ...current]);
+      resetAdminDraft('game');
+      return;
+    }
+
+    if (adminSection === 'qna') {
+      const item = {
+        id: adminDraft.id || undefined,
+        q: adminDraft.q || '新问题',
+        a: adminDraft.a || '待回答',
+        from: adminDraft.from || '爸爸',
+        sortAt: adminDraft.sortAt || new Date().toISOString(),
+      };
+      const saved = await persistFamilySection('qna', item, 'save');
+      const nextItem = normalizeQaEntry({ ...item, ...(saved || {}) });
+      setQaEntries((current) => [nextItem, ...current.filter((entry) => entry.id !== nextItem.id)]);
+      resetAdminDraft('qna');
+      return;
+    }
+  };
+
+  const deleteAdminDraft = async (target) => {
+    if (!isAdmin) return;
+    if (adminSection === 'homeStory') {
+      await deleteSectionItem('homeStory', target);
+      resetAdminDraft('homeStory');
+      return;
+    }
+    if (adminSection === 'school') {
+      await deleteSectionItem('school', target);
+      resetAdminDraft('school');
+      return;
+    }
+    if (adminSection === 'health') {
+      await deleteSectionItem('health', target);
+      resetAdminDraft('health');
+      return;
+    }
+    if (adminSection === 'game') {
+      await deleteSectionItem('game', target);
+      resetAdminDraft('game');
+      return;
+    }
+    if (adminSection === 'qna') {
+      await deleteSectionItem('qna', target);
+      resetAdminDraft('qna');
+    }
+  };
+
+  const adminSectionOptions = [
+    { value: 'homeStory', label: lang === 'zh' ? '首页记录' : 'Home stories' },
+    { value: 'school', label: lang === 'zh' ? '认识社会' : 'Social learning' },
+    { value: 'health', label: lang === 'zh' ? '健康生活' : 'Healthy living' },
+    { value: 'game', label: lang === 'zh' ? '游戏乐园' : 'Game corner' },
+    { value: 'qna', label: lang === 'zh' ? '父女问答' : 'Q&A' },
+  ];
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1576,6 +1852,7 @@ function App() {
                 </button>
               </div>
             </div>
+
             <div className="admin-grid">
               <div className="admin-stat-card">
                 <span>{lang === 'zh' ? '首页记录' : 'Home stories'}</span>
@@ -1594,8 +1871,97 @@ function App() {
                 <strong>{qaEntries.length}</strong>
               </div>
             </div>
+
             <div className="admin-panel-note">
               <p>{lang === 'zh' ? '备注：该后台用于系统和内容管理；如需更新最新数据库内容，可点击“同步数据库”。' : 'Note: This dashboard is for system and content management. Use “Sync database” to refresh the latest records.'}</p>
+            </div>
+
+            <div className="admin-manager-layout">
+              <div className="admin-sidebar">
+                <label className="full">
+                  <span>{lang === 'zh' ? '模块' : 'Module'}</span>
+                  <select value={adminSection} onChange={(event) => { setAdminSection(event.target.value); resetAdminDraft(event.target.value); }}>
+                    {adminSectionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="admin-list">
+                  {adminSectionList.map((item, index) => (
+                    <div key={`${adminSection}-${item.id || item.title || index}`} className="admin-list-item">
+                      <div>
+                        <strong>{item.title || item.q || item.name || `Item ${index + 1}`}</strong>
+                        <small>{item.type || item.from || (adminSection === 'game' ? '游戏' : '内容')}</small>
+                      </div>
+                      <div className="story-actions compact-actions">
+                        <button type="button" className="inline-action" onClick={() => { setAdminDraft(makeAdminDraft(adminSection, item)); }}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                        <button type="button" className="inline-action danger" onClick={() => deleteAdminDraft(item)}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="admin-form-card">
+                <div className="section-toolbar">
+                  <h3>{lang === 'zh' ? '内容表单' : 'Content form'}</h3>
+                  <div className="toolbar-actions">
+                    <button type="button" className="section-editor" onClick={() => resetAdminDraft(adminSection)}>{lang === 'zh' ? '新建' : 'New'}</button>
+                  </div>
+                </div>
+
+                {adminSection === 'homeStory' && (
+                  <div className="editor-grid">
+                    <label className="full"><span>{lang === 'zh' ? '作者' : 'Author'}</span><input value={adminDraft.author || ''} onChange={(event) => handleAdminField('author', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={adminDraft.type || '照片'} onChange={(event) => handleAdminField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="音频">音频</option><option value="视频">视频</option></select></label>
+                    <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={adminDraft.title || ''} onChange={(event) => handleAdminField('title', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={4} value={adminDraft.text || ''} onChange={(event) => handleAdminField('text', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '媒体链接' : 'Media URL'}</span><input value={adminDraft.mediaUrl || ''} onChange={(event) => handleAdminField('mediaUrl', event.target.value)} placeholder="https://..." /></label>
+                  </div>
+                )}
+
+                {adminSection === 'school' && (
+                  <div className="editor-grid">
+                    <label className="full"><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={adminDraft.type || '照片'} onChange={(event) => handleAdminField('type', event.target.value)}><option value="照片">照片</option><option value="文字">文字</option><option value="音频">音频</option><option value="视频">视频</option></select></label>
+                    <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={adminDraft.title || ''} onChange={(event) => handleAdminField('title', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={4} value={adminDraft.text || ''} onChange={(event) => handleAdminField('text', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '图片/媒体链接' : 'Image/media URL'}</span><input value={adminDraft.mediaUrl || adminDraft.url || adminDraft.image || ''} onChange={(event) => { handleAdminField('mediaUrl', event.target.value); handleAdminField('url', event.target.value); handleAdminField('image', event.target.value); }} placeholder="https://..." /></label>
+                  </div>
+                )}
+
+                {adminSection === 'health' && (
+                  <div className="editor-grid">
+                    <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={adminDraft.title || ''} onChange={(event) => handleAdminField('title', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={4} value={adminDraft.text || ''} onChange={(event) => handleAdminField('text', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '类型' : 'Type'}</span><select value={adminDraft.type || '文字'} onChange={(event) => handleAdminField('type', event.target.value)}><option value="文字">文字</option><option value="照片">照片</option><option value="音频">音频</option><option value="视频">视频</option></select></label>
+                    <label className="full"><span>{lang === 'zh' ? '图标' : 'Icon'}</span><select value={adminDraft.icon || 'Heart'} onChange={(event) => handleAdminField('icon', event.target.value)}>{Object.keys(healthIconMap).map((key) => <option key={key} value={key}>{key}</option>)}</select></label>
+                    <label className="full"><span>{lang === 'zh' ? '媒体链接' : 'Media URL'}</span><input value={adminDraft.mediaUrl || adminDraft.url || ''} onChange={(event) => { handleAdminField('mediaUrl', event.target.value); handleAdminField('url', event.target.value); }} placeholder="https://..." /></label>
+                  </div>
+                )}
+
+                {adminSection === 'game' && (
+                  <div className="editor-grid">
+                    <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={adminDraft.title || ''} onChange={(event) => handleAdminField('title', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={adminDraft.href || ''} onChange={(event) => handleAdminField('href', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '图标' : 'Icon'}</span><input value={adminDraft.visual || '🎮'} onChange={(event) => handleAdminField('visual', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '样式' : 'Style'}</span><select value={adminDraft.accent || 'from-emerald-400 to-lime-300'} onChange={(event) => handleAdminField('accent', event.target.value)}><option value="from-emerald-400 to-lime-300">绿色</option><option value="from-amber-400 to-yellow-300">黄色</option><option value="from-sky-400 to-cyan-300">蓝色</option><option value="from-violet-400 to-fuchsia-300">紫色</option></select></label>
+                  </div>
+                )}
+
+                {adminSection === 'qna' && (
+                  <div className="editor-grid">
+                    <label className="full"><span>{lang === 'zh' ? '发布者' : 'Author'}</span><select value={adminDraft.from || '爸爸'} onChange={(event) => handleAdminField('from', event.target.value)}><option value="爸爸">爸爸</option><option value="yjh">yjh</option></select></label>
+                    <label className="full"><span>{lang === 'zh' ? '提问' : 'Question'}</span><textarea rows={3} value={adminDraft.q || ''} onChange={(event) => handleAdminField('q', event.target.value)} /></label>
+                    <label className="full"><span>{lang === 'zh' ? '回答摘要' : 'Answer summary'}</span><textarea rows={3} value={adminDraft.a || ''} onChange={(event) => handleAdminField('a', event.target.value)} /></label>
+                  </div>
+                )}
+
+                <div className="editor-actions">
+                  <button type="button" className="qa-submit-btn" onClick={saveAdminDraft}>{lang === 'zh' ? '保存' : 'Save'}</button>
+                  <button type="button" className="qa-cancel-btn" onClick={() => resetAdminDraft(adminSection)}>{lang === 'zh' ? '重置' : 'Reset'}</button>
+                </div>
+              </div>
             </div>
           </section>
         )}
