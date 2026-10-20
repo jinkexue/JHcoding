@@ -14,6 +14,8 @@ import {
   LogOut,
   MessageCircle,
   School,
+  Settings2,
+  ShieldCheck,
   Sparkles,
   Stethoscope,
   SunMedium,
@@ -270,9 +272,36 @@ function MediaFrame({ url, title, type }) {
 }
 
 const qnaPairs = [
-  { q: '为什么加拿大的树叶会在秋天变红？', a: '因为很多树会把叶绿素变少，而橙黄红色的色素显现出来，像在给大地换衣服。', from: '爸爸' },
-  { q: '为什么小朋友也可以有自己的节奏？', a: '因为每个人的成长方式不同，慢一点不等于落后，反而更容易开心地成长。', from: 'yjh' },
+  { q: '为什么加拿大的树叶会在秋天变红？', a: '因为很多树会把叶绿素变少，而橙黄红色的色素显现出来，像在给大地换衣服。', from: '爸爸', replies: [{ author: '爸爸', text: '因为很多树会把叶绿素变少，而橙黄红色的色素显现出来，像在给大地换衣服。', createdAt: new Date().toISOString() }] },
+  { q: '为什么小朋友也可以有自己的节奏？', a: '因为每个人的成长方式不同，慢一点不等于落后，反而更容易开心地成长。', from: 'yjh', replies: [{ author: 'yjh', text: '因为每个人的成长方式不同，慢一点不等于落后，反而更容易开心地成长。', createdAt: new Date().toISOString() }] },
 ];
+
+function normalizeQaEntry(entry = {}) {
+  const question = String(entry.q || entry.question || '新问题').trim() || '新问题';
+  const answer = String(entry.a || entry.answer || '').trim();
+  const replies = Array.isArray(entry.replies) ? entry.replies.map((reply) => ({
+    author: reply.author || entry.from || '爸爸',
+    text: String(reply.text || '').trim(),
+    createdAt: reply.createdAt || new Date().toISOString(),
+  })).filter((reply) => reply.text) : [];
+
+  if (answer && !replies.some((reply) => reply.text === answer)) {
+    replies.push({ author: entry.from || '爸爸', text: answer, createdAt: entry.sortAt || new Date().toISOString() });
+  }
+
+  return {
+    ...entry,
+    q: question,
+    a: answer || (replies.length ? replies[replies.length - 1].text : '待回答'),
+    replies,
+    from: entry.from || '爸爸',
+    sortAt: entry.sortAt || entry.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeQaList(entries = []) {
+  return entries.map(normalizeQaEntry).sort((left, right) => new Date(right.sortAt).getTime() - new Date(left.sortAt).getTime());
+}
 
 const tasks = [
   { title: '想看松鼠', detail: '爸爸去山里找松鼠，带回来一个小故事。', status: '已完成', owner: 'yjh' },
@@ -426,7 +455,7 @@ function App() {
     }
     return games;
   });
-  const [qaEntries, setQaEntries] = useState(qnaPairs);
+  const [qaEntries, setQaEntries] = useState(() => normalizeQaList(qnaPairs));
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
   const [schoolStories, setSchoolStories] = useState([
     { title: '校园故事', text: '今天老师让我们和同学一起做小海报，大家都很认真，气氛特别温暖。', type: '文字' },
@@ -542,9 +571,41 @@ function App() {
       } else {
         setGamesLocal(games);
       }
-      if (Array.isArray(sections.qna)) setQaEntries(sections.qna);
+      if (Array.isArray(sections.qna)) setQaEntries(normalizeQaList(sections.qna));
     } catch (error) {
       console.error('Failed to load family content', error);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  };
+
+  const syncFamilyContent = async () => {
+    setIsLoadingContent(true);
+    try {
+      const response = await fetch('/api/content');
+      const payload = await response.json();
+      if (!response.ok || !payload.success || !payload.sections) {
+        throw new Error(payload.error || '数据库同步失败');
+      }
+
+      const sections = payload.sections;
+      if (Array.isArray(sections.homeStory)) setMoments(sections.homeStory);
+      if (Array.isArray(sections.schoolAlbum)) setSchoolAlbums(sections.schoolAlbum);
+      if (Array.isArray(sections.schoolVideo)) setSchoolVideos(sections.schoolVideo);
+      if (Array.isArray(sections.school)) {
+        const normalized = normalizeSchoolContent(sections.school);
+        if (normalized.albums.length) setSchoolAlbums(normalized.albums);
+        if (normalized.stories.length) setSchoolStories(normalized.stories);
+        if (normalized.audios.length) setSchoolAudios(normalized.audios);
+        if (normalized.videos.length) setSchoolVideos(normalized.videos);
+      }
+      if (Array.isArray(sections.health)) setHealthCardsLocal(sections.health.map((item) => ({ ...item, icon: healthIconMap[item.icon] || Heart })));
+      if (Array.isArray(sections.game) && sections.game.length > 0) setGamesLocal(sections.game);
+      if (Array.isArray(sections.qna)) setQaEntries(normalizeQaList(sections.qna));
+      alert(lang === 'zh' ? '数据库已同步到当前页面。' : 'The database has been synced to the current page.');
+    } catch (error) {
+      console.error('Failed to sync content', error);
+      alert(error.message || '同步失败');
     } finally {
       setIsLoadingContent(false);
     }
@@ -1003,22 +1064,38 @@ function App() {
 
   const saveQa = async () => {
     if (!qaDraft.question.trim()) return;
+    const currentTime = new Date().toISOString();
     const pair = {
       q: qaDraft.question.trim(),
       a: qaDraft.answer.trim() || (qaMode === 'answer' ? '待回答' : '待补充'),
       from: qaDraft.from || (isDad ? '爸爸' : 'yjh'),
-      sortAt: new Date().toISOString(),
+      sortAt: currentTime,
     };
 
     const saved = await persistFamilySection('qna', pair, 'save');
 
     if (qaMode === 'answer') {
       setQaEntries((current) => {
-        const next = current.map((entry) => entry.q === qaDraft.question ? { ...entry, a: pair.a, from: pair.from } : entry);
-        return next;
+        const targetQuestion = qaDraft.question.trim();
+        const next = current.map((entry) => {
+          if (entry.q !== targetQuestion && entry.q !== qaDraft.question) return entry;
+          const nextReplies = Array.isArray(entry.replies) ? [...entry.replies] : [];
+          const nextAnswer = pair.a || '待回答';
+          nextReplies.push({ author: pair.from, text: nextAnswer, createdAt: currentTime });
+          return normalizeQaEntry({
+            ...entry,
+            q: entry.q,
+            a: nextAnswer,
+            from: pair.from,
+            sortAt: currentTime,
+            replies: nextReplies,
+          });
+        });
+        return normalizeQaList(next.length ? next : [pair]);
       });
     } else {
-      setQaEntries((current) => saved ? [saved, ...current.filter((entry) => entry.id !== saved.id)] : [pair, ...current]);
+      const nextItem = normalizeQaEntry({ ...pair, replies: [{ author: pair.from, text: pair.a, createdAt: currentTime }] });
+      setQaEntries((current) => saved ? normalizeQaList([nextItem, ...current.filter((entry) => entry.id !== saved.id)]) : normalizeQaList([nextItem, ...current]));
     }
 
     setQaFormOpen(false);
@@ -1089,7 +1166,18 @@ function App() {
     school: t.school,
     health: t.health,
     games: t.games,
+    admin: isAdmin ? '系统后台' : 'Admin',
   };
+
+  const mainTabs = isAdmin
+    ? [
+        { key: 'home', icon: Home },
+        { key: 'school', icon: School },
+        { key: 'health', icon: Stethoscope },
+        { key: 'games', icon: Gamepad2 },
+        { key: 'admin', icon: ShieldCheck },
+      ]
+    : tabs;
 
   return (
     <div className="app-shell">
@@ -1105,7 +1193,7 @@ function App() {
         </div>
 
         <nav className="tab-bar" aria-label="Main navigation">
-          {tabs.map(({ key, icon: Icon }) => (
+          {mainTabs.map(({ key, icon: Icon }) => (
             <button
               key={key}
               type="button"
@@ -1477,6 +1565,40 @@ function App() {
             </div>
           </section>
         )}
+
+        {isAdmin && activeTab === 'admin' && (
+          <section className="page-block admin-panel">
+            <div className="section-toolbar">
+              <h3>{lang === 'zh' ? '系统管理员后台' : 'System admin dashboard'}</h3>
+              <div className="toolbar-actions">
+                <button type="button" className="section-editor" onClick={syncFamilyContent}>
+                  {lang === 'zh' ? '同步数据库' : 'Sync database'}
+                </button>
+              </div>
+            </div>
+            <div className="admin-grid">
+              <div className="admin-stat-card">
+                <span>{lang === 'zh' ? '首页记录' : 'Home stories'}</span>
+                <strong>{moments.length}</strong>
+              </div>
+              <div className="admin-stat-card">
+                <span>{lang === 'zh' ? '认识社会' : 'Social learning'}</span>
+                <strong>{schoolAlbums.length + schoolStories.length + schoolAudios.length + schoolVideos.length}</strong>
+              </div>
+              <div className="admin-stat-card">
+                <span>{lang === 'zh' ? '健康生活' : 'Healthy living'}</span>
+                <strong>{healthCardsLocal.length}</strong>
+              </div>
+              <div className="admin-stat-card">
+                <span>{lang === 'zh' ? '父女问答' : 'Q&A'}</span>
+                <strong>{qaEntries.length}</strong>
+              </div>
+            </div>
+            <div className="admin-panel-note">
+              <p>{lang === 'zh' ? '备注：该后台用于系统和内容管理；如需更新最新数据库内容，可点击“同步数据库”。' : 'Note: This dashboard is for system and content management. Use “Sync database” to refresh the latest records.'}</p>
+            </div>
+          </section>
+        )}
       </main>
 
       <div className="qa-floating">
@@ -1492,6 +1614,26 @@ function App() {
             <div className="qa-actions-row">
               <button type="button" className="qa-mini-btn" onClick={() => { setQaMode('question'); setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: '', answer: '' }); setQaFormOpen(true); }}>{lang === 'zh' ? '提问' : 'Ask'}</button>
               <button type="button" className="qa-mini-btn" onClick={() => { setQaMode('answer'); setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: qaEntries[0]?.q || '', answer: '' }); setQaFormOpen(true); }}>{lang === 'zh' ? '回答' : 'Answer'}</button>
+            </div>
+            <div className="qa-list-ordered">
+              {qaEntries.map((entry, index) => (
+                <div key={`${entry.q}-${index}`} className="qa-thread-item">
+                  <div className="qa-thread-index">#{index + 1}</div>
+                  <div className="qa-thread-body">
+                    <p><strong>{entry.from || '爸爸'}：</strong> {entry.q}</p>
+                    <p className="qa-summary"><span>{lang === 'zh' ? '回答摘要' : 'Answer summary'}：</span> {entry.a || (lang === 'zh' ? '待回答' : 'Waiting for answer')}</p>
+                    {Array.isArray(entry.replies) && entry.replies.length > 1 && (
+                      <div className="qa-replies">
+                        {entry.replies.slice(-2).map((reply, replyIndex) => (
+                          <div key={`${reply.author}-${replyIndex}`} className="qa-reply">
+                            <span>{reply.author || '爸爸'}：</span> {reply.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
             {qaFormOpen && (
               <div className="qa-form-box">

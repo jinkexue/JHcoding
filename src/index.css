@@ -51,6 +51,77 @@
   --brand-3: #38bdf8;
 }
 
+:root[data-theme='dark'] body,
+:root[data-theme='dark'] .app-shell,
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .content-panel,
+:root[data-theme='dark'] .hero-card,
+:root[data-theme='dark'] .quote-panel,
+:root[data-theme='dark'] .story-card,
+:root[data-theme='dark'] .mini-panel,
+:root[data-theme='dark'] .feature-card,
+:root[data-theme='dark'] .video-card,
+:root[data-theme='dark'] .login-shell,
+:root[data-theme='dark'] .login-panel,
+:root[data-theme='dark'] .auth-form,
+:root[data-theme='dark'] .editor-modal,
+:root[data-theme='dark'] .qa-panel,
+:root[data-theme='dark'] .admin-stat-card,
+:root[data-theme='dark'] .admin-panel-note {
+  background-color: var(--panel-strong);
+  color: var(--text-main);
+}
+
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .content-panel,
+:root[data-theme='dark'] .hero-card,
+:root[data-theme='dark'] .quote-panel,
+:root[data-theme='dark'] .story-card,
+:root[data-theme='dark'] .mini-panel,
+:root[data-theme='dark'] .feature-card,
+:root[data-theme='dark'] .video-card,
+:root[data-theme='dark'] .editor-modal,
+:root[data-theme='dark'] .qa-panel,
+:root[data-theme='dark'] .admin-stat-card,
+:root[data-theme='dark'] .admin-panel-note {
+  border-color: var(--panel-border);
+}
+
+:root[data-theme='dark'] .tab,
+:root[data-theme='dark'] .ghost-btn,
+:root[data-theme='dark'] .inline-action,
+:root[data-theme='dark'] .section-editor,
+:root[data-theme='dark'] .qa-mini-btn,
+:root[data-theme='dark'] .qa-cancel-btn,
+:root[data-theme='dark'] .mini-header button,
+:root[data-theme='dark'] .auth-form input,
+:root[data-theme='dark'] .qa-form-box textarea,
+:root[data-theme='dark'] .qa-form-box select,
+:root[data-theme='dark'] .editor-grid input,
+:root[data-theme='dark'] .editor-grid textarea,
+:root[data-theme='dark'] .editor-grid select {
+  background: var(--input-bg);
+  color: var(--text-main);
+  border-color: var(--panel-border);
+}
+
+:root[data-theme='dark'] .brand-group strong,
+:root[data-theme='dark'] .login-panel h1,
+:root[data-theme='dark'] .brand-group small,
+:root[data-theme='dark'] .role-tag,
+:root[data-theme='dark'] .tab,
+:root[data-theme='dark'] .ghost-btn,
+:root[data-theme='dark'] .story-card h4,
+:root[data-theme='dark'] .feature-card h3,
+:root[data-theme='dark'] .mini-panel h3,
+:root[data-theme='dark'] .mini-panel h4,
+:root[data-theme='dark'] .video-list-copy strong,
+:root[data-theme='dark'] .qa-panel-header strong,
+:root[data-theme='dark'] .admin-stat-card strong,
+:root[data-theme='dark'] .admin-panel-note p {
+  color: var(--text-main);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -156,6 +227,111 @@ button {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.qa-list-ordered {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 270px;
+  overflow: auto;
+}
+
+.qa-thread-item {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.qa-thread-index {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(59, 130, 246, 0.2));
+  color: var(--text-main);
+  font-weight: 800;
+  font-size: 0.72rem;
+}
+
+.qa-thread-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.qa-thread-body p {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--text-main);
+}
+
+.qa-summary {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+
+.qa-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--text-soft);
+}
+
+.qa-reply {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.admin-panel {
+  gap: 18px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.admin-stat-card span {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+}
+
+.admin-stat-card strong {
+  font-size: 1.8rem;
+  line-height: 1.1;
+}
+
+.admin-panel-note {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+}
+
+.admin-panel-note p {
+  margin: 0;
+  color: var(--text-main);
 }
 
 .qa-panel-header {
