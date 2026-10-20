@@ -1121,64 +1121,6 @@ function App() {
     setQaDraft({ from: isDad ? '爸爸' : 'yjh', question: '', answer: '' });
   };
 
-  if (!isLoggedIn) {
-    return (
-      <div className="login-shell">
-        <div className="login-panel">
-          <div className="leaf-badge" aria-label="Site logo">
-            {siteLogo ? <img src={siteLogo} alt="site logo" className="logo-image" /> : <span>🇨🇦</span>}
-          </div>
-          <h1>{t.title}</h1>
-          {sessionLocked && (
-            <p className="login-lock-note">
-              {lang === 'zh'
-                ? '页面已自动锁定，请在 5 分钟内操作，或重新登录后再继续查看。'
-                : 'This session was locked for safety. Please sign in again to continue.'}
-            </p>
-          )}
-
-          {!showAuthForm && (
-            <button type="button" className="primary-btn" onClick={openLogin}>
-              {t.loginBase}
-            </button>
-          )}
-
-          {showAuthForm && (
-            <div className="auth-form">
-              <label>
-                <span>{lang === 'zh' ? '用户名' : 'Username'}</span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder={lang === 'zh' ? '输入用户名' : 'Enter username'}
-                />
-              </label>
-
-              <label>
-                <span>{lang === 'zh' ? '密码' : 'Password'}</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={lang === 'zh' ? '请输入密码' : 'Enter password'}
-                />
-              </label>
-
-              <button type="button" className="submit-btn" onClick={login} disabled={!username || !password}>
-                {lang === 'zh' ? '登录基地' : 'Login base'}
-              </button>
-            </div>
-          )}
-
-          <button type="button" className="lang-toggle small" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
-            {lang === 'zh' ? 'EN' : '中文'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const tabLabels = {
     home: t.home,
     school: t.school,
@@ -1287,6 +1229,64 @@ function App() {
         return moments;
     }
   }, [adminSection, moments, schoolAlbums, schoolStories, schoolAudios, schoolVideos, healthCardsLocal, gamesLocal, qaEntries]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="login-shell">
+        <div className="login-panel">
+          <div className="leaf-badge" aria-label="Site logo">
+            {siteLogo ? <img src={siteLogo} alt="site logo" className="logo-image" /> : <span>🇨🇦</span>}
+          </div>
+          <h1>{t.title}</h1>
+          {sessionLocked && (
+            <p className="login-lock-note">
+              {lang === 'zh'
+                ? '页面已自动锁定，请在 5 分钟内操作，或重新登录后再继续查看。'
+                : 'This session was locked for safety. Please sign in again to continue.'}
+            </p>
+          )}
+
+          {!showAuthForm && (
+            <button type="button" className="primary-btn" onClick={openLogin}>
+              {t.loginBase}
+            </button>
+          )}
+
+          {showAuthForm && (
+            <div className="auth-form">
+              <label>
+                <span>{lang === 'zh' ? '用户名' : 'Username'}</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={lang === 'zh' ? '输入用户名' : 'Enter username'}
+                />
+              </label>
+
+              <label>
+                <span>{lang === 'zh' ? '密码' : 'Password'}</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={lang === 'zh' ? '请输入密码' : 'Enter password'}
+                />
+              </label>
+
+              <button type="button" className="submit-btn" onClick={login} disabled={!username || !password}>
+                {lang === 'zh' ? '登录基地' : 'Login base'}
+              </button>
+            </div>
+          )}
+
+          <button type="button" className="lang-toggle small" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
+            {lang === 'zh' ? 'EN' : '中文'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleAdminField = (field, value) => {
     setAdminDraft((current) => ({ ...current, [field]: value }));
