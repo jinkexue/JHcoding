@@ -149,10 +149,10 @@ function toEmbedUrl(rawUrl) {
   if (!url) return '';
 
   if (/bilibili\.com|b23\.tv/i.test(url)) {
-    const match = url.match(/BV[0-9A-Za-z]+|av\d+/i);
-    const bvid = match ? match[0] : '';
+    const match = url.match(/(?:\/video\/)?(BV[0-9A-Za-z]+|av\d+)(?:\/|\?|$)/i) || url.match(/(BV[0-9A-Za-z]+|av\d+)/i);
+    const bvid = match ? match[1] || match[0] : '';
     if (bvid) {
-      return `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0&muted=1`;
+      return `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0&muted=1&danmaku=0`;
     }
     return url;
   }
@@ -188,6 +188,36 @@ function parseMediaLinks(value) {
     .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeSchoolContent(items = []) {
+  const albums = [];
+  const stories = [];
+  const audios = [];
+  const videos = [];
+
+  items.forEach((item) => {
+    const source = item || {};
+    const type = String(source.type || '').trim();
+    const mediaUrl = source.mediaUrl || source.image || source.url || '';
+    if (type === '照片' || type === '图片' || (!type && hasImageExtension(mediaUrl))) {
+      albums.push({ ...source, image: source.image || mediaUrl, title: source.title || '校园照片', text: source.text || '' });
+      return;
+    }
+    if (type === '文字' || (!type && !mediaUrl && source.text)) {
+      stories.push({ ...source, title: source.title || '校园故事', text: source.text || '' });
+      return;
+    }
+    if (type === '音频' || isAudioUrl(mediaUrl) || /audio/i.test(String(mediaUrl || ''))) {
+      audios.push({ ...source, title: source.title || '校园声音', url: source.url || mediaUrl || 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3' });
+      return;
+    }
+    if (type === '视频' || isVideoUrl(mediaUrl) || /bilibili|youtube/i.test(String(mediaUrl || '')) || source.url) {
+      videos.push({ ...source, title: source.title || '校园视频', url: source.url || mediaUrl || 'https://www.bilibili.com/', type: source.type || 'bilibili' });
+    }
+  });
+
+  return { albums, stories, audios, videos };
 }
 
 function MediaFrame({ url, title, type }) {
@@ -499,6 +529,13 @@ function App() {
       if (Array.isArray(sections.homeStory)) setMoments(sections.homeStory);
       if (Array.isArray(sections.schoolAlbum)) setSchoolAlbums(sections.schoolAlbum);
       if (Array.isArray(sections.schoolVideo)) setSchoolVideos(sections.schoolVideo);
+      if (Array.isArray(sections.school)) {
+        const normalized = normalizeSchoolContent(sections.school);
+        if (normalized.albums.length) setSchoolAlbums(normalized.albums);
+        if (normalized.stories.length) setSchoolStories(normalized.stories);
+        if (normalized.audios.length) setSchoolAudios(normalized.audios);
+        if (normalized.videos.length) setSchoolVideos(normalized.videos);
+      }
       if (Array.isArray(sections.health)) setHealthCardsLocal(sections.health.map((item) => ({ ...item, icon: healthIconMap[item.icon] || Heart })));
       if (Array.isArray(sections.game) && sections.game.length > 0) {
         setGamesLocal(sections.game);
@@ -545,6 +582,7 @@ function App() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('secret-base-theme', theme);
       document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.style.colorScheme = theme;
     }
   }, [theme]);
 
@@ -1177,6 +1215,20 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              <div className="mini-panel">
+                <div className="mini-header">
+                  <h3>{lang === 'zh' ? '你问我答' : 'Ask & Answer'}</h3>
+                </div>
+                <div className="qa-panel-list home-qa-list">
+                  {qaEntries.map((entry) => (
+                    <div key={`${entry.q}-${entry.from}`} className="qa-item-floating">
+                      <p><strong>{entry.from || '爸爸'}：</strong> {entry.q}</p>
+                      {entry.a && <p>{entry.a}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className="home-two-column">
@@ -1365,22 +1417,30 @@ function App() {
               <h3>{lang === 'zh' ? '健康生活' : 'Healthy living'}</h3>
               <div className="toolbar-actions">
                 {canCreateInSection('health') && (
-                  <button type="button" className="section-editor" onClick={() => openEditor('health', { type: '文字', title: '', text: '', icon: 'Heart', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
+                  <button type="button" className="section-editor" onClick={() => openEditor('health', { type: '文字', title: '', text: '', mediaUrl: '', url: '', originalTitle: '' }, 'add')}>+ {lang === 'zh' ? '新增' : 'Add'}</button>
                 )}
               </div>
             </div>
             <div className="card-grid three-up compact">
-              {healthCardsLocal.map(({ title, text, icon: Icon }) => (
-                <article key={title} className="feature-card green">
-                  <div className="feature-icon green"><Icon size={22} /></div>
-                  <h3>{title}</h3>
-                  <p>{text}</p>
-                  <div className="story-actions compact-actions">
-                    <button type="button" className="inline-action" onClick={() => openEditor('health', { title, text, icon: Icon?.displayName || 'Heart', originalTitle: title, type: '文字' }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
-                    <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('health', { title, text, icon: Icon })}>{lang === 'zh' ? '删除' : 'Delete'}</button>
-                  </div>
-                </article>
-              ))}
+              {healthCardsLocal.map(({ title, text, icon: Icon, mediaUrl, url, type }) => {
+                const mediaSource = mediaUrl || url || '';
+                const mediaType = type === '音频' ? 'audio' : type === '视频' ? 'video' : type === '照片' ? 'image' : (mediaSource && hasImageExtension(mediaSource) ? 'image' : 'video');
+                const FeatureIcon = Icon || Heart;
+                return (
+                  <article key={title} className="feature-card green">
+                    {mediaSource && <MediaFrame url={mediaSource} title={title} type={mediaType} />}
+                    <div className="feature-content">
+                      <div className="feature-icon green"><FeatureIcon size={22} /></div>
+                      <h3>{title}</h3>
+                      <p>{text}</p>
+                    </div>
+                    <div className="story-actions compact-actions">
+                      <button type="button" className="inline-action" onClick={() => openEditor('health', { title, text, mediaUrl: mediaSource, url: mediaSource, originalTitle: title, type: type || '文字' }, 'edit')}>{lang === 'zh' ? '编辑' : 'Edit'}</button>
+                      <button type="button" className="inline-action danger" onClick={() => deleteSectionItem('health', { title, text, icon: Icon })}>{lang === 'zh' ? '删除' : 'Delete'}</button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
         )}
@@ -1576,8 +1636,11 @@ function App() {
 
             {editor.section === 'health' && (
               <div className="editor-grid">
+                <label className="full"><span>{lang === 'zh' ? '标题' : 'Title'}</span><input value={editor.item.title || ''} onChange={(event) => updateEditorField('title', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '正文' : 'Text'}</span><textarea rows={4} value={editor.item.text || ''} onChange={(event) => updateEditorField('text', event.target.value)} /></label>
+                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} placeholder="https://..." /></label>
                 <label className="full upload-inline upload-inline-compact">
-                  <span>{lang === 'zh' ? '本地上传图片/音频/视频到 R2' : 'Upload media to R2'}</span>
+                  <span>{lang === 'zh' ? '本地上传到 R2' : 'Upload to R2'}</span>
                   <input type="file" accept="image/*,audio/*,video/*" onChange={async (event) => {
                     const file = event.target.files?.[0];
                     if (!file) return;
@@ -1593,8 +1656,6 @@ function App() {
                     event.target.value = '';
                   }} />
                 </label>
-                <label className="full"><span>{lang === 'zh' ? '链接' : 'URL'}</span><input value={editor.item.url || editor.item.mediaUrl || ''} onChange={(event) => { updateEditorField('url', event.target.value); updateEditorField('mediaUrl', event.target.value); }} placeholder="https://..." /></label>
-                <label><span>{lang === 'zh' ? '图标' : 'Icon'}</span><select value={editor.item.icon || 'Heart'} onChange={(event) => updateEditorField('icon', event.target.value)}><option value="Heart">Heart</option><option value="Sparkles">Sparkles</option><option value="CheckCircle2">CheckCircle2</option><option value="BookOpenText">BookOpenText</option></select></label>
               </div>
             )}
 
