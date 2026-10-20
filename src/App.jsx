@@ -152,7 +152,7 @@ function toEmbedUrl(rawUrl) {
     const match = url.match(/BV[0-9A-Za-z]+|av\d+/i);
     const bvid = match ? match[0] : '';
     if (bvid) {
-      return `https://player.bilibili.com/player.html?bvid=${bvid}`;
+      return `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0&muted=1`;
     }
     return url;
   }
@@ -160,7 +160,7 @@ function toEmbedUrl(rawUrl) {
   if (/youtube\.com|youtu\.be/i.test(url)) {
     const match = url.match(/(?:v=|\/)([A-Za-z0-9_-]{11})/i);
     const videoId = match ? match[1] : '';
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
+    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=0&mute=1&rel=0` : url;
   }
 
   return url;
@@ -169,6 +169,16 @@ function toEmbedUrl(rawUrl) {
 function hasImageExtension(url) {
   if (!url) return false;
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /images?\.|unsplash|pexels|cdn/gi.test(url);
+}
+
+function isAudioUrl(url = '') {
+  const cleaned = String(url).trim();
+  return /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(cleaned) || /audio/i.test(cleaned);
+}
+
+function isVideoUrl(url = '') {
+  const cleaned = String(url).trim();
+  return /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(cleaned) || /video/i.test(cleaned);
 }
 
 function parseMediaLinks(value) {
@@ -191,15 +201,31 @@ function MediaFrame({ url, title, type }) {
     );
   }
 
+  if (type === 'audio' || isAudioUrl(url)) {
+    return (
+      <div className="media-frame audio-frame">
+        <audio controls preload="none" src={url} />
+      </div>
+    );
+  }
+
+  if (type === 'video' || isVideoUrl(url)) {
+    return (
+      <div className="media-frame video-frame">
+        <video controls preload="metadata" playsInline muted src={url} />
+      </div>
+    );
+  }
+
   const embedUrl = toEmbedUrl(url);
-  if (embedUrl) {
+  if (embedUrl && embedUrl !== url) {
     return (
       <div className="media-frame video-frame">
         <iframe
           src={embedUrl}
           title={title}
           loading="lazy"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
         />
       </div>
@@ -321,6 +347,10 @@ function getCurrentStatus(type) {
 
 function App() {
   const [lang, setLang] = useState('en');
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light';
+    return localStorage.getItem('secret-base-theme') || 'light';
+  });
   const [role, setRole] = useState('dad');
   const [activeTab, setActiveTab] = useState('home');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -510,6 +540,13 @@ function App() {
       localStorage.setItem('secret-base-logo', siteLogo || DEFAULT_SITE_LOGO);
     }
   }, [siteLogo]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('secret-base-theme', theme);
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1056,6 +1093,9 @@ function App() {
           <button type="button" className="ghost-btn" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
             {lang === 'zh' ? 'EN' : '中文'}
           </button>
+          <button type="button" className="ghost-btn" onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? (lang === 'zh' ? '浅色' : 'Light') : (lang === 'zh' ? '深色' : 'Dark')}
+          </button>
           <button type="button" className="ghost-btn" onClick={logout}>
             <LogOut size={14} />
             {t.logout}
@@ -1087,6 +1127,55 @@ function App() {
                 <span>{t.today}</span>
                 <h3>{dailyQuote[lang]}</h3>
                 <p>{dailyMessage[lang]}</p>
+              </div>
+            </div>
+
+            <div className="split-grid single-panel">
+              <div className="mini-panel">
+                <div className="mini-header">
+                  <h3>{lang === 'zh' ? '愿望墙' : 'Wish wall'}</h3>
+                  <button type="button" onClick={() => (isDad ? openWishEditor('yjh') : openWishEditor('爸爸'))}>+ {lang === 'zh' ? '新增愿望' : 'New wish'}</button>
+                </div>
+                <div className="wish-split-grid">
+                  <div className="wish-column">
+                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
+                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === 'yjh')).map((wish) => (
+                      <div key={wish.id} className="task-item">
+                        <div>
+                          <strong>{wish.title}</strong>
+                          <p>{wish.detail}</p>
+                          {wish.response && <small>{wish.response}</small>}
+                        </div>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => {
+                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
+                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
+                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="wish-column">
+                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
+                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === '爸爸')).map((wish) => (
+                      <div key={wish.id} className="task-item">
+                        <div>
+                          <strong>{wish.title}</strong>
+                          <p>{wish.detail}</p>
+                          {wish.response && <small>{wish.response}</small>}
+                        </div>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
+                          <button type="button" className="inline-action danger" onClick={() => {
+                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
+                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
+                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1155,55 +1244,6 @@ function App() {
                     </div>
                   </article>
                 ))}
-              </div>
-            </div>
-
-            <div className="split-grid single-panel">
-              <div className="mini-panel">
-                <div className="mini-header">
-                  <h3>{lang === 'zh' ? '愿望墙' : 'Wish wall'}</h3>
-                  <button type="button" onClick={() => (isDad ? openWishEditor('yjh') : openWishEditor('爸爸'))}>+ {lang === 'zh' ? '新增愿望' : 'New wish'}</button>
-                </div>
-                <div className="wish-split-grid">
-                  <div className="wish-column">
-                    <h4>{lang === 'zh' ? '女儿向爸爸提出' : 'Daughter to dad'}</h4>
-                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === 'yjh')).map((wish) => (
-                      <div key={wish.id} className="task-item">
-                        <div>
-                          <strong>{wish.title}</strong>
-                          <p>{wish.detail}</p>
-                          {wish.response && <small>{wish.response}</small>}
-                        </div>
-                        <div className="story-actions compact-actions">
-                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
-                          <button type="button" className="inline-action danger" onClick={() => {
-                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
-                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
-                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="wish-column">
-                    <h4>{lang === 'zh' ? '爸爸向女儿提出' : 'Dad to daughter'}</h4>
-                    {sortByDateDesc(wishBoard.filter((wish) => wish.author === '爸爸')).map((wish) => (
-                      <div key={wish.id} className="task-item">
-                        <div>
-                          <strong>{wish.title}</strong>
-                          <p>{wish.detail}</p>
-                          {wish.response && <small>{wish.response}</small>}
-                        </div>
-                        <div className="story-actions compact-actions">
-                          <button type="button" className="inline-action" onClick={() => updateWishStatus(wish.id, 'accepted', '已接受，马上安排。')}>{lang === 'zh' ? '接受' : 'Accept'}</button>
-                          <button type="button" className="inline-action danger" onClick={() => {
-                            const reason = window.prompt(lang === 'zh' ? '拒绝理由：' : 'Reason for refusal:');
-                            if (reason) updateWishStatus(wish.id, 'rejected', reason);
-                          }}>{lang === 'zh' ? '拒绝' : 'Reject'}</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </section>
@@ -1416,7 +1456,7 @@ function App() {
       </div>
 
       {editor && (
-        <div className="editor-modal-overlay" onClick={closeEditor}>
+        <div className="editor-modal-overlay">
           <div className="editor-modal" onClick={(event) => event.stopPropagation()}>
             <div className="editor-modal-header">
               <h3>{editor.mode === 'add' ? (lang === 'zh' ? '新增内容' : 'Add item') : (lang === 'zh' ? '编辑内容' : 'Edit item')}</h3>
