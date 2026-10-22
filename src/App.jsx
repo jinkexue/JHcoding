@@ -26,6 +26,17 @@ const FAMILY_STATUS_TZ = {
   dad: 'America/Edmonton',
   daughter: 'Asia/Shanghai',
 };
+
+const defaultGameCatalog = [
+  { id: 'game-snake', title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', visual: '🐍', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-whack-a-mole', title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300', visual: '🦔', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-go', title: '围棋对弈', href: './go-game.html', accent: 'from-slate-500 to-zinc-300', visual: '⚫', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-racing', title: '极速躲避赛车', href: './racing-game.html', accent: 'from-red-400 to-orange-300', visual: '🏎️', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-shooting', title: 'WASD射击', href: './shooting-game.html', accent: 'from-cyan-400 to-blue-300', visual: '🎯', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-campus', title: '校园求生', href: './campus-survival.html', accent: 'from-violet-400 to-fuchsia-300', visual: '🏫', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-rainbow-tetris', title: '七彩俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-pink-400 to-purple-300', visual: '🌈', visible: true, reads: 0, sortAt: new Date().toISOString() },
+];
+
 const DEFAULT_CONTENT = {
   reading: [
     { id: 'r1', title: '阅读时间：从好奇到掌握', text: '今天我们一起看了加拿大的乡村故事，学习如何从好奇心出发去观察真实世界。', type: 'text', url: '', visible: true, reads: 18, sortAt: '2026-10-20T09:00:00.000Z' },
@@ -67,16 +78,6 @@ const defaultFamilySchedule = {
     { id: 'daughter-sleep', name: '睡觉', status: '睡觉', start: '22:00', end: '07:00' },
   ],
 };
-
-const defaultGameCatalog = [
-  { id: 'game-snake', title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', visual: '🐍', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-whack-a-mole', title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300', visual: '🦔', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-go', title: '围棋对弈', href: './go-game.html', accent: 'from-slate-500 to-zinc-300', visual: '⚫', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-racing', title: '极速躲避赛车', href: './racing-game.html', accent: 'from-red-400 to-orange-300', visual: '🏎️', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-shooting', title: 'WASD射击', href: './shooting-game.html', accent: 'from-cyan-400 to-blue-300', visual: '🎯', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-campus', title: '校园求生', href: './campus-survival.html', accent: 'from-violet-400 to-fuchsia-300', visual: '🏫', visible: true, reads: 0, sortAt: new Date().toISOString() },
-  { id: 'game-rainbow-tetris', title: '七彩俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-pink-400 to-purple-300', visual: '🌈', visible: true, reads: 0, sortAt: new Date().toISOString() },
-];
 
 const copy = {
   zh: {
