@@ -138,6 +138,18 @@ button { cursor: pointer; }
 .auth-brand { display: flex; align-items: center; gap: 14px; justify-content: center; }
 .auth-brand small { display: block; color: var(--text-muted); }
 .auth-brand strong { display: block; font-size: 2rem; }
+.auth-form {
+  width: min(360px, 100%); display: flex; flex-direction: column; gap: 14px; text-align: left;
+}
+.auth-field {
+  display: flex; flex-direction: column; gap: 8px; color: var(--text-soft); font-weight: 700;
+}
+.auth-field input {
+  width: 100%; border: 1px solid var(--panel-border); border-radius: 12px; background: rgba(255,255,255,0.9); padding: 0.8rem 0.9rem; color: var(--text-main);
+}
+.auth-error {
+  padding: 0.7rem 0.8rem; border-radius: 10px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18); color: #b91c1c; font-size: 0.9rem;
+}
 .auth-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; }
 .auth-role-btn {
   border: 1px solid var(--panel-border); border-radius: 14px; background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(59,130,246,0.12)); color: var(--text-main); padding: 1rem 0.8rem; font-size: 1rem; font-weight: 700;
@@ -247,8 +259,8 @@ button { cursor: pointer; }
 }
 .schedule-delete-btn { background: rgba(239,68,68,0.08); color: #b91c1c; }
 .schedule-rules { display: flex; flex-direction: column; gap: 8px; }
-.schedule-rule-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap: 6px; align-items: center; }
-.schedule-rule-row input { width: 100%; border: 1px solid var(--panel-border); border-radius: 8px; padding: 0.44rem 0.5rem; }
+.schedule-rule-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr auto; gap: 6px; align-items: center; }
+.schedule-rule-row input, .schedule-rule-row select { width: 100%; border: 1px solid var(--panel-border); border-radius: 8px; padding: 0.44rem 0.5rem; }
 .full { display: flex; flex-direction: column; gap: 6px; color: var(--text-soft); }
 .full input, .full select, .full textarea { width: 100%; border: 1px solid var(--panel-border); border-radius: 10px; background: rgba(255,255,255,0.9); padding: 0.72rem 0.8rem; color: var(--text-main); }
 .admin-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }

@@ -40,10 +40,7 @@ const DEFAULT_CONTENT = {
   video: [
     { id: 'v1', title: '加拿大小镇微电影', text: '一个安静的小镇下午，和风、树叶和人群一起慢下来。', type: 'video', url: 'https://www.bilibili.com/video/BV1GJ411x7h7/?share_source=copy_web&vd_source=38d745f4d4a2c2b32a4a0e1e8d44a1f0', visible: true, reads: 11, sortAt: '2026-10-16T12:00:00.000Z' },
   ],
-  game: [
-    { id: 'g1', title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', visual: '🐍', visible: true, reads: 26, sortAt: '2026-10-15T10:00:00.000Z' },
-    { id: 'g2', title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300', visual: '🦔', visible: true, reads: 19, sortAt: '2026-10-14T13:00:00.000Z' },
-  ],
+  game: defaultGameCatalog,
 };
 
 const defaultWishBoard = [
@@ -56,18 +53,30 @@ const defaultQaEntries = [
   { id: 'qa-2', q: '为什么有时候放慢脚步也很重要？', a: '因为成长不需要赶路，慢一点才能更清晰地感受幸福。', from: 'yjh', sortAt: '2026-10-19T11:00:00.000Z', replies: [{ author: 'yjh', text: '因为成长不需要赶路，慢一点才能更清晰地感受幸福。', createdAt: '2026-10-19T11:00:00.000Z' }] },
 ];
 
+const FAMILY_SCHEDULE_STATUS_OPTIONS = ['工作', '上课', '休息', '睡觉'];
+
 const defaultFamilySchedule = {
   dad: [
-    { id: 'dad-work', name: '工作', start: '08:00', end: '17:00' },
-    { id: 'dad-rest', name: '休息', start: '17:00', end: '22:00' },
-    { id: 'dad-sleep', name: '睡觉', start: '22:00', end: '08:00' },
+    { id: 'dad-work', name: '工作', status: '工作', start: '08:00', end: '17:00' },
+    { id: 'dad-rest', name: '休息', status: '休息', start: '17:00', end: '22:00' },
+    { id: 'dad-sleep', name: '睡觉', status: '睡觉', start: '22:00', end: '08:00' },
   ],
   daughter: [
-    { id: 'daughter-class', name: '上课', start: '07:00', end: '18:00' },
-    { id: 'daughter-rest', name: '休息', start: '18:00', end: '22:00' },
-    { id: 'daughter-sleep', name: '睡觉', start: '22:00', end: '07:00' },
+    { id: 'daughter-class', name: '上课', status: '上课', start: '07:00', end: '18:00' },
+    { id: 'daughter-rest', name: '休息', status: '休息', start: '18:00', end: '22:00' },
+    { id: 'daughter-sleep', name: '睡觉', status: '睡觉', start: '22:00', end: '07:00' },
   ],
 };
+
+const defaultGameCatalog = [
+  { id: 'game-snake', title: '贪吃蛇', href: './snake-game.html', accent: 'from-emerald-400 to-lime-300', visual: '🐍', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-whack-a-mole', title: '打地鼠', href: './whack-a-mole.html', accent: 'from-amber-400 to-yellow-300', visual: '🦔', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-go', title: '围棋对弈', href: './go-game.html', accent: 'from-slate-500 to-zinc-300', visual: '⚫', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-racing', title: '极速躲避赛车', href: './racing-game.html', accent: 'from-red-400 to-orange-300', visual: '🏎️', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-shooting', title: 'WASD射击', href: './shooting-game.html', accent: 'from-cyan-400 to-blue-300', visual: '🎯', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-campus', title: '校园求生', href: './campus-survival.html', accent: 'from-violet-400 to-fuchsia-300', visual: '🏫', visible: true, reads: 0, sortAt: new Date().toISOString() },
+  { id: 'game-rainbow-tetris', title: '七彩俄罗斯方块', href: './rainbow-tetris.html', accent: 'from-pink-400 to-purple-300', visual: '🌈', visible: true, reads: 0, sortAt: new Date().toISOString() },
+];
 
 const copy = {
   zh: {
@@ -194,6 +203,33 @@ function sortByDateDesc(items = []) {
   return [...items].sort((a, b) => new Date(b.sortAt || b.createdAt || 0).getTime() - new Date(a.sortAt || a.createdAt || 0).getTime());
 }
 
+function normalizeRole(role) {
+  const value = String(role || '').trim().toLowerCase();
+  if (value === 'father' || value === 'dad') return 'dad';
+  if (value === 'game_admin') return 'daughter';
+  if (value === 'system_admin') return 'admin';
+  if (value === 'daughter' || value === 'admin' || value === 'member') return value;
+  return 'member';
+}
+
+function getLocalFallbackRole(username, password) {
+  const user = String(username || '').trim().toLowerCase();
+  const pass = String(password || '').trim();
+
+  if ((user === 'yqcw@qq.com' && pass === '123456') || (user === 'admin' && pass === '123456')) return 'admin';
+  if ((user === 'yjh' && pass === '150113') || (user === 'daughter' && pass === '150113')) return 'daughter';
+  if ((user === 'dad' && pass === '150113') || (user === 'father' && pass === '150113')) return 'dad';
+  return null;
+}
+
+function getPresenceLabelFromRule(rule) {
+  const status = String(rule?.status || rule?.name || '休息');
+  if (status === '睡觉') return '睡觉中';
+  if (status === '工作') return '工作中';
+  if (status === '上课') return '上课中';
+  return '休息中';
+}
+
 function getMemberPresence(member, schedule = defaultFamilySchedule) {
   const timeZone = FAMILY_STATUS_TZ[member] || 'UTC';
   const now = new Date();
@@ -208,13 +244,13 @@ function getMemberPresence(member, schedule = defaultFamilySchedule) {
 
     if (crossesMidnight) {
       if (minutes >= startMinutes || minutes < endMinutes) {
-        return { label: rule.name === '睡觉' ? '睡觉中' : rule.name === '工作' ? '工作中' : rule.name === '上课' ? '上课中' : '休息中' };
+        return { label: getPresenceLabelFromRule(rule) };
       }
       continue;
     }
 
     if (minutes >= startMinutes && minutes < endMinutes) {
-      return { label: rule.name === '睡觉' ? '睡觉中' : rule.name === '工作' ? '工作中' : rule.name === '上课' ? '上课中' : '休息中' };
+      return { label: getPresenceLabelFromRule(rule) };
     }
   }
 
@@ -284,6 +320,9 @@ function App() {
     if (typeof window === 'undefined') return false;
     return Boolean(window.localStorage.getItem(ROLE_KEY));
   });
+  const [loginForm, setLoginForm] = useState({ username: 'yqcw@qq.com', password: '123456' });
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState('home');
   const [clock, setClock] = useState(getCanadaElapsed());
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
@@ -353,11 +392,66 @@ function App() {
   const dadStatus = getMemberPresence('dad', familySchedule);
   const daughterStatus = getMemberPresence('daughter', familySchedule);
 
-  const handleLogin = () => {
-    const nextRole = typeof window !== 'undefined' ? (window.localStorage.getItem(ROLE_KEY) || 'admin') : 'admin';
-    setRole(nextRole);
-    setIsLoggedIn(true);
-    setActiveTab('home');
+  const handleLogin = async (event = null) => {
+    if (event) {
+      event.preventDefault();
+    }
+
+    const username = (loginForm.username || '').trim();
+    const password = (loginForm.password || '').trim();
+    if (!username || !password) {
+      setLoginError('请输入用户名和密码。');
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', username, password }),
+      });
+
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        payload = null;
+      }
+
+      if (!response.ok || !payload?.success) {
+        const fallbackRole = getLocalFallbackRole(username, password);
+        if (fallbackRole) {
+          setRole(fallbackRole);
+          setIsLoggedIn(true);
+          setActiveTab('home');
+          window.localStorage.setItem(ROLE_KEY, fallbackRole);
+          return;
+        }
+        throw new Error(payload?.error || '账号或密码错误。');
+      }
+
+      const nextRole = normalizeRole(payload.user?.role || 'member');
+      setRole(nextRole);
+      setIsLoggedIn(true);
+      setActiveTab('home');
+      window.localStorage.setItem(ROLE_KEY, nextRole);
+    } catch (error) {
+      const fallbackRole = getLocalFallbackRole(username, password);
+      if (fallbackRole) {
+        setRole(fallbackRole);
+        setIsLoggedIn(true);
+        setActiveTab('home');
+        window.localStorage.setItem(ROLE_KEY, fallbackRole);
+        setLoginError('');
+        return;
+      }
+      setLoginError(error.message || '登录失败，请确认账号密码。');
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -509,15 +603,22 @@ function App() {
   const updateScheduleForMember = (member, targetId, field, value) => {
     setFamilySchedule((current) => ({
       ...current,
-      [member]: (current[member] || []).map((rule) => rule.id === targetId ? { ...rule, [field]: value } : rule),
+      [member]: (current[member] || []).map((rule) => {
+        if (rule.id !== targetId) return rule;
+        if (field === 'status') {
+          return { ...rule, status: value, name: value };
+        }
+        return { ...rule, [field]: value };
+      }),
     }));
   };
 
   const addScheduleRuleForMember = (member) => {
-    const defaultName = member === 'dad' ? '休息' : '休息';
+    const defaultName = '休息';
     const nextRule = {
       id: `${member}-${Date.now()}`,
       name: defaultName,
+      status: defaultName,
       start: '08:00',
       end: '17:00',
     };
@@ -623,7 +724,34 @@ function App() {
               <strong>我们的秘密基地</strong>
             </div>
           </div>
-          <button type="button" className="auth-role-btn primary" onClick={handleLogin}>登陆基地</button>
+
+          <form className="auth-form" onSubmit={handleLogin}>
+            <label className="auth-field">
+              <span>用户名</span>
+              <input
+                type="text"
+                value={loginForm.username}
+                onChange={(event) => setLoginForm((current) => ({ ...current, username: event.target.value }))}
+                placeholder="yqcw@qq.com / yjh"
+              />
+            </label>
+
+            <label className="auth-field">
+              <span>密码</span>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                placeholder="请输入密码"
+              />
+            </label>
+
+            {loginError && <div className="auth-error">{loginError}</div>}
+
+            <button type="submit" className="auth-role-btn primary" disabled={loginLoading}>
+              {loginLoading ? '登录中...' : '登陆基地'}
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -801,6 +929,11 @@ function App() {
                             <input value={rule.name} onChange={(event) => updateScheduleForMember(member, rule.id, 'name', event.target.value)} />
                             <input type="time" value={rule.start} onChange={(event) => updateScheduleForMember(member, rule.id, 'start', event.target.value)} />
                             <input type="time" value={rule.end} onChange={(event) => updateScheduleForMember(member, rule.id, 'end', event.target.value)} />
+                            <select value={rule.status || rule.name || '休息'} onChange={(event) => updateScheduleForMember(member, rule.id, 'status', event.target.value)}>
+                              {FAMILY_SCHEDULE_STATUS_OPTIONS.map((status) => (
+                                <option key={status} value={status}>{status}</option>
+                              ))}
+                            </select>
                             <button type="button" className="schedule-delete-btn" onClick={() => deleteScheduleRuleForMember(member, rule.id)}>删除</button>
                           </div>
                         ))}
