@@ -258,11 +258,12 @@ function getMemberPresence(member, schedule = defaultFamilySchedule) {
   return { label: '休息中' };
 }
 
-async function uploadLocalMediaToR2(file, title = 'family-upload') {
+async function uploadLocalMediaToR2(file, title = 'family-upload', section = 'general') {
   if (!file) return null;
   const formData = new FormData();
   formData.append('file', file);
   formData.append('title', title || file.name || 'family-upload');
+  formData.append('section', section || 'general');
 
   const response = await fetch('/api/media', {
     method: 'POST',
@@ -287,23 +288,66 @@ function getDefaultItemBySection(section) {
   return base;
 }
 
-function MediaPreview({ item, compact = false }) {
+function normalizeVideoEmbedUrl(rawUrl) {
+  if (!rawUrl) return '';
+  const url = String(rawUrl).trim();
+
+  if (/\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url)) {
+    return url;
+  }
+
+  if (/bilibili\.com\/video\//i.test(url) || /b23\.tv\//i.test(url)) {
+    const match = url.match(/BV[a-zA-Z0-9]+/i) || url.match(/[a-zA-Z0-9]+/);
+    if (match) {
+      return `https://player.bilibili.com/player.html?bvid=${encodeURIComponent(match[0])}&autoplay=0&danmaku=0`;
+    }
+    return url;
+  }
+
+  if (/douyin\.com\//i.test(url) || /iesdouyin\.com\//i.test(url)) {
+    return url;
+  }
+
+  if (/xhs|xiaohongshu/i.test(url)) {
+    return url;
+  }
+
+  if (/youtube\.com|youtu\.be/i.test(url)) {
+    const videoId = url.match(/(?:v=|be\/)([A-Za-z0-9_-]{11})/i)?.[1];
+    if (videoId) return `https://www.youtube.com/embed/${videoId}`;
+  }
+
+  if (/vimeo\.com/i.test(url)) {
+    const videoId = url.match(/vimeo\.com\/(\d+)/i)?.[1];
+    if (videoId) return `https://player.vimeo.com/video/${videoId}`;
+  }
+
+  return url;
+}
+
+function MediaPreview({ item, compact = false, onOpen = null }) {
   const url = item.url || item.mediaUrl || '';
   if (!url) return null;
 
   const isImage = item.type === 'image' || /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /unsplash|images?\.|cdn/i.test(url);
   const isAudio = item.type === 'audio' || /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url) || /audio/i.test(url);
-  const isVideo = item.type === 'video' || /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url) || /video|bilibili|youtube/i.test(url);
+  const isVideo = item.type === 'video' || /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url) || /video|bilibili|youtube|douyin|xiaohongshu|xhs/i.test(url);
 
   if (isImage) {
-    return <div className={compact ? 'media-preview compact' : 'media-preview'}><img src={url} alt={item.title} /></div>;
+    return <button type="button" className={compact ? 'media-preview compact image-preview' : 'media-preview image-preview'} onClick={() => onOpen && onOpen()}><img src={url} alt={item.title} /></button>;
   }
   if (isAudio) {
     return <div className={compact ? 'media-preview compact' : 'media-preview'}><audio controls preload="none" src={url} /></div>;
   }
   if (isVideo) {
+    const embedUrl = normalizeVideoEmbedUrl(url);
+    const isExternalShareLink = /bilibili|youtube|youtu\.be|vimeo|douyin|xiaohongshu|xhs/i.test(url) && !/\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url);
     return <div className={compact ? 'media-preview compact' : 'media-preview'}>
-      <video controls preload="metadata" playsInline src={url} />
+      {isExternalShareLink ? (
+        <iframe src={embedUrl} title={item.title || 'video'} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+      ) : (
+        <video controls preload="metadata" playsInline src={embedUrl || url} />
+      )}
     </div>;
   }
 
@@ -330,7 +374,11 @@ function App() {
   const [qaEntries, setQaEntries] = useState(defaultQaEntries);
   const [showQaPanel, setShowQaPanel] = useState(true);
   const [qaDraft, setQaDraft] = useState({ from: '爸爸', question: '', answer: '' });
+  const [replyDrafts, setReplyDrafts] = useState({});
   const [composerOpen, setComposerOpen] = useState(false);
+  const [wishFormOpen, setWishFormOpen] = useState(false);
+  const [wishDraft, setWishDraft] = useState({ title: '', detail: '', response: '' });
+  const [lightboxMedia, setLightboxMedia] = useState(null);
   const [composer, setComposer] = useState({ section: 'reading', title: '', text: '', url: '', type: 'text', visible: true, href: './snake-game.html', visual: '🎮', accent: 'from-emerald-400 to-lime-300' });
   const [contentFilters, setContentFilters] = useState({ reading: 'all', listening: 'all', album: 'all', video: 'all', game: 'all' });
   const [contentSections, setContentSections] = useState(() => {
@@ -534,10 +582,22 @@ function App() {
   const handleWishAction = (type, detail = null) => {
     if (!canManageWishAndQa) return;
     if (type === 'add') {
-      setWishBoard((current) => [
-        { id: `wish-${Date.now()}`, author: '爸爸', target: 'yjh', title: '新愿望', detail: '新愿望内容', status: 'pending', response: '', sortAt: new Date().toISOString() },
-        ...current,
-      ]);
+      const title = (wishDraft.title || '').trim();
+      const detailText = (wishDraft.detail || '').trim();
+      if (!title || !detailText) return;
+      const nextWish = {
+        id: `wish-${Date.now()}`,
+        author: '爸爸',
+        target: 'yjh',
+        title,
+        detail: detailText,
+        status: 'pending',
+        response: wishDraft.response || '',
+        sortAt: new Date().toISOString(),
+      };
+      setWishBoard((current) => [nextWish, ...current]);
+      setWishDraft({ title: '', detail: '', response: '' });
+      setWishFormOpen(false);
       return;
     }
     if (type === 'update') {
@@ -554,15 +614,27 @@ function App() {
     if (type === 'add') {
       const input = (detail?.question || '').trim();
       if (!input) return;
+      const answerText = (detail?.answer || '').trim();
       const nextItem = {
         id: `qa-${Date.now()}`,
         q: input,
-        a: (detail?.answer || '').trim() || '待回答',
+        a: answerText || '待回答',
         from: detail?.from || '爸爸',
         sortAt: new Date().toISOString(),
-        replies: [{ author: detail?.from || '爸爸', text: (detail?.answer || '').trim() || '待回答', createdAt: new Date().toISOString() }],
+        replies: answerText ? [{ author: detail?.from || '爸爸', text: answerText, createdAt: new Date().toISOString() }] : [],
       };
       setQaEntries((current) => [nextItem, ...current]);
+      return;
+    }
+    if (type === 'reply') {
+      const text = (detail?.text || '').trim();
+      if (!text) return;
+      const author = detail?.author || (role === 'dad' ? '爸爸' : '女儿');
+      setQaEntries((current) => current.map((item) => item.id === detail.id ? {
+        ...item,
+        a: text,
+        replies: [...(item.replies || []), { author, text, createdAt: new Date().toISOString() }],
+      } : item));
       return;
     }
     if (type === 'update') {
@@ -679,10 +751,10 @@ function App() {
         {items.length === 0 ? (
           <div className="empty-state">{t.noData}</div>
         ) : (
-          <div className="content-grid">
+          <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
             {items.map((item) => (
-              <article key={item.id || `${section}-${item.title}`} className="content-card">
-                <MediaPreview item={item} />
+              <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : 'content-card'}>
+                <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia(item)} />
                 <div className="content-card-body">
                   <div className="card-topline">
                     <span className="pill-type">{item.type || 'text'}</span>
@@ -819,7 +891,7 @@ function App() {
                 <div className="mini-header">
                   <h3>{t.wishWall}</h3>
                   {canManageWishAndQa && (
-                    <button type="button" onClick={() => handleWishAction('add')}>+ {t.add}</button>
+                    <button type="button" onClick={() => setWishFormOpen(true)}>+ {t.add}</button>
                   )}
                 </div>
                 <div className="wish-list">
@@ -851,6 +923,27 @@ function App() {
                     <div key={entry.id || entry.q} className="qa-item-floating">
                       <p><strong>{entry.from || '爸爸'}：</strong> {entry.q}</p>
                       {entry.a && <p>{entry.a}</p>}
+                      {(entry.replies || []).map((reply, idx) => (
+                        <div key={`${entry.id}-reply-${idx}`} className="qa-reply-line">
+                          <strong>{reply.author || '爸爸'}：</strong> {reply.text}
+                        </div>
+                      ))}
+                      {canManageWishAndQa && (
+                        <div className="qa-reply-box">
+                          <textarea
+                            rows={2}
+                            value={replyDrafts[entry.id] || ''}
+                            onChange={(event) => setReplyDrafts((current) => ({ ...current, [entry.id]: event.target.value }))}
+                            placeholder="继续补充讨论..."
+                          />
+                          <button type="button" className="inline-action" onClick={() => {
+                            const text = (replyDrafts[entry.id] || '').trim();
+                            if (!text) return;
+                            handleQaAction('reply', { id: entry.id, text, author: role === 'dad' || role === 'admin' ? '爸爸' : '女儿' });
+                            setReplyDrafts((current) => ({ ...current, [entry.id]: '' }));
+                          }}>继续讨论</button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -990,7 +1083,7 @@ function App() {
                         const file = event.target.files?.[0];
                         if (!file) return;
                         try {
-                          const result = await uploadLocalMediaToR2(file, adminDraft.title || file.name);
+                          const result = await uploadLocalMediaToR2(file, adminDraft.title || file.name, adminSection);
                           setAdminDraft((current) => ({
                             ...current,
                             url: result?.url || current.url,
@@ -1043,6 +1136,11 @@ function App() {
                   <div className="qa-thread-body">
                     <p><strong>{entry.from || '爸爸'}：</strong> {entry.q}</p>
                     <p className="qa-summary">{entry.a || '待回答'}</p>
+                    {(entry.replies || []).map((reply, replyIdx) => (
+                      <div key={`${entry.id}-reply-${replyIdx}`} className="qa-reply-line">
+                        <strong>{reply.author || '爸爸'}：</strong> {reply.text}
+                      </div>
+                    ))}
                     {canManageWishAndQa && (
                       <button type="button" className="inline-action danger qa-inline-delete" onClick={() => handleQaAction('delete', { id: entry.id })}>Delete</button>
                     )}
@@ -1072,6 +1170,39 @@ function App() {
           </div>
         )}
       </div>
+
+      {lightboxMedia && (
+        <div className="lightbox-overlay" onClick={() => setLightboxMedia(null)}>
+          <div className="lightbox-dialog" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="lightbox-close" onClick={() => setLightboxMedia(null)}>×</button>
+            <img src={lightboxMedia.url} alt={lightboxMedia.title || 'Preview'} />
+            <div className="lightbox-meta">
+              <strong>{lightboxMedia.title}</strong>
+              {lightboxMedia.text && <p>{lightboxMedia.text}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {wishFormOpen && (
+        <div className="editor-modal-overlay" onClick={() => setWishFormOpen(false)}>
+          <div className="editor-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="editor-modal-header">
+              <h3>新增愿望</h3>
+              <button type="button" onClick={() => setWishFormOpen(false)}>×</button>
+            </div>
+            <div className="editor-grid">
+              <label className="full"><span>标题</span><input value={wishDraft.title} onChange={(event) => setWishDraft((current) => ({ ...current, title: event.target.value }))} /></label>
+              <label className="full"><span>愿望内容</span><textarea rows={4} value={wishDraft.detail} onChange={(event) => setWishDraft((current) => ({ ...current, detail: event.target.value }))} /></label>
+              <label className="full"><span>回复</span><textarea rows={2} value={wishDraft.response} onChange={(event) => setWishDraft((current) => ({ ...current, response: event.target.value }))} /></label>
+            </div>
+            <div className="editor-actions">
+              <button type="button" className="qa-submit-btn" onClick={() => handleWishAction('add')}>保存</button>
+              <button type="button" className="qa-cancel-btn" onClick={() => setWishFormOpen(false)}>取消</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {composerOpen && (
         <div className="editor-modal-overlay" onClick={() => setComposerOpen(false)}>
@@ -1105,7 +1236,7 @@ function App() {
                       const file = event.target.files?.[0];
                       if (!file) return;
                       try {
-                        const result = await uploadLocalMediaToR2(file, composer.title || file.name);
+                        const result = await uploadLocalMediaToR2(file, composer.title || file.name, composer.section);
                         setComposer((current) => ({
                           ...current,
                           url: result?.url || current.url,

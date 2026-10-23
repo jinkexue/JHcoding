@@ -34,6 +34,23 @@ function chooseTypeFromUrl(rawUrl) {
     : 'video';
 }
 
+function chooseUploadFolder(fileName = '', mimeType = '', section = 'general') {
+  const lowerName = String(fileName || '').toLowerCase();
+  const lowerMime = String(mimeType || '').toLowerCase();
+  const imageMatch = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(lowerName) || lowerMime.startsWith('image/');
+  const audioMatch = /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(lowerName) || lowerMime.startsWith('audio/');
+  const videoMatch = /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)$/i.test(lowerName) || lowerMime.startsWith('video/');
+
+  if (imageMatch) return 'images';
+  if (audioMatch) return 'audio';
+  if (videoMatch) return 'videos';
+  if (section === 'reading') return 'documents';
+  if (section === 'listening') return 'audio';
+  if (section === 'album') return 'images';
+  if (section === 'video') return 'videos';
+  return 'misc';
+}
+
 export async function onRequestOptions() {
   return new Response(null, { headers: corsHeaders });
 }
@@ -76,6 +93,7 @@ export async function onRequestPost(context) {
     const formData = await request.formData();
     const file = formData.get('file');
     const title = String(formData.get('title') || 'upload').trim();
+    const section = String(formData.get('section') || 'general').trim();
 
     if (!(file instanceof File)) {
       return json({ success: false, error: 'No file uploaded' }, 400);
@@ -83,7 +101,8 @@ export async function onRequestPost(context) {
 
     const arrayBuffer = await file.arrayBuffer();
     const ext = deriveExtension(file.name || title || 'upload');
-    const key = `family-media/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const folder = chooseUploadFolder(file.name, file.type, section);
+    const key = `family-media/${folder}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
     await bucket.put(key, arrayBuffer, {
       httpMetadata: {
