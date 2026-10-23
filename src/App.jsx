@@ -182,7 +182,7 @@ const contentTabMap = [
 ];
 
 const filterOptions = {
-  reading: ['all', 'text', 'story'],
+  reading: ['all', 'text', 'story', 'website'],
   listening: ['all', 'audio'],
   album: ['all', 'image'],
   video: ['all', 'video'],
@@ -297,6 +297,12 @@ function getDefaultItemBySection(section) {
   return base;
 }
 
+function isWebsiteUrl(value) {
+  if (!value) return false;
+  const url = String(value).trim();
+  return /^https?:\/\//i.test(url) || /^\/\//.test(url);
+}
+
 function normalizeVideoEmbedUrl(rawUrl) {
   if (!rawUrl) return '';
   const url = String(rawUrl).trim();
@@ -341,6 +347,7 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
   const isImage = item.type === 'image' || /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /unsplash|images?\.|cdn/i.test(url);
   const isAudio = item.type === 'audio' || /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url) || /audio/i.test(url);
   const isVideo = item.type === 'video' || /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url) || /video|bilibili|youtube|douyin|xiaohongshu|xhs/i.test(url);
+  const isWebsite = item.type === 'website' || isWebsiteUrl(url);
 
   if (isImage) {
     return <button type="button" className={compact ? 'media-preview compact image-preview' : 'media-preview image-preview'} onClick={() => onOpen && onOpen()}><img src={url} alt={item.title} /></button>;
@@ -348,10 +355,13 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
   if (isAudio) {
     return <div className={compact ? 'media-preview compact' : 'media-preview'}><audio controls preload="none" src={url} /></div>;
   }
+  if (isWebsite) {
+    return <div className={compact ? 'media-preview compact embedded-page' : 'media-preview embedded-page'}><iframe src={url} title={item.title || 'website'} sandbox="allow-scripts allow-same-origin allow-popups allow-forms" loading="lazy" /></div>;
+  }
   if (isVideo) {
     const embedUrl = normalizeVideoEmbedUrl(url);
     const isExternalShareLink = /bilibili|youtube|youtu\.be|vimeo|douyin|xiaohongshu|xhs/i.test(url) && !/\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url);
-    return <div className={compact ? 'media-preview compact' : 'media-preview'}>
+    return <div className={compact ? 'media-preview compact video-preview' : 'media-preview video-preview'}>
       {isExternalShareLink ? (
         <iframe src={embedUrl} title={item.title || 'video'} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
       ) : (
@@ -545,7 +555,10 @@ function App() {
     const filter = contentFilters[section] || 'all';
     if (filter === 'all') return items;
     return items.filter((item) => {
-      if (section === 'reading') return item.type === filter || item.type === 'text' && filter === 'text' || item.type === 'story' && filter === 'story';
+      if (section === 'reading') {
+        if (filter === 'website') return item.type === 'website';
+        return item.type === filter || (item.type === 'text' && filter === 'text') || (item.type === 'story' && filter === 'story');
+      }
       if (section === 'listening') return item.type === 'audio';
       if (section === 'album') return item.type === 'image';
       if (section === 'video') return item.type === 'video';
@@ -766,6 +779,15 @@ function App() {
   const renderContentList = (section, label) => {
     const items = getVisibleItems(section);
     const filters = filterOptions[section] || ['all'];
+    const featuredAlbumItems = section === 'album' && items.length > 4 ? (() => {
+      const itemsCopy = [...items];
+      for (let index = itemsCopy.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [itemsCopy[index], itemsCopy[randomIndex]] = [itemsCopy[randomIndex], itemsCopy[index]];
+      }
+      return itemsCopy.slice(0, 4);
+    })() : section === 'album' ? items.slice(0, 4) : [];
+    const restAlbumItems = section === 'album' ? items.filter((item) => !featuredAlbumItems.some((featuredItem) => featuredItem.id === item.id)) : [];
     return (
       <section className="page-block">
         <div className="section-toolbar">
@@ -792,36 +814,53 @@ function App() {
         {items.length === 0 ? (
           <div className="empty-state">{t.noData}</div>
         ) : (
-          <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
-            {items.map((item) => (
-              <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : 'content-card'}>
-                <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia(item)} />
-                <div className="content-card-body">
-                  <div className="card-topline">
-                    <span className="pill-type">{item.type || 'text'}</span>
-                  </div>
-                  <h4>{item.title}</h4>
-                  {item.text && <p>{item.text}</p>}
-                  <div className="content-card-actions">
-                    {section !== 'game' ? (
-                      <button type="button" className="inline-action" onClick={() => { incrementReads(section, item); window.open(item.url, '_blank', 'noopener,noreferrer'); }}>{lang === 'zh' ? '阅读' : 'Open'}</button>
-                    ) : (
-                      <a href={item.href} target="_blank" rel="noreferrer" className="inline-action-link">{lang === 'zh' ? '进入游戏' : 'Play'}</a>
-                    )}
-                    {isAdmin && (
-                      <>
-                        <button type="button" className="inline-action" onClick={() => openComposer(section, item)}><Pencil size={14} /></button>
-                        <button type="button" className="inline-action danger" onClick={() => handleDeleteItem(section, item)}><Trash2 size={14} /></button>
-                        <button type="button" className="inline-action" onClick={() => handleToggleVisibility(section, item)}>
-                          {item.visible !== false ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      </>
-                    )}
-                  </div>
+          <>
+            {section === 'album' && featuredAlbumItems.length > 0 && (
+              <div className="album-featured-wrap">
+                <div className="album-featured-header">
+                  <h4>精选相册</h4>
                 </div>
-              </article>
-            ))}
-          </div>
+                <div className="album-featured-row">
+                  {featuredAlbumItems.map((item, index) => (
+                    <button key={item.id || `${item.title}-${index}`} type="button" className="album-featured-item" onClick={() => setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })}>
+                      <img src={item.url} alt={item.title} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
+              {(section === 'album' ? restAlbumItems : items).map((item) => (
+                <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : 'content-card'}>
+                  <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
+                  <div className="content-card-body">
+                    <div className="card-topline">
+                      <span className="pill-type">{item.type || 'text'}</span>
+                    </div>
+                    <h4>{item.title}</h4>
+                    {item.text && <p>{item.text}</p>}
+                    <div className="content-card-actions">
+                      {section !== 'game' ? (
+                        <button type="button" className="inline-action" onClick={() => { incrementReads(section, item); if (item.type === 'website' && item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } else if (item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } }}>{lang === 'zh' ? '阅读' : 'Open'}</button>
+                      ) : (
+                        <a href={item.href} target="_blank" rel="noreferrer" className="inline-action-link">{lang === 'zh' ? '进入游戏' : 'Play'}</a>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <button type="button" className="inline-action" onClick={() => openComposer(section, item)}><Pencil size={14} /></button>
+                          <button type="button" className="inline-action danger" onClick={() => handleDeleteItem(section, item)}><Trash2 size={14} /></button>
+                          <button type="button" className="inline-action" onClick={() => handleToggleVisibility(section, item)}>
+                            {item.visible !== false ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
         )}
       </section>
     );
@@ -1113,7 +1152,7 @@ function App() {
                       <label className="full"><span>{t.labelTitle}</span><input value={adminDraft.title || ''} onChange={(event) => setAdminDraft((current) => ({ ...current, title: event.target.value }))} /></label>
                       <label className="full"><span>{t.type}</span>
                         <select value={adminDraft.type || 'text'} onChange={(event) => setAdminDraft((current) => ({ ...current, type: event.target.value }))}>
-                          {adminSection === 'reading' && <><option value="text">文字</option><option value="story">故事</option></>}
+                          {adminSection === 'reading' && <><option value="text">文字</option><option value="story">故事</option><option value="website">网站</option></>}
                           {adminSection === 'listening' && <option value="audio">音频</option>}
                           {adminSection === 'album' && <option value="image">图片</option>}
                           {adminSection === 'video' && <option value="video">视频</option>}
@@ -1231,10 +1270,24 @@ function App() {
         <div className="lightbox-overlay" onClick={() => setLightboxMedia(null)}>
           <div className="lightbox-dialog" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="lightbox-close" onClick={() => setLightboxMedia(null)}>×</button>
-            <img src={lightboxMedia.url} alt={lightboxMedia.title || 'Preview'} />
+            {lightboxMedia.items && lightboxMedia.items.length > 1 && (
+              <>
+                <button type="button" className="lightbox-nav prev" onClick={() => setLightboxMedia((current) => {
+                  if (!current?.items?.length) return current;
+                  const nextIndex = (current.index - 1 + current.items.length) % current.items.length;
+                  return { ...current, index: nextIndex };
+                })}>←</button>
+                <button type="button" className="lightbox-nav next" onClick={() => setLightboxMedia((current) => {
+                  if (!current?.items?.length) return current;
+                  const nextIndex = (current.index + 1) % current.items.length;
+                  return { ...current, index: nextIndex };
+                })}>→</button>
+              </>
+            )}
+            <img src={lightboxMedia.items?.[lightboxMedia.index]?.url || lightboxMedia.url} alt={lightboxMedia.items?.[lightboxMedia.index]?.title || lightboxMedia.title || 'Preview'} />
             <div className="lightbox-meta">
-              <strong>{lightboxMedia.title}</strong>
-              {lightboxMedia.text && <p>{lightboxMedia.text}</p>}
+              <strong>{lightboxMedia.items?.[lightboxMedia.index]?.title || lightboxMedia.title}</strong>
+              {(lightboxMedia.items?.[lightboxMedia.index]?.text || lightboxMedia.text) && <p>{lightboxMedia.items?.[lightboxMedia.index]?.text || lightboxMedia.text}</p>}
             </div>
           </div>
         </div>
@@ -1279,7 +1332,7 @@ function App() {
                   <label className="full"><span>{t.labelTitle}</span><input value={composer.title || ''} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} /></label>
                   <label className="full"><span>{t.type}</span>
                     <select value={composer.type || 'text'} onChange={(event) => setComposer((current) => ({ ...current, type: event.target.value }))}>
-                      {composer.section === 'reading' && <><option value="text">文字</option><option value="story">故事</option></>}
+                      {composer.section === 'reading' && <><option value="text">文字</option><option value="story">故事</option><option value="website">网站</option></>}
                       {composer.section === 'listening' && <option value="audio">音频</option>}
                       {composer.section === 'album' && <option value="image">图片</option>}
                       {composer.section === 'video' && <option value="video">视频</option>}
