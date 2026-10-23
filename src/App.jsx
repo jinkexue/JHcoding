@@ -389,7 +389,7 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
 
 function App() {
   const [lang, setLang] = useState('en');
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState('dark');
   const [role, setRole] = useState(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ROLE_KEY) || null;
@@ -405,7 +405,7 @@ function App() {
   const [clock, setClock] = useState(getCanadaElapsed());
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
   const [qaEntries, setQaEntries] = useState(defaultQaEntries);
-  const [showQaPanel, setShowQaPanel] = useState(true);
+  const [showQaPanel, setShowQaPanel] = useState(false);
   const [qaDraft, setQaDraft] = useState({ from: '爸爸', question: '', answer: '' });
   const [replyDrafts, setReplyDrafts] = useState({});
   const [composerOpen, setComposerOpen] = useState(false);
@@ -1331,7 +1331,7 @@ function App() {
       )}
 
       {composerOpen && (
-        <div className="editor-modal-overlay" onClick={() => setComposerOpen(false)}>
+        <div className="editor-modal-overlay">
           <div className="editor-modal" onClick={(event) => event.stopPropagation()}>
             <div className="editor-modal-header">
               <h3>{composer.id ? t.edit : t.addContent}</h3>
