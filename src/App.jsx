@@ -22,6 +22,8 @@ const START_DATE = new Date('2026-03-10T00:00:00-06:00');
 const STORAGE_KEY = 'family-portal-content-v2';
 const ROLE_KEY = 'family-portal-role-v2';
 const SCHEDULE_KEY = 'family-portal-schedule-v2';
+const LOGO_KEY = 'family-portal-logo-v2';
+const defaultLogo = { text: '🇨🇦', url: '' };
 const FAMILY_STATUS_TZ = {
   dad: 'America/Edmonton',
   daughter: 'Asia/Shanghai',
@@ -202,6 +204,13 @@ function getCanadaElapsed() {
 
 function sortByDateDesc(items = []) {
   return [...items].sort((a, b) => new Date(b.sortAt || b.createdAt || 0).getTime() - new Date(a.sortAt || a.createdAt || 0).getTime());
+}
+
+function normalizeCollectionWithIds(section, items = []) {
+  return (Array.isArray(items) ? items : []).map((item, index) => ({
+    ...item,
+    id: item?.id || `${section}-${index}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  }));
 }
 
 function normalizeRole(role) {
@@ -387,7 +396,10 @@ function App() {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (!stored) return DEFAULT_CONTENT;
       const parsed = JSON.parse(stored);
-      return { ...DEFAULT_CONTENT, ...parsed };
+      const merged = { ...DEFAULT_CONTENT, ...parsed };
+      return Object.fromEntries(
+        Object.entries(merged).map(([section, list]) => [section, normalizeCollectionWithIds(section, list)])
+      );
     } catch (error) {
       console.warn('Unable to parse stored content', error);
       return DEFAULT_CONTENT;
@@ -402,6 +414,15 @@ function App() {
       return stored ? JSON.parse(stored) : defaultFamilySchedule;
     } catch (error) {
       return defaultFamilySchedule;
+    }
+  });
+  const [siteLogo, setSiteLogo] = useState(() => {
+    if (typeof window === 'undefined') return defaultLogo;
+    try {
+      const stored = window.localStorage.getItem(LOGO_KEY);
+      return stored ? { ...defaultLogo, ...JSON.parse(stored) } : defaultLogo;
+    } catch (error) {
+      return defaultLogo;
     }
   });
 
@@ -421,6 +442,12 @@ function App() {
       window.localStorage.setItem(SCHEDULE_KEY, JSON.stringify(familySchedule));
     }
   }, [familySchedule]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LOGO_KEY, JSON.stringify(siteLogo));
+    }
+  }, [siteLogo]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && role) {
@@ -530,8 +557,9 @@ function App() {
   const getTotalReads = (section) => (contentSections[section] || []).reduce((sum, item) => sum + Number(item.reads || 0), 0);
 
   const handleSaveComposer = () => {
+    const nextId = composer.id || `${composer.section}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const base = {
-      id: composer.id || `${composer.section}-${Date.now()}`,
+      id: nextId,
       title: composer.title.trim(),
       text: composer.text.trim(),
       visible: composer.visible !== false,
@@ -542,21 +570,31 @@ function App() {
     if (composer.section === 'game') {
       const gameItem = {
         ...base,
-        id: composer.id || `game-${Date.now()}`,
+        id: composer.id || nextId,
         href: composer.href || './snake-game.html',
         visual: composer.visual || '🎮',
         accent: composer.accent || 'from-emerald-400 to-lime-300',
       };
-      setContentSections((current) => ({ ...current, game: sortByDateDesc([gameItem, ...(current.game || [])]) }));
+      setContentSections((current) => ({
+        ...current,
+        game: sortByDateDesc([
+          gameItem,
+          ...normalizeCollectionWithIds('game', current.game || []).filter((item) => item.id !== gameItem.id),
+        ]),
+      }));
     } else {
       const mediaItem = {
         ...base,
+        id: composer.id || nextId,
         type: composer.type || 'text',
         url: composer.url || '',
       };
       setContentSections((current) => ({
         ...current,
-        [composer.section]: sortByDateDesc([mediaItem, ...(current[composer.section] || [])]),
+        [composer.section]: sortByDateDesc([
+          mediaItem,
+          ...normalizeCollectionWithIds(composer.section, current[composer.section] || []).filter((item) => item.id !== mediaItem.id),
+        ]),
       }));
     }
     setComposerOpen(false);
@@ -575,7 +613,7 @@ function App() {
   const handleDeleteItem = (section, item) => {
     setContentSections((current) => ({
       ...current,
-      [section]: (current[section] || []).filter((entry) => entry.id !== item.id),
+      [section]: normalizeCollectionWithIds(section, (current[section] || [])).filter((entry) => String(entry.id ?? '') !== String(item?.id ?? '')),
     }));
   };
 
@@ -662,12 +700,15 @@ function App() {
 
   const handleSaveAdmin = () => {
     if (!adminDraft) return;
-    const payload = { ...adminDraft, id: adminDraft.id || `${adminSection}-${Date.now()}` };
+    const payload = {
+      ...adminDraft,
+      id: adminDraft.id || `${adminSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    };
     setContentSections((current) => ({
       ...current,
       [adminSection]: sortByDateDesc([
         payload,
-        ...(current[adminSection] || []).filter((item) => item.id !== payload.id),
+        ...normalizeCollectionWithIds(adminSection, current[adminSection] || []).filter((item) => String(item.id ?? '') !== String(payload.id ?? '')),
       ]),
     }));
     setAdminDraft(getDefaultItemBySection(adminSection));
@@ -711,7 +752,7 @@ function App() {
   const handleDeleteAdmin = (item) => {
     setContentSections((current) => ({
       ...current,
-      [adminSection]: (current[adminSection] || []).filter((entry) => entry.id !== item.id),
+      [adminSection]: normalizeCollectionWithIds(adminSection, current[adminSection] || []).filter((entry) => String(entry.id ?? '') !== String(item?.id ?? '')),
     }));
   };
 
@@ -791,7 +832,7 @@ function App() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-brand">
-            <div className="brand-mark">🇨🇦</div>
+            {siteLogo.url ? <img className="brand-mark-image" src={siteLogo.url} alt="site logo" /> : <div className="brand-mark">{siteLogo.text || '🇨🇦'}</div>}
             <div>
               <small>Secret</small>
               <strong>我们的秘密基地</strong>
@@ -833,23 +874,29 @@ function App() {
   return (
     <div className="app-shell">
       <div className="header-banner">
-        <div className="banner-title-group">
-          <div className="banner-pill"><CalendarDays size={16} /> {copy[lang].pageTitle}</div>
-          <div className="family-status-row banner-status-row">
-            <span className="status-pill">爸爸 {dadStatus.label}</span>
-            <span className="status-pill">女儿 {daughterStatus.label}</span>
-          </div>
+        <div className="family-status-row banner-status-row">
+          <span className="status-pill">爸爸 {dadStatus.label}</span>
+          <span className="status-pill">女儿 {daughterStatus.label}</span>
         </div>
-        <div className="banner-counter">
-          <strong>{clock.days}</strong>
-          <span>{lang === 'zh' ? '天' : 'days'}</span>
-          <small>{clock.hours}:{String(clock.minutes).padStart(2, '0')}:{String(clock.seconds).padStart(2, '0')}</small>
+
+        <div className="header-main-row">
+          <div className="banner-title-group">
+            <div className="banner-pill"><CalendarDays size={16} /> 来到加拿大</div>
+          </div>
+
+          <div className="banner-tip">不定期更新哦，看完下次再来！</div>
+
+          <div className="banner-counter">
+            <strong>{clock.days}</strong>
+            <span>{lang === 'zh' ? '天' : 'days'}</span>
+            <small>{clock.hours}:{String(clock.minutes).padStart(2, '0')}:{String(clock.seconds).padStart(2, '0')}</small>
+          </div>
         </div>
       </div>
 
       <header className="topbar">
         <div className="brand-group">
-          <div className="brand-mark">🇨🇦</div>
+          {siteLogo.url ? <img className="brand-mark-image" src={siteLogo.url} alt="site logo" /> : <div className="brand-mark">{siteLogo.text || '🇨🇦'}</div>}
           <div className="brand-copy">
             <small>Secret</small>
             <strong>Base</strong>
@@ -979,6 +1026,15 @@ function App() {
 
             <div className="admin-manager-layout">
               <aside className="admin-sidebar">
+                <div className="brand-config-box">
+                  <h4>站点 Logo</h4>
+                  <label className="full"><span>图片链接</span><input value={siteLogo.url} onChange={(event) => setSiteLogo((current) => ({ ...current, url: event.target.value }))} /></label>
+                  <label className="full"><span>文字 / Emoji</span><input value={siteLogo.text} onChange={(event) => setSiteLogo((current) => ({ ...current, text: event.target.value }))} /></label>
+                  <div className="preview-row">
+                    {siteLogo.url ? <img className="brand-mark-image" src={siteLogo.url} alt="logo preview" /> : <div className="brand-mark">{siteLogo.text || '🇨🇦'}</div>}
+                  </div>
+                </div>
+
                 <div className="admin-sidebar-header">
                   <h4>批量管理</h4>
                   <select value={adminSection} onChange={(event) => {

@@ -57,8 +57,7 @@ button { cursor: pointer; }
 
 .header-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(59, 130, 246, 0.12));
   border: 1px solid var(--panel-border);
@@ -66,6 +65,10 @@ button { cursor: pointer; }
   padding: 14px 18px;
   margin-bottom: 18px;
   box-shadow: 0 12px 26px var(--shadow-soft);
+}
+
+.header-main-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
 
 .banner-title-group {
@@ -78,6 +81,14 @@ button { cursor: pointer; }
   gap: 8px;
   font-weight: 700;
   color: var(--text-main);
+}
+
+.banner-tip {
+  flex: 1;
+  text-align: center;
+  color: var(--text-soft);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .banner-counter {
@@ -113,6 +124,9 @@ button { cursor: pointer; }
   width: 42px; height: 42px; border-radius: 14px;
   background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
   display: grid; place-items: center; color: white; font-size: 1.35rem;
+}
+.brand-mark-image {
+  width: 42px; height: 42px; border-radius: 14px; object-fit: cover; display: block; border: 1px solid var(--panel-border); background: rgba(255,255,255,0.86);
 }
 .brand-copy { display: flex; flex-direction: column; }
 .brand-copy small { color: var(--text-muted); }
@@ -160,7 +174,11 @@ button { cursor: pointer; }
 .family-status-row {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
-.banner-status-row { margin-left: 4px; }
+.banner-status-row {
+  margin-left: 4px;
+  align-items: flex-start;
+  flex-direction: column;
+}
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px; padding: 0.4rem 0.6rem; border-radius: 999px; background: rgba(148, 163, 184, 0.08); color: var(--text-soft); font-size: 0.7rem; font-weight: 700;
 }
@@ -266,6 +284,13 @@ button { cursor: pointer; }
 .admin-manager-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; }
 .admin-sidebar, .admin-form-card {
   border: 1px solid var(--panel-border); border-radius: 20px; background: var(--panel-strong); padding: 14px;
+}
+.brand-config-box {
+  border: 1px solid var(--panel-border); border-radius: 16px; background: rgba(148, 163, 184, 0.04); padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px;
+}
+.brand-config-box h4 { margin: 0; }
+.preview-row {
+  display: flex; align-items: center; justify-content: center; padding-top: 4px;
 }
 .admin-sidebar-header {
   display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
