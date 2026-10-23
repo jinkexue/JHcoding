@@ -21,6 +21,7 @@ import {
 const START_DATE = new Date('2026-03-10T00:00:00-06:00');
 const STORAGE_KEY = 'family-portal-content-v2';
 const ROLE_KEY = 'family-portal-role-v2';
+const THEME_KEY = 'family-portal-theme-v2';
 const SCHEDULE_KEY = 'family-portal-schedule-v2';
 const LOGO_KEY = 'family-portal-logo-v2';
 const defaultLogo = { text: '🇨🇦', url: '' };
@@ -389,7 +390,11 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
 
 function App() {
   const [lang, setLang] = useState('en');
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light';
+    const saved = window.localStorage.getItem(THEME_KEY);
+    return saved === 'dark' ? 'dark' : 'light';
+  });
   const [role, setRole] = useState(() => {
     if (typeof window === 'undefined') return null;
     return window.localStorage.getItem(ROLE_KEY) || null;
@@ -481,6 +486,7 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      window.localStorage.setItem(THEME_KEY, theme);
       document.documentElement.setAttribute('data-theme', theme);
       document.documentElement.style.colorScheme = theme;
     }
@@ -798,6 +804,8 @@ function App() {
   const renderContentList = (section, label) => {
     const items = getVisibleItems(section);
     const filters = filterOptions[section] || ['all'];
+    const websiteItems = section === 'reading' ? items.filter((item) => item.type === 'website') : [];
+    const regularItems = section === 'reading' ? items.filter((item) => item.type !== 'website') : items;
     const featuredAlbumItems = section === 'album' && items.length > 4 ? (() => {
       const itemsCopy = [...items];
       for (let index = itemsCopy.length - 1; index > 0; index -= 1) {
@@ -844,9 +852,38 @@ function App() {
               </div>
             )}
 
+            {websiteItems.length > 0 && (
+              <div className="website-full-row">
+                {websiteItems.map((item) => (
+                  <article key={item.id || `${section}-${item.title}`} className="content-card website-card full-width">
+                    <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
+                    <div className="content-card-body">
+                      <div className="card-topline">
+                        <span className="pill-type">{item.type || 'text'}</span>
+                      </div>
+                      <h4>{item.title}</h4>
+                      {item.text && <p>{item.text}</p>}
+                      <div className="content-card-actions">
+                        <button type="button" className="inline-action" onClick={() => { incrementReads(section, item); if (item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } }}>{lang === 'zh' ? '阅读' : 'Open'}</button>
+                        {isAdmin && (
+                          <>
+                            <button type="button" className="inline-action" onClick={() => openComposer(section, item)}><Pencil size={14} /></button>
+                            <button type="button" className="inline-action danger" onClick={() => handleDeleteItem(section, item)}><Trash2 size={14} /></button>
+                            <button type="button" className="inline-action" onClick={() => handleToggleVisibility(section, item)}>
+                              {item.visible !== false ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
             <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
-              {(section === 'album' ? restAlbumItems : items).map((item) => (
-                <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : item.type === 'website' ? 'content-card website-card' : 'content-card'}>
+              {(section === 'album' ? restAlbumItems : regularItems).map((item) => (
+                <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : 'content-card'}>
                   <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
                   <div className="content-card-body">
                     <div className="card-topline">
@@ -856,7 +893,7 @@ function App() {
                     {item.text && <p>{item.text}</p>}
                     <div className="content-card-actions">
                       {section !== 'game' ? (
-                        <button type="button" className="inline-action" onClick={() => { incrementReads(section, item); if (item.type === 'website' && item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } else if (item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } }}>{lang === 'zh' ? '阅读' : 'Open'}</button>
+                        <button type="button" className="inline-action" onClick={() => { incrementReads(section, item); if (item.url) { window.open(item.url, '_blank', 'noopener,noreferrer'); } }}>{lang === 'zh' ? '阅读' : 'Open'}</button>
                       ) : (
                         <a href={item.href} target="_blank" rel="noreferrer" className="inline-action-link">{lang === 'zh' ? '进入游戏' : 'Play'}</a>
                       )}
