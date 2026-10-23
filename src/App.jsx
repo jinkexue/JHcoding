@@ -347,16 +347,13 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
   const isImage = item.type === 'image' || /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i.test(url) || /unsplash|images?\.|cdn/i.test(url);
   const isAudio = item.type === 'audio' || /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url) || /audio/i.test(url);
   const isVideo = item.type === 'video' || /\.(mp4|webm|mov|m4v|ogg|avi|m3u8)(\?.*)?$/i.test(url) || /video|bilibili|youtube|douyin|xiaohongshu|xhs/i.test(url);
-  const isWebsite = item.type === 'website' || isWebsiteUrl(url);
+  const isWebsite = item.type === 'website' || (item.type !== 'video' && isWebsiteUrl(url));
 
   if (isImage) {
     return <button type="button" className={compact ? 'media-preview compact image-preview' : 'media-preview image-preview'} onClick={() => onOpen && onOpen()}><img src={url} alt={item.title} /></button>;
   }
   if (isAudio) {
     return <div className={compact ? 'media-preview compact' : 'media-preview'}><audio controls preload="none" src={url} /></div>;
-  }
-  if (isWebsite) {
-    return <div className={compact ? 'media-preview compact embedded-page' : 'media-preview embedded-page'}><iframe src={url} title={item.title || 'website'} sandbox="allow-scripts allow-same-origin allow-popups allow-forms" loading="lazy" /></div>;
   }
   if (isVideo) {
     const embedUrl = normalizeVideoEmbedUrl(url);
@@ -369,12 +366,15 @@ function MediaPreview({ item, compact = false, onOpen = null }) {
       )}
     </div>;
   }
+  if (isWebsite) {
+    return <div className={compact ? 'media-preview compact embedded-page' : 'media-preview embedded-page'}><iframe src={url} title={item.title || 'website'} sandbox="allow-scripts allow-same-origin allow-popups allow-forms" loading="lazy" /></div>;
+  }
 
   return <div className="media-preview unsupported"><span>{item.title || 'Media'}</span></div>;
 }
 
 function App() {
-  const [lang, setLang] = useState('zh');
+  const [lang, setLang] = useState('en');
   const [theme, setTheme] = useState('light');
   const [role, setRole] = useState(() => {
     if (typeof window === 'undefined') return null;
@@ -800,14 +800,9 @@ function App() {
                 className={contentFilters[section] === filter ? 'filter-btn active' : 'filter-btn'}
                 onClick={() => setContentFilters((current) => ({ ...current, [section]: filter }))}
               >
-                {filter === 'all' ? t.filterAll : filter === 'text' ? t.filterText : filter === 'story' ? '故事' : filter === 'audio' ? t.filterAudio : filter === 'image' ? t.filterImage : filter === 'video' ? t.filterVideo : filter}
+                {filter === 'all' ? t.filterAll : filter === 'text' ? t.filterText : filter === 'story' ? '故事' : filter === 'audio' ? t.filterAudio : filter === 'image' ? t.filterImage : filter === 'video' ? t.filterVideo : filter === 'website' ? '网站' : filter}
               </button>
             ))}
-            {isAdmin && (
-              <button type="button" className="section-editor" onClick={() => openComposer(section)}>
-                + {t.addContent}
-              </button>
-            )}
           </div>
         </div>
 
@@ -832,7 +827,7 @@ function App() {
 
             <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
               {(section === 'album' ? restAlbumItems : items).map((item) => (
-                <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : 'content-card'}>
+                <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : item.type === 'website' ? 'content-card website-card' : 'content-card'}>
                   <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
                   <div className="content-card-body">
                     <div className="card-topline">
@@ -874,7 +869,7 @@ function App() {
             {siteLogo.url ? <img className="brand-mark-image" src={siteLogo.url} alt="site logo" /> : <div className="brand-mark">{siteLogo.text || '🇨🇦'}</div>}
             <div>
               <small>Secret</small>
-              <strong>我们的秘密基地</strong>
+              <strong>秘密基地</strong>
             </div>
           </div>
 
@@ -919,16 +914,15 @@ function App() {
         </div>
 
         <div className="header-main-row">
-          <div className="banner-title-group">
-            <div className="banner-pill"><CalendarDays size={16} /> 来到加拿大</div>
-          </div>
-
           <div className="banner-tip">不定期更新哦，看完下次再来！</div>
 
-          <div className="banner-counter">
-            <strong>{clock.days}</strong>
-            <span>{lang === 'zh' ? '天' : 'days'}</span>
-            <small>{clock.hours}:{String(clock.minutes).padStart(2, '0')}:{String(clock.seconds).padStart(2, '0')}</small>
+          <div className="banner-title-group">
+            <div className="banner-pill"><CalendarDays size={16} /> 来到加拿大</div>
+            <div className="banner-counter">
+              <strong>{clock.days}</strong>
+              <span>{lang === 'zh' ? '天' : 'days'}</span>
+              <small>{clock.hours}:{String(clock.minutes).padStart(2, '0')}:{String(clock.seconds).padStart(2, '0')}</small>
+            </div>
           </div>
         </div>
       </div>

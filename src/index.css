@@ -25,18 +25,21 @@
 }
 
 :root[data-theme='dark'] {
-  --page-bg-top: #0f172a;
-  --page-bg-mid: #111827;
-  --page-bg-bottom: #0b1220;
-  --text-main: #e2e8f0;
-  --text-soft: #cbd5e1;
-  --text-muted: #94a3b8;
-  --panel: rgba(15, 23, 42, 0.74);
-  --panel-strong: rgba(15, 23, 42, 0.94);
-  --panel-alt: rgba(15, 23, 42, 0.76);
-  --panel-border: rgba(148, 163, 184, 0.2);
-  --shadow-soft: rgba(2, 6, 23, 0.26);
-  --shadow-strong: rgba(2, 6, 23, 0.34);
+  --page-bg-top: #1a1224;
+  --page-bg-mid: #2a1d2e;
+  --page-bg-bottom: #1d1f2d;
+  --text-main: #f8efd8;
+  --text-soft: #efd7a2;
+  --text-muted: #d3b783;
+  --panel: rgba(42, 29, 46, 0.86);
+  --panel-strong: rgba(35, 24, 39, 0.96);
+  --panel-alt: rgba(52, 35, 48, 0.82);
+  --panel-border: rgba(227, 179, 116, 0.2);
+  --shadow-soft: rgba(15, 10, 18, 0.34);
+  --shadow-strong: rgba(15, 10, 18, 0.42);
+  --brand-1: #f59e0b;
+  --brand-2: #f97316;
+  --brand-3: #fb7185;
 }
 
 * { box-sizing: border-box; }
@@ -222,6 +225,7 @@ button { cursor: pointer; }
   display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;
 }
 .content-card { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.content-card.website-card { grid-column: 1 / -1; }
 .album-featured-wrap { margin-bottom: 18px; }
 .album-featured-header h4 { margin: 0 0 10px; }
 .album-featured-row {
@@ -240,8 +244,9 @@ button { cursor: pointer; }
 .media-preview.compact { border-radius: 10px; }
 .media-preview.image-preview { background: transparent; border: none; padding: 0; }
 .media-preview.image-preview img { border-radius: 12px; aspect-ratio: 4 / 3; object-fit: cover; }
-.media-preview.embedded-page iframe { width: 100%; min-height: 420px; border: 0; background: white; }
+.media-preview.embedded-page iframe { width: 100%; min-height: 440px; border: 0; background: white; }
 .media-preview.video-preview iframe, .media-preview.video-preview video { width: 100%; min-height: 320px; }
+.website-card .media-preview.embedded-page iframe { min-height: 560px; }
 .video-card .media-preview.video-preview iframe, .video-card .media-preview.video-preview video { min-height: 380px; }
 .media-preview.unsupported { min-height: 100px; display: grid; place-items: center; color: var(--text-soft); }
 .content-card-body { display: flex; flex-direction: column; gap: 10px; }
