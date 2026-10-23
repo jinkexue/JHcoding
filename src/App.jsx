@@ -189,6 +189,20 @@ const filterOptions = {
   game: ['all', 'game'],
 };
 
+const composerTypeOptions = [
+  { value: 'website', section: 'reading', label: { en: 'Website', zh: '网站' } },
+  { value: 'text', section: 'reading', label: { en: 'Text', zh: '文字' } },
+  { value: 'audio', section: 'listening', label: { en: 'Audio', zh: '音频' } },
+  { value: 'image', section: 'album', label: { en: 'Image', zh: '图片' } },
+  { value: 'video', section: 'video', label: { en: 'Video', zh: '视频' } },
+  { value: 'game', section: 'game', label: { en: 'Game', zh: '游戏' } },
+];
+
+function getSectionForType(type) {
+  const entry = composerTypeOptions.find((option) => option.value === type);
+  return entry ? entry.section : 'reading';
+}
+
 function getCanadaElapsed() {
   const now = new Date();
   const canadaNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Edmonton' }));
@@ -623,6 +637,11 @@ function App() {
     setComposerOpen(true);
   };
 
+  const openComposerFromTop = () => {
+    setComposer({ ...getDefaultItemBySection('reading'), section: 'reading', title: '', text: '', url: '', type: 'text', visible: true });
+    setComposerOpen(true);
+  };
+
   const handleDeleteItem = (section, item) => {
     setContentSections((current) => ({
       ...current,
@@ -865,39 +884,43 @@ function App() {
     return (
       <div className="auth-shell">
         <div className="auth-card">
+          <div className="auth-topbar">
+            <button type="button" className="ghost-btn auth-lang-btn" onClick={() => setLang((prev) => (prev === 'en' ? 'zh' : 'en'))}>{lang === 'en' ? '中文' : 'English'}</button>
+          </div>
+
           <div className="auth-brand">
             {siteLogo.url ? <img className="brand-mark-image" src={siteLogo.url} alt="site logo" /> : <div className="brand-mark">{siteLogo.text || '🇨🇦'}</div>}
             <div>
               <small>Secret</small>
-              <strong>秘密基地</strong>
+              <strong>{lang === 'en' ? 'Secret Base' : '秘密基地'}</strong>
             </div>
           </div>
 
           <form className="auth-form" onSubmit={handleLogin}>
             <label className="auth-field">
-              <span>用户名</span>
+              <span>{lang === 'en' ? 'Username' : '用户名'}</span>
               <input
                 type="text"
                 value={loginForm.username}
                 onChange={(event) => setLoginForm((current) => ({ ...current, username: event.target.value }))}
-                placeholder="yqcw@qq.com / yjh"
+                placeholder={lang === 'en' ? 'yqcw@qq.com / yjh' : 'yqcw@qq.com / yjh'}
               />
             </label>
 
             <label className="auth-field">
-              <span>密码</span>
+              <span>{lang === 'en' ? 'Password' : '密码'}</span>
               <input
                 type="password"
                 value={loginForm.password}
                 onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                placeholder="请输入密码"
+                placeholder={lang === 'en' ? 'Enter password' : '请输入密码'}
               />
             </label>
 
             {loginError && <div className="auth-error">{loginError}</div>}
 
             <button type="submit" className="auth-role-btn primary" disabled={loginLoading}>
-              {loginLoading ? '登录中...' : '登陆基地'}
+              {loginLoading ? (lang === 'en' ? 'Logging in...' : '登录中...') : (lang === 'en' ? 'Enter Base' : '登陆基地')}
             </button>
           </form>
         </div>
@@ -956,7 +979,7 @@ function App() {
         <div className="top-actions">
           <button type="button" className="ghost-btn" onClick={() => setLang((prev) => prev === 'zh' ? 'en' : 'zh')}>{lang === 'zh' ? 'EN' : '中文'}</button>
           <button type="button" className="ghost-btn" onClick={() => setTheme((prev) => prev === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? 'Light' : 'Dark'}</button>
-          <button type="button" className="ghost-btn" onClick={() => setComposerOpen(true)}>
+          <button type="button" className="ghost-btn" onClick={openComposerFromTop}>
             <Plus size={14} /> {t.addContent}
           </button>
           <button type="button" className="ghost-btn" onClick={handleLogout}><LogOut size={14} /> {t.logout}</button>
@@ -1325,11 +1348,23 @@ function App() {
                 <>
                   <label className="full"><span>{t.labelTitle}</span><input value={composer.title || ''} onChange={(event) => setComposer((current) => ({ ...current, title: event.target.value }))} /></label>
                   <label className="full"><span>{t.type}</span>
-                    <select value={composer.type || 'text'} onChange={(event) => setComposer((current) => ({ ...current, type: event.target.value }))}>
-                      {composer.section === 'reading' && <><option value="text">文字</option><option value="story">故事</option><option value="website">网站</option></>}
-                      {composer.section === 'listening' && <option value="audio">音频</option>}
-                      {composer.section === 'album' && <option value="image">图片</option>}
-                      {composer.section === 'video' && <option value="video">视频</option>}
+                    <select value={composer.section === 'game' ? 'game' : composer.type || 'text'} onChange={(event) => {
+                      const nextType = event.target.value;
+                      const nextSection = getSectionForType(nextType);
+                      setComposer((current) => ({
+                        ...getDefaultItemBySection(nextSection),
+                        ...current,
+                        section: nextSection,
+                        type: nextType,
+                        title: current.title || '',
+                        text: current.text || '',
+                        url: current.url || '',
+                        visible: current.visible !== false,
+                      }));
+                    }}>
+                      {composerTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label[lang]}</option>
+                      ))}
                     </select>
                   </label>
                   <label className="full"><span>{t.text}</span><textarea rows={4} value={composer.text || ''} onChange={(event) => setComposer((current) => ({ ...current, text: event.target.value }))} /></label>
