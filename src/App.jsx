@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { clearAuthSessionState, getSessionLockTimeoutMs, isSessionIdleExpired, shouldLockForVisibilityChange } from './security';
 import {
   BookOpenText,
   CalendarDays,
@@ -403,9 +404,11 @@ function App() {
     if (typeof window === 'undefined') return false;
     return Boolean(window.localStorage.getItem(ROLE_KEY));
   });
-  const [loginForm, setLoginForm] = useState({ username: 'yqcw@qq.com', password: '123456' });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [sessionLockedMessage, setSessionLockedMessage] = useState('');
+  const lastActivityRef = useRef(Date.now());
   const [activeTab, setActiveTab] = useState('home');
   const [clock, setClock] = useState(getCanadaElapsed());
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
@@ -461,6 +464,58 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !isLoggedIn) {
+      return undefined;
+    }
+
+    const updateLastActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const lockSession = (message) => {
+      setRole(null);
+      setIsLoggedIn(false);
+      setActiveTab('home');
+      setShowQaPanel(false);
+      setLoginForm({ username: '', password: '' });
+      clearAuthSessionState();
+      setSessionLockedMessage(message);
+      setLoginError(message);
+    };
+
+    const handleVisibilityChange = () => {
+      if (shouldLockForVisibilityChange(document.visibilityState === 'hidden')) {
+        lockSession('窗口已切换或最小化，已自动锁定。请重新输入用户名和密码。');
+      }
+    };
+
+    const handleWindowBlur = () => {
+      lockSession('窗口已失焦，已自动锁定。请重新输入用户名和密码。');
+    };
+
+    const checkIdleTimeout = () => {
+      if (isSessionIdleExpired(lastActivityRef.current, Date.now())) {
+        lockSession('已超过 10 分钟无操作，出于安全需要已自动锁定。请重新输入用户名和密码。');
+      }
+    };
+
+    const activityEvents = ['click', 'keydown', 'pointerdown', 'mousedown', 'mousemove', 'touchstart', 'scroll', 'wheel'];
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, updateLastActivity, { passive: true }));
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    const idleTimer = window.setInterval(checkIdleTimeout, 1000);
+
+    lastActivityRef.current = Date.now();
+
+    return () => {
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, updateLastActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      window.clearInterval(idleTimer);
+    };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(contentSections));
     }
@@ -510,6 +565,8 @@ function App() {
       return;
     }
 
+    lastActivityRef.current = Date.now();
+    setSessionLockedMessage('');
     setLoginLoading(true);
     setLoginError('');
 
@@ -565,9 +622,10 @@ function App() {
     setIsLoggedIn(false);
     setActiveTab('home');
     setShowQaPanel(false);
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(ROLE_KEY);
-    }
+    setSessionLockedMessage('');
+    setLoginForm({ username: '', password: '' });
+    setLoginError('');
+    clearAuthSessionState();
   };
 
   const getVisibleItems = (section) => {
@@ -933,14 +991,17 @@ function App() {
             </div>
           </div>
 
-          <form className="auth-form" onSubmit={handleLogin}>
+          <form className="auth-form" onSubmit={handleLogin} autoComplete="off">
             <label className="auth-field">
               <span>{lang === 'en' ? 'Username' : '用户名'}</span>
               <input
                 type="text"
+                name="username"
+                autoComplete="off"
+                spellCheck={false}
                 value={loginForm.username}
                 onChange={(event) => setLoginForm((current) => ({ ...current, username: event.target.value }))}
-                placeholder={lang === 'en' ? 'yqcw@qq.com / yjh' : 'yqcw@qq.com / yjh'}
+                placeholder={lang === 'en' ? 'Enter username' : '请输入用户名'}
               />
             </label>
 
@@ -948,13 +1009,16 @@ function App() {
               <span>{lang === 'en' ? 'Password' : '密码'}</span>
               <input
                 type="password"
+                name="password"
+                autoComplete="new-password"
+                spellCheck={false}
                 value={loginForm.password}
                 onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
                 placeholder={lang === 'en' ? 'Enter password' : '请输入密码'}
               />
             </label>
 
-            {loginError && <div className="auth-error">{loginError}</div>}
+            {(sessionLockedMessage || loginError) && <div className="auth-error">{sessionLockedMessage || loginError}</div>}
 
             <button type="submit" className="auth-role-btn primary" disabled={loginLoading}>
               {loginLoading ? (lang === 'en' ? 'Logging in...' : '登录中...') : (lang === 'en' ? 'Enter Base' : '登陆基地')}
