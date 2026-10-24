@@ -1,5 +1,12 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { clearAuthSessionState, getSessionLockTimeoutMs, isSessionIdleExpired, shouldLockForVisibilityChange } from './security';
+import {
+  clearAuthSessionState,
+  getSessionLockTimeoutMs,
+  getTimePartsInTimeZone,
+  isSessionIdleExpired,
+  isWeekendInTimeZone,
+  shouldLockForVisibilityChange,
+} from './security';
 import {
   BookOpenText,
   CalendarDays,
@@ -259,8 +266,13 @@ function getPresenceLabelFromRule(rule) {
 function getMemberPresence(member, schedule = defaultFamilySchedule) {
   const timeZone = FAMILY_STATUS_TZ[member] || 'UTC';
   const now = new Date();
-  const localNow = new Date(now.toLocaleString('en-US', { timeZone }));
-  const minutes = localNow.getHours() * 60 + localNow.getMinutes();
+  const localNow = getTimePartsInTimeZone(now, timeZone);
+  const minutes = localNow.minutes;
+
+  if (member === 'daughter' && isWeekendInTimeZone(now, timeZone)) {
+    return { label: '休息中' };
+  }
+
   const rules = schedule[member] || defaultFamilySchedule[member] || [];
 
   for (const rule of rules) {
