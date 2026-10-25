@@ -271,7 +271,7 @@ button { cursor: pointer; }
 .content-card.website-card .content-card-body { order: 2; }
 .album-featured-wrap { margin-bottom: 18px; }
 .album-hero-display {
-  position: relative; width: 100%; min-height: 380px; border-radius: 22px; overflow: hidden; border: 1px solid var(--panel-border); background: rgba(15, 23, 42, 0.06); box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 240px; max-height: 70vh; border-radius: 22px; overflow: hidden; border: 1px solid var(--panel-border); background: rgba(15, 23, 42, 0.06); box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
 }
 .album-hero-slide {
   position: absolute; inset: 0; border: none; padding: 0; margin: 0; background: transparent; cursor: pointer; opacity: 0; transform: scale(1.02); transition: opacity 0.8s ease, transform 0.8s ease;
@@ -331,10 +331,10 @@ button { cursor: pointer; }
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.72); display: grid; place-items: center; z-index: 70; padding: 18px;
 }
 .lightbox-dialog {
-  width: min(900px, 100%); background: rgba(255,255,255,0.96); border-radius: 20px; border: 1px solid var(--panel-border); box-shadow: 0 24px 44px rgba(15, 23, 42, 0.18); overflow: hidden; position: relative;
+  width: min(1200px, 92vw); background: rgba(255,255,255,0.96); border-radius: 20px; border: 1px solid var(--panel-border); box-shadow: 0 24px 44px rgba(15, 23, 42, 0.18); overflow: hidden; position: relative;
 }
 .lightbox-dialog img {
-  width: 100%; max-height: 72vh; object-fit: contain; background: rgba(15, 23, 42, 0.04);
+  display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 78vh; object-fit: cover; background: rgba(15, 23, 42, 0.04);
 }
 .lightbox-close {
   position: absolute; right: 14px; top: 14px; width: 36px; height: 36px; border: none; border-radius: 50%; background: rgba(15, 23, 42, 0.6); color: #fff; font-size: 1.3rem; display: grid; place-items: center;
