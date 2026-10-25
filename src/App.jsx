@@ -3,9 +3,11 @@ import {
   clearAuthSessionState,
   getSessionLockTimeoutMs,
   getTimePartsInTimeZone,
+  isFilePickerBlurTarget,
   isSessionIdleExpired,
   isWeekendInTimeZone,
   shouldLockForVisibilityChange,
+  shouldRestoreAuthSession,
 } from './security';
 import {
   BookOpenText,
@@ -437,15 +439,15 @@ function App() {
     return saved === 'dark' ? 'dark' : 'light';
   });
   const [role, setRole] = useState(() => {
-    if (typeof window === 'undefined') return null;
+    if (typeof window === 'undefined' || !shouldRestoreAuthSession()) return null;
     return window.localStorage.getItem(ROLE_KEY) || null;
   });
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined' || !shouldRestoreAuthSession()) return false;
     return Boolean(window.localStorage.getItem(ROLE_KEY));
   });
   const [authToken, setAuthToken] = useState(() => {
-    if (typeof window === 'undefined') return '';
+    if (typeof window === 'undefined' || !shouldRestoreAuthSession()) return '';
     return window.localStorage.getItem(AUTH_TOKEN_KEY) || '';
   });
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -464,6 +466,7 @@ function App() {
   const [memberMessage, setMemberMessage] = useState('');
   const [memberLoading, setMemberLoading] = useState(false);
   const lastActivityRef = useRef(Date.now());
+  const filePickerGuardRef = useRef(false);
   const [activeTab, setActiveTab] = useState('home');
   const [clock, setClock] = useState(getCanadaElapsed());
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
@@ -514,9 +517,22 @@ function App() {
   });
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      clearAuthSessionState();
+    }
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setClock(getCanadaElapsed()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const armFilePickerGuard = () => {
+    filePickerGuardRef.current = true;
+    window.setTimeout(() => {
+      filePickerGuardRef.current = false;
+    }, 1200);
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined' || !isLoggedIn) {
@@ -540,17 +556,17 @@ function App() {
     };
 
     const handleVisibilityChange = () => {
+      if (filePickerGuardRef.current) {
+        lastActivityRef.current = Date.now();
+        return;
+      }
       if (shouldLockForVisibilityChange(document.visibilityState === 'hidden')) {
         lockSession('*');
       }
     };
 
     const handleWindowBlur = (event) => {
-      const activeElement = event?.target || document.activeElement;
-      if (
-        activeElement instanceof HTMLInputElement &&
-        activeElement.type === 'file'
-      ) {
+      if (filePickerGuardRef.current || isFilePickerBlurTarget(event?.target) || isFilePickerBlurTarget(document.activeElement)) {
         lastActivityRef.current = Date.now();
         return;
       }
@@ -598,28 +614,12 @@ function App() {
   }, [siteLogo]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && role) {
-      window.localStorage.setItem(ROLE_KEY, role);
-    }
-  }, [role]);
-
-  useEffect(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(THEME_KEY, theme);
       document.documentElement.setAttribute('data-theme', theme);
       document.documentElement.style.colorScheme = theme;
     }
   }, [theme]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (authToken) {
-        window.localStorage.setItem(AUTH_TOKEN_KEY, authToken);
-      } else {
-        window.localStorage.removeItem(AUTH_TOKEN_KEY);
-      }
-    }
-  }, [authToken]);
 
   const apiRequest = async (action, body = {}) => {
     const payload = { action, ...body, ...(authToken ? { token: authToken } : {}) };
@@ -690,7 +690,6 @@ function App() {
           setAuthToken('');
           setIsLoggedIn(true);
           setActiveTab('home');
-          window.localStorage.setItem(ROLE_KEY, fallbackRole);
           return;
         }
         throw new Error(payload?.error || '账号或密码错误。');
@@ -702,7 +701,6 @@ function App() {
       setRole(nextRole);
       setIsLoggedIn(true);
       setActiveTab('home');
-      window.localStorage.setItem(ROLE_KEY, nextRole);
     } catch (error) {
       const fallbackRole = getLocalFallbackRole(username, password);
       if (fallbackRole) {
@@ -710,7 +708,6 @@ function App() {
         setAuthToken('');
         setIsLoggedIn(true);
         setActiveTab('home');
-        window.localStorage.setItem(ROLE_KEY, fallbackRole);
         setLoginError('');
         return;
       }
@@ -1556,7 +1553,7 @@ function App() {
 
                   {adminSection !== 'game' && (
                     <label className="full upload-label"><span>{t.upload}</span>
-                      <input type="file" multiple={adminSection === 'album'} accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
+                      <input type="file" multiple={adminSection === 'album'} accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
                         const selectedFiles = Array.from(event.target.files || []);
                         if (!selectedFiles.length) return;
                         try {
@@ -1762,7 +1759,7 @@ function App() {
                   <label className="full"><span>{t.text}</span><textarea rows={4} value={composer.text || ''} onChange={(event) => setComposer((current) => ({ ...current, text: event.target.value }))} /></label>
                   <label className="full"><span>{t.url}</span><input value={composer.url || ''} onChange={(event) => setComposer((current) => ({ ...current, url: event.target.value }))} /></label>
                   <label className="full upload-label"><span>{t.upload}</span>
-                    <input type="file" multiple={composer.section === 'album'} accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
+                    <input type="file" multiple={composer.section === 'album'} accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
                       const selectedFiles = Array.from(event.target.files || []);
                       if (!selectedFiles.length) return;
                       try {

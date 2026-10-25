@@ -7,7 +7,9 @@ import {
   isSessionIdleExpired,
   isWeekendInTimeZone,
   shouldLockForVisibilityChange,
+  isFilePickerBlurTarget,
   clearAuthSessionState,
+  shouldRestoreAuthSession,
 } from './security.js';
 
 test('idle timeout is configured to 10 minutes', () => {
@@ -31,10 +33,20 @@ test('auth state cleanup removes stored login data', () => {
   assert.equal(next.has('family-portal-role-v2'), false);
 });
 
+test('browser-stored auth data must not restore a logged-in session after refresh', () => {
+  assert.equal(shouldRestoreAuthSession(), false);
+});
+
 test('Shanghai timezone resolves Saturday correctly for the reported time', () => {
   const now = new Date('2026-10-23T20:00:00-06:00');
   const parts = getTimePartsInTimeZone(now, 'Asia/Shanghai');
   assert.equal(parts.weekday, 'Sat');
   assert.equal(parts.day, 24);
   assert.equal(isWeekendInTimeZone(now, 'Asia/Shanghai'), true);
+});
+
+test('file picker blur targets are ignored to avoid false lockouts', () => {
+  assert.equal(isFilePickerBlurTarget({ type: 'file' }), true);
+  assert.equal(isFilePickerBlurTarget({ type: 'text' }), false);
+  assert.equal(isFilePickerBlurTarget({ closest: () => ({ tagName: 'INPUT' }) }), true);
 });

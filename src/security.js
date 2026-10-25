@@ -61,6 +61,23 @@ export function isWeekendInTimeZone(date = new Date(), timeZone) {
   return dayOfWeek === 0 || dayOfWeek === 6;
 }
 
+export function isFilePickerBlurTarget(target) {
+  if (!target) return false;
+
+  if (typeof target === 'object') {
+    if (String(target.type || '').toLowerCase() === 'file') return true;
+    if (typeof target.closest === 'function' && target.closest('input[type="file"]')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function shouldRestoreAuthSession() {
+  return false;
+}
+
 export function clearAuthSessionState(store = new Map()) {
   if (store instanceof Map) {
     const next = new Map(store);
