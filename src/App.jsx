@@ -29,6 +29,7 @@ import {
 const START_DATE = new Date('2026-03-10T00:00:00-06:00');
 const STORAGE_KEY = 'family-portal-content-v2';
 const ROLE_KEY = 'family-portal-role-v2';
+const AUTH_TOKEN_KEY = 'family-portal-auth-token-v2';
 const THEME_KEY = 'family-portal-theme-v2';
 const SCHEDULE_KEY = 'family-portal-schedule-v2';
 const LOGO_KEY = 'family-portal-logo-v2';
@@ -295,28 +296,55 @@ function getMemberPresence(member, schedule = defaultFamilySchedule) {
   return { label: '休息中' };
 }
 
-async function uploadLocalMediaToR2(file, title = 'family-upload', section = 'general') {
-  if (!file) return null;
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('title', title || file.name || 'family-upload');
-  formData.append('section', section || 'general');
+async function uploadLocalMediaBatchToR2(files, title = 'family-upload', section = 'general') {
+  const selectedFiles = Array.isArray(files) ? files.filter(Boolean) : [files].filter(Boolean);
+  if (!selectedFiles.length) return [];
 
-  const response = await fetch('/api/media', {
-    method: 'POST',
-    body: formData,
-  });
+  const uploaded = [];
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload?.error || 'Upload failed');
+  for (const file of selectedFiles) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title || file.name || 'family-upload');
+    formData.append('section', section || 'general');
+
+    const response = await fetch('/api/media', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.error || 'Upload failed');
+    }
+
+    uploaded.push(await response.json());
   }
 
-  return response.json();
+  return uploaded;
+}
+
+async function uploadLocalMediaToR2(file, title = 'family-upload', section = 'general') {
+  const results = await uploadLocalMediaBatchToR2([file].filter(Boolean), title, section);
+  return results[0] || null;
+}
+
+function reorderBatchItems(items, fromIndex, step) {
+  if (!Array.isArray(items) || items.length < 2) return items;
+  const next = [...items];
+  const toIndex = fromIndex + step;
+  if (toIndex < 0 || toIndex >= next.length) return items;
+  [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+  return next;
+}
+
+function removeBatchItem(items, index) {
+  if (!Array.isArray(items)) return [];
+  return items.filter((_, itemIndex) => itemIndex !== index);
 }
 
 function getDefaultItemBySection(section) {
-  const base = { id: '', title: '', text: '', type: 'text', url: '', visible: true, reads: 0, sortAt: new Date().toISOString() };
+  const base = { id: '', title: '', text: '', type: 'text', url: '', visible: true, reads: 0, sortAt: new Date().toISOString(), batchItems: [] };
   if (section === 'reading') return { ...base, type: 'text' };
   if (section === 'listening') return { ...base, type: 'audio', url: 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3' };
   if (section === 'album') return { ...base, type: 'image', url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80' };
@@ -416,10 +444,25 @@ function App() {
     if (typeof window === 'undefined') return false;
     return Boolean(window.localStorage.getItem(ROLE_KEY));
   });
+  const [authToken, setAuthToken] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(AUTH_TOKEN_KEY) || '';
+  });
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [sessionLockedMessage, setSessionLockedMessage] = useState('');
+  const [members, setMembers] = useState([]);
+  const [memberForm, setMemberForm] = useState({
+    id: '',
+    username: '',
+    displayName: '',
+    password: '',
+    role: 'member',
+    points: 0,
+  });
+  const [memberMessage, setMemberMessage] = useState('');
+  const [memberLoading, setMemberLoading] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const [activeTab, setActiveTab] = useState('home');
   const [clock, setClock] = useState(getCanadaElapsed());
@@ -559,6 +602,41 @@ function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (authToken) {
+        window.localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+      } else {
+        window.localStorage.removeItem(AUTH_TOKEN_KEY);
+      }
+    }
+  }, [authToken]);
+
+  const apiRequest = async (action, body = {}) => {
+    const payload = { action, ...body, ...(authToken ? { token: authToken } : {}) };
+    const response = await fetch('/api/auth', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (error) {
+      data = null;
+    }
+
+    if (!response.ok || !data?.success) {
+      throw new Error(data?.error || '请求失败');
+    }
+
+    return data;
+  };
+
   const t = copy[lang];
   const isAdmin = role === 'admin';
   const canManageWishAndQa = role === 'dad' || role === 'admin';
@@ -600,6 +678,7 @@ function App() {
         const fallbackRole = getLocalFallbackRole(username, password);
         if (fallbackRole) {
           setRole(fallbackRole);
+          setAuthToken('');
           setIsLoggedIn(true);
           setActiveTab('home');
           window.localStorage.setItem(ROLE_KEY, fallbackRole);
@@ -608,7 +687,9 @@ function App() {
         throw new Error(payload?.error || '账号或密码错误。');
       }
 
+      const nextToken = payload.token || '';
       const nextRole = normalizeRole(payload.user?.role || 'member');
+      setAuthToken(nextToken);
       setRole(nextRole);
       setIsLoggedIn(true);
       setActiveTab('home');
@@ -617,6 +698,7 @@ function App() {
       const fallbackRole = getLocalFallbackRole(username, password);
       if (fallbackRole) {
         setRole(fallbackRole);
+        setAuthToken('');
         setIsLoggedIn(true);
         setActiveTab('home');
         window.localStorage.setItem(ROLE_KEY, fallbackRole);
@@ -631,12 +713,14 @@ function App() {
 
   const handleLogout = () => {
     setRole(null);
+    setAuthToken('');
     setIsLoggedIn(false);
     setActiveTab('home');
     setShowQaPanel(false);
     setSessionLockedMessage('');
     setLoginForm({ username: '', password: '' });
     setLoginError('');
+    setMembers([]);
     clearAuthSessionState();
   };
 
@@ -660,6 +744,7 @@ function App() {
   const getTotalReads = (section) => (contentSections[section] || []).reduce((sum, item) => sum + Number(item.reads || 0), 0);
 
   const handleSaveComposer = () => {
+    const batchItems = Array.isArray(composer.batchItems) ? composer.batchItems.filter((item) => item?.url) : [];
     const nextId = composer.id || `${composer.section}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const base = {
       id: nextId,
@@ -686,35 +771,49 @@ function App() {
         ]),
       }));
     } else {
-      const mediaItem = {
-        ...base,
-        id: composer.id || nextId,
-        type: composer.type || 'text',
-        url: composer.url || '',
-      };
-      setContentSections((current) => ({
-        ...current,
-        [composer.section]: sortByDateDesc([
-          mediaItem,
-          ...normalizeCollectionWithIds(composer.section, current[composer.section] || []).filter((item) => item.id !== mediaItem.id),
-        ]),
-      }));
+      const mediaEntries = batchItems.length > 1
+        ? batchItems.map((item, index) => ({
+            ...base,
+            id: `${composer.section}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+            title: (composer.title || item.title || `Image ${index + 1}`).trim() || `Image ${index + 1}`,
+            text: composer.text.trim() || item.title || '',
+            type: composer.type || 'image',
+            url: item.url || '',
+          }))
+        : [{
+            ...base,
+            id: composer.id || nextId,
+            type: composer.type || 'text',
+            url: composer.url || '',
+          }];
+
+      setContentSections((current) => {
+        const existing = normalizeCollectionWithIds(composer.section, current[composer.section] || []);
+        const nextEntries = [
+          ...mediaEntries,
+          ...existing.filter((item) => !mediaEntries.some((entry) => String(item.id ?? '') === String(entry.id ?? ''))),
+        ];
+        return {
+          ...current,
+          [composer.section]: sortByDateDesc(nextEntries),
+        };
+      });
     }
     setComposerOpen(false);
-    setComposer({ section: composer.section, title: '', text: '', url: '', type: 'text', visible: true, href: './snake-game.html', visual: '🎮', accent: 'from-emerald-400 to-lime-300' });
+    setComposer({ section: composer.section, title: '', text: '', url: '', type: 'text', visible: true, href: './snake-game.html', visual: '🎮', accent: 'from-emerald-400 to-lime-300', batchItems: [] });
   };
 
   const openComposer = (section = 'reading', item = null) => {
     if (item) {
-      setComposer({ ...item, section });
+      setComposer({ ...item, section, batchItems: item.batchItems || [] });
     } else {
-      setComposer({ ...getDefaultItemBySection(section), section, title: '', text: '', url: '', visible: true });
+      setComposer({ ...getDefaultItemBySection(section), section, title: '', text: '', url: '', visible: true, batchItems: [] });
     }
     setComposerOpen(true);
   };
 
   const openComposerFromTop = () => {
-    setComposer({ ...getDefaultItemBySection('reading'), section: 'reading', title: '', text: '', url: '', type: 'text', visible: true });
+    setComposer({ ...getDefaultItemBySection('reading'), section: 'reading', title: '', text: '', url: '', type: 'text', visible: true, batchItems: [] });
     setComposerOpen(true);
   };
 
@@ -808,18 +907,101 @@ function App() {
 
   const handleSaveAdmin = () => {
     if (!adminDraft) return;
+    const { batchItems = [], ...draftData } = adminDraft;
     const payload = {
-      ...adminDraft,
-      id: adminDraft.id || `${adminSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...draftData,
+      id: draftData.id || `${adminSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     };
-    setContentSections((current) => ({
-      ...current,
-      [adminSection]: sortByDateDesc([
-        payload,
-        ...normalizeCollectionWithIds(adminSection, current[adminSection] || []).filter((item) => String(item.id ?? '') !== String(payload.id ?? '')),
-      ]),
-    }));
+
+    const entries = batchItems.length > 1
+      ? batchItems.map((item, index) => ({
+          ...payload,
+          id: `${adminSection}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+          title: (draftData.title || item.title || `Image ${index + 1}`).trim() || `Image ${index + 1}`,
+          text: draftData.text || item.title || '',
+          type: adminSection === 'album' ? 'image' : (draftData.type || 'text'),
+          url: item.url || '',
+          visible: draftData.visible !== false,
+          reads: Number(draftData.reads || 0),
+          sortAt: draftData.sortAt || new Date().toISOString(),
+        }))
+      : [payload];
+
+    setContentSections((current) => {
+      const existing = normalizeCollectionWithIds(adminSection, current[adminSection] || []);
+      const nextEntries = [
+        ...entries,
+        ...existing.filter((item) => !entries.some((entry) => String(item.id ?? '') === String(entry.id ?? ''))),
+      ];
+      return {
+        ...current,
+        [adminSection]: sortByDateDesc(nextEntries),
+      };
+    });
     setAdminDraft(getDefaultItemBySection(adminSection));
+  };
+
+  const loadMembers = async () => {
+    if (!isAdmin || !authToken) return;
+    try {
+      setMemberLoading(true);
+      const result = await apiRequest('listMembers', {});
+      setMembers(result.members || []);
+      setMemberMessage('');
+    } catch (error) {
+      setMembers([]);
+      setMemberMessage(error.message || '加载成员列表失败。');
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const resetMemberForm = () => {
+    setMemberForm({ id: '', username: '', displayName: '', password: '', role: 'member', points: 0 });
+  };
+
+  const saveMemberRecord = async () => {
+    const username = (memberForm.username || '').trim();
+    const displayName = (memberForm.displayName || '').trim();
+    const password = (memberForm.password || '').trim();
+    if (!username) {
+      setMemberMessage('用户名不能为空。');
+      return;
+    }
+
+    try {
+      setMemberLoading(true);
+      const result = await apiRequest('saveMember', {
+        username,
+        password,
+        displayName,
+        points: Number(memberForm.points || 0),
+        role: memberForm.role || 'member',
+      });
+      setMembers(result.members || []);
+      setMemberMessage('用户信息已保存。');
+      resetMemberForm();
+    } catch (error) {
+      setMemberMessage(error.message || '保存用户失败。');
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  const deleteMemberRecord = async (username) => {
+    if (!username) return;
+    if (!window.confirm(`确定要删除用户 ${username} 吗？`)) return;
+    try {
+      setMemberLoading(true);
+      const result = await apiRequest('deleteMember', { username });
+      setMembers(result.members || []);
+      setMemberMessage('用户已删除。');
+      if (memberForm.username === username) resetMemberForm();
+    } catch (error) {
+      setMemberMessage(error.message || '删除用户失败。');
+    } finally {
+      setMemberLoading(false);
+    }
   };
 
   const updateScheduleForMember = (member, targetId, field, value) => {
@@ -863,6 +1045,12 @@ function App() {
       [adminSection]: normalizeCollectionWithIds(adminSection, current[adminSection] || []).filter((entry) => String(entry.id ?? '') !== String(item?.id ?? '')),
     }));
   };
+
+  useEffect(() => {
+    if (isLoggedIn && isAdmin) {
+      loadMembers();
+    }
+  }, [isLoggedIn, isAdmin, authToken]);
 
   const adminItems = useMemo(() => contentSections[adminSection] || [], [contentSections, adminSection]);
   const adminStats = useMemo(() => ({
@@ -1233,6 +1421,56 @@ function App() {
                   ))}
                 </div>
 
+                <div className="members-box">
+                  <div className="section-toolbar compact">
+                    <h4>用户管理</h4>
+                    <button type="button" className="schedule-add-btn" onClick={resetMemberForm}>+ 新增</button>
+                  </div>
+
+                  {memberMessage && <div className="auth-error" style={{ marginBottom: '10px' }}>{memberMessage}</div>}
+
+                  <div className="member-editor">
+                    <label className="full"><span>用户名</span><input value={memberForm.username} onChange={(event) => setMemberForm((current) => ({ ...current, username: event.target.value }))} /></label>
+                    <label className="full"><span>昵称</span><input value={memberForm.displayName} onChange={(event) => setMemberForm((current) => ({ ...current, displayName: event.target.value }))} /></label>
+                    <label className="full"><span>密码</span><input type="password" value={memberForm.password} onChange={(event) => setMemberForm((current) => ({ ...current, password: event.target.value }))} placeholder="仅修改时填写" /></label>
+                    <label className="full"><span>角色</span>
+                      <select value={memberForm.role} onChange={(event) => setMemberForm((current) => ({ ...current, role: event.target.value }))}>
+                        <option value="member">会员</option>
+                        <option value="dad">爸爸</option>
+                        <option value="daughter">女儿</option>
+                        <option value="admin">管理员</option>
+                      </select>
+                    </label>
+                    <label className="full"><span>积分</span><input type="number" value={memberForm.points} onChange={(event) => setMemberForm((current) => ({ ...current, points: Number(event.target.value || 0) }))} /></label>
+                    <div className="editor-actions">
+                      <button type="button" className="qa-submit-btn" onClick={saveMemberRecord} disabled={memberLoading}>{memberLoading ? '保存中...' : '保存用户'}</button>
+                      <button type="button" className="qa-cancel-btn" onClick={resetMemberForm}>清空</button>
+                    </div>
+                  </div>
+
+                  <div className="member-list-box">
+                    {members.length === 0 ? <div className="empty-state">暂无用户</div> : members.map((member) => (
+                      <div key={member.id || member.username} className="member-item">
+                        <div>
+                          <strong>{member.display_name || member.username}</strong>
+                          <small>{member.username} · {member.role}</small>
+                        </div>
+                        <div className="story-actions compact-actions">
+                          <button type="button" className="inline-action" onClick={() => setMemberForm({
+                            id: member.id || '',
+                            username: member.username || '',
+                            displayName: member.display_name || '',
+                            password: '',
+                            role: member.role || 'member',
+                            points: Number(member.points || 0),
+                          })}>编辑</button>
+                          <button type="button" className="inline-action danger" onClick={() => deleteMemberRecord(member.username)}>删除</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="schedule-box">
                   <h4>作息设置</h4>
                   {['dad', 'daughter'].map((member) => (
@@ -1304,16 +1542,22 @@ function App() {
 
                   {adminSection !== 'game' && (
                     <label className="full upload-label"><span>{t.upload}</span>
-                      <input type="file" accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
+                      <input type="file" multiple={adminSection === 'album'} accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
+                        const selectedFiles = Array.from(event.target.files || []);
+                        if (!selectedFiles.length) return;
                         try {
-                          const result = await uploadLocalMediaToR2(file, adminDraft.title || file.name, adminSection);
+                          const results = await uploadLocalMediaBatchToR2(selectedFiles, adminDraft.title || selectedFiles[0].name, adminSection);
+                          const primary = results[0] || null;
                           setAdminDraft((current) => ({
                             ...current,
-                            url: result?.url || current.url,
-                            type: result?.type || current.type,
-                            title: current.title || result?.title || file.name,
+                            batchItems: results.map((result, index) => ({
+                              id: `${result.key || index}-${Date.now()}`,
+                              title: result?.title || selectedFiles[index]?.name || `Image ${index + 1}`,
+                              url: result?.url || '',
+                            })),
+                            url: primary?.url || current.url,
+                            type: primary?.type || current.type,
+                            title: current.title || primary?.title || selectedFiles[0]?.name || 'family-upload',
                           }));
                         } catch (error) {
                           console.error('R2 upload failed', error);
@@ -1321,6 +1565,27 @@ function App() {
                         }
                       }} />
                     </label>
+                  )}
+
+                  {(adminDraft.batchItems || []).length > 0 && (
+                    <div className="full" style={{ display: 'grid', gap: '8px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '12px', color: '#5b6475' }}>已上传预览（可排序）</span>
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        {(adminDraft.batchItems || []).map((item, index) => (
+                          <div key={item.id || `${item.url || index}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 8px', background: '#f8fafc' }}>
+                            <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '8px' }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{index + 1}. {item.title || `Image ${index + 1}`}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button type="button" className="inline-action" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, -1) }))} disabled={index === 0}>↑</button>
+                              <button type="button" className="inline-action" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, 1) }))} disabled={index === (adminDraft.batchItems || []).length - 1}>↓</button>
+                              <button type="button" className="inline-action danger" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: removeBatchItem(current.batchItems || [], index) }))}>删除</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1483,16 +1748,22 @@ function App() {
                   <label className="full"><span>{t.text}</span><textarea rows={4} value={composer.text || ''} onChange={(event) => setComposer((current) => ({ ...current, text: event.target.value }))} /></label>
                   <label className="full"><span>{t.url}</span><input value={composer.url || ''} onChange={(event) => setComposer((current) => ({ ...current, url: event.target.value }))} /></label>
                   <label className="full upload-label"><span>{t.upload}</span>
-                    <input type="file" accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) return;
+                    <input type="file" multiple={composer.section === 'album'} accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onChange={async (event) => {
+                      const selectedFiles = Array.from(event.target.files || []);
+                      if (!selectedFiles.length) return;
                       try {
-                        const result = await uploadLocalMediaToR2(file, composer.title || file.name, composer.section);
+                        const results = await uploadLocalMediaBatchToR2(selectedFiles, composer.title || selectedFiles[0].name, composer.section);
+                        const primary = results[0] || null;
                         setComposer((current) => ({
                           ...current,
-                          url: result?.url || current.url,
-                          type: result?.type || current.type,
-                          title: current.title || result?.title || file.name,
+                          batchItems: results.map((result, index) => ({
+                            id: `${result.key || index}-${Date.now()}`,
+                            title: result?.title || selectedFiles[index]?.name || `Image ${index + 1}`,
+                            url: result?.url || '',
+                          })),
+                          url: primary?.url || current.url,
+                          type: primary?.type || current.type,
+                          title: current.title || primary?.title || selectedFiles[0]?.name || 'family-upload',
                         }));
                       } catch (error) {
                         console.error('R2 upload failed', error);
@@ -1500,6 +1771,27 @@ function App() {
                       }
                     }} />
                   </label>
+
+                  {(composer.batchItems || []).length > 0 && (
+                    <div className="full" style={{ display: 'grid', gap: '8px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '12px', color: '#5b6475' }}>已上传预览（可排序）</span>
+                      <div style={{ display: 'grid', gap: '8px' }}>
+                        {(composer.batchItems || []).map((item, index) => (
+                          <div key={item.id || `${item.url || index}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 8px', background: '#f8fafc' }}>
+                            <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '8px' }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{index + 1}. {item.title || `Image ${index + 1}`}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button type="button" className="inline-action" onClick={() => setComposer((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, -1) }))} disabled={index === 0}>↑</button>
+                              <button type="button" className="inline-action" onClick={() => setComposer((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, 1) }))} disabled={index === (composer.batchItems || []).length - 1}>↓</button>
+                              <button type="button" className="inline-action danger" onClick={() => setComposer((current) => ({ ...current, batchItems: removeBatchItem(current.batchItems || [], index) }))}>删除</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               <label className="full"><span>{t.status}</span>

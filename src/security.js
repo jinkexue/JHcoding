@@ -65,11 +65,13 @@ export function clearAuthSessionState(store = new Map()) {
   if (store instanceof Map) {
     const next = new Map(store);
     next.delete('family-portal-role-v2');
+    next.delete('family-portal-auth-token-v2');
     return next;
   }
 
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem('family-portal-role-v2');
+    window.localStorage.removeItem('family-portal-auth-token-v2');
     if (window.sessionStorage) {
       window.sessionStorage.clear();
     }
