@@ -527,30 +527,39 @@ function App() {
       lastActivityRef.current = Date.now();
     };
 
-    const lockSession = (message) => {
+    const lockSession = (message = '*') => {
+      const displayMessage = message || '*';
       setRole(null);
       setIsLoggedIn(false);
       setActiveTab('home');
       setShowQaPanel(false);
       setLoginForm({ username: '', password: '' });
       clearAuthSessionState();
-      setSessionLockedMessage(message);
-      setLoginError(message);
+      setSessionLockedMessage(displayMessage);
+      setLoginError(displayMessage);
     };
 
     const handleVisibilityChange = () => {
       if (shouldLockForVisibilityChange(document.visibilityState === 'hidden')) {
-        lockSession('窗口已切换或最小化，已自动锁定。请重新输入用户名和密码。');
+        lockSession('*');
       }
     };
 
-    const handleWindowBlur = () => {
-      lockSession('窗口已失焦，已自动锁定。请重新输入用户名和密码。');
+    const handleWindowBlur = (event) => {
+      const activeElement = event?.target || document.activeElement;
+      if (
+        activeElement instanceof HTMLInputElement &&
+        activeElement.type === 'file'
+      ) {
+        lastActivityRef.current = Date.now();
+        return;
+      }
+      lockSession('*');
     };
 
     const checkIdleTimeout = () => {
       if (isSessionIdleExpired(lastActivityRef.current, Date.now())) {
-        lockSession('已超过 10 分钟无操作，出于安全需要已自动锁定。请重新输入用户名和密码。');
+        lockSession('*');
       }
     };
 
@@ -1218,7 +1227,12 @@ function App() {
               />
             </label>
 
-            {(sessionLockedMessage || loginError) && <div className="auth-error">{sessionLockedMessage || loginError}</div>}
+            {(sessionLockedMessage || loginError) && (
+              <div className="auth-error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <span aria-label="locked" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.18)' }} />
+                <span>{sessionLockedMessage || loginError}</span>
+              </div>
+            )}
 
             <button type="submit" className="auth-role-btn primary" disabled={loginLoading}>
               {loginLoading ? (lang === 'en' ? 'Logging in...' : '登录中...') : (lang === 'en' ? 'Enter Base' : '登陆基地')}
