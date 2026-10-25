@@ -1075,20 +1075,39 @@ function App() {
     hidden: adminItems.filter((item) => item.visible === false).length,
   }), [adminItems]);
 
+  const albumHeroItems = useMemo(() => {
+    const albumItems = Array.isArray(contentSections.album) ? contentSections.album.filter((item) => item.visible !== false && item.type === 'image') : [];
+    if (!albumItems.length) return [];
+
+    const shuffled = [...albumItems];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
+    return shuffled;
+  }, [contentSections.album]);
+
+  const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
+
+  useEffect(() => {
+    if (!albumHeroItems.length) {
+      setAlbumHeroIndex(0);
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setAlbumHeroIndex((current) => (current + 1) % albumHeroItems.length);
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [albumHeroItems]);
+
   const renderContentList = (section, label) => {
     const items = getVisibleItems(section);
     const filters = filterOptions[section] || ['all'];
     const websiteItems = section === 'reading' ? items.filter((item) => item.type === 'website') : [];
     const regularItems = section === 'reading' ? items.filter((item) => item.type !== 'website') : items;
-    const featuredAlbumItems = section === 'album' && items.length > 4 ? (() => {
-      const itemsCopy = [...items];
-      for (let index = itemsCopy.length - 1; index > 0; index -= 1) {
-        const randomIndex = Math.floor(Math.random() * (index + 1));
-        [itemsCopy[index], itemsCopy[randomIndex]] = [itemsCopy[randomIndex], itemsCopy[index]];
-      }
-      return itemsCopy.slice(0, 4);
-    })() : section === 'album' ? items.slice(0, 4) : [];
-    const restAlbumItems = section === 'album' ? items.filter((item) => !featuredAlbumItems.some((featuredItem) => featuredItem.id === item.id)) : [];
+    const albumThumbnailItems = section === 'album' ? items : regularItems;
     return (
       <section className="page-block">
         <div className="section-toolbar">
@@ -1111,16 +1130,36 @@ function App() {
           <div className="empty-state">{t.noData}</div>
         ) : (
           <>
-            {section === 'album' && featuredAlbumItems.length > 0 && (
+            {section === 'album' && albumHeroItems.length > 0 && (
               <div className="album-featured-wrap">
-                <div className="album-featured-header">
-                  <h4>精选相册</h4>
+                <div className="album-hero-display">
+                  {albumHeroItems.map((item, index) => {
+                    const isActive = index === albumHeroIndex;
+                    return (
+                      <button
+                        key={item.id || `${item.title}-${index}`}
+                        type="button"
+                        className={isActive ? 'album-hero-slide active' : 'album-hero-slide'}
+                        onClick={() => setLightboxMedia({ items: albumHeroItems, index: index })}
+                      >
+                        <img src={item.url} alt={item.title} />
+                        <div className="album-hero-overlay">
+                          <span className="album-hero-label">相册精选</span>
+                          <strong>{item.title || `相册 ${index + 1}`}</strong>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="album-featured-row">
-                  {featuredAlbumItems.map((item, index) => (
-                    <button key={item.id || `${item.title}-${index}`} type="button" className="album-featured-item" onClick={() => setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })}>
-                      <img src={item.url} alt={item.title} />
-                    </button>
+                <div className="album-hero-dots" aria-label="Album slides">
+                  {albumHeroItems.map((item, index) => (
+                    <button
+                      key={`${item.id || item.title}-dot-${index}`}
+                      type="button"
+                      className={index === albumHeroIndex ? 'album-hero-dot active' : 'album-hero-dot'}
+                      onClick={() => setAlbumHeroIndex(index)}
+                      aria-label={`Show album ${index + 1}`}
+                    />
                   ))}
                 </div>
               </div>
@@ -1156,7 +1195,7 @@ function App() {
             )}
 
             <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
-              {(section === 'album' ? restAlbumItems : regularItems).map((item) => (
+              {(section === 'album' ? albumThumbnailItems : regularItems).map((item) => (
                 <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : 'content-card'}>
                   <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
                   <div className="content-card-body">
