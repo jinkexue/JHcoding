@@ -340,6 +340,15 @@ function reorderBatchItems(items, fromIndex, step) {
   return next;
 }
 
+function moveBatchItem(items, fromIndex, toIndex) {
+  if (!Array.isArray(items) || items.length < 2) return items;
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) return items;
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
 function removeBatchItem(items, index) {
   if (!Array.isArray(items)) return [];
   return items.filter((_, itemIndex) => itemIndex !== index);
@@ -467,6 +476,7 @@ function App() {
   const [memberLoading, setMemberLoading] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const filePickerGuardRef = useRef(false);
+  const [draggedBatchItemIndex, setDraggedBatchItemIndex] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [clock, setClock] = useState(getCanadaElapsed());
   const [wishBoard, setWishBoard] = useState(defaultWishBoard);
@@ -1553,7 +1563,7 @@ function App() {
 
                   {adminSection !== 'game' && (
                     <label className="full upload-label"><span>{t.upload}</span>
-                      <input type="file" multiple={adminSection === 'album'} accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
+                      <input type="file" multiple accept={adminSection === 'video' ? 'video/*' : adminSection === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
                         const selectedFiles = Array.from(event.target.files || []);
                         if (!selectedFiles.length) return;
                         try {
@@ -1570,6 +1580,7 @@ function App() {
                             type: primary?.type || current.type,
                             title: current.title || primary?.title || selectedFiles[0]?.name || 'family-upload',
                           }));
+                          event.target.value = '';
                         } catch (error) {
                           console.error('R2 upload failed', error);
                           window.alert(error.message || 'Upload failed');
@@ -1579,16 +1590,37 @@ function App() {
                   )}
 
                   {(adminDraft.batchItems || []).length > 0 && (
-                    <div className="full" style={{ display: 'grid', gap: '8px', marginTop: '4px' }}>
-                      <span style={{ fontSize: '12px', color: '#5b6475' }}>已上传预览（可排序）</span>
+                    <div className="full" style={{ display: 'grid', gap: '10px', marginTop: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#5b6475', fontWeight: 700 }}>已上传预览（按顺序显示）</span>
+                        <span style={{ fontSize: '11px', color: '#64748b', background: '#eef2ff', padding: '3px 8px', borderRadius: '999px' }}>拖拽可排序</span>
+                      </div>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         {(adminDraft.batchItems || []).map((item, index) => (
-                          <div key={item.id || `${item.url || index}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 8px', background: '#f8fafc' }}>
-                            <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '8px' }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{index + 1}. {item.title || `Image ${index + 1}`}</div>
+                          <div
+                            key={item.id || `${item.url || index}-${index}`}
+                            draggable
+                            onDragStart={() => setDraggedBatchItemIndex(index)}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => {
+                              if (draggedBatchItemIndex === null || draggedBatchItemIndex === index) return;
+                              setAdminDraft((current) => ({
+                                ...current,
+                                batchItems: moveBatchItem(current.batchItems || [], draggedBatchItemIndex, index),
+                              }));
+                              setDraggedBatchItemIndex(null);
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', border: '1px solid #dbeafe', borderRadius: '12px', padding: '8px 10px', background: draggedBatchItemIndex === index ? '#e0f2fe' : '#f8fafc', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563eb, #60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{index + 1}</div>
+                              <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #dbeafe' }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.title || `Image ${index + 1}`}</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>第 {index + 1} 张 · 拖动调整顺序</div>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button type="button" className="inline-action" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, -1) }))} disabled={index === 0}>↑</button>
                               <button type="button" className="inline-action" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, 1) }))} disabled={index === (adminDraft.batchItems || []).length - 1}>↓</button>
                               <button type="button" className="inline-action danger" onClick={() => setAdminDraft((current) => ({ ...current, batchItems: removeBatchItem(current.batchItems || [], index) }))}>删除</button>
@@ -1759,7 +1791,7 @@ function App() {
                   <label className="full"><span>{t.text}</span><textarea rows={4} value={composer.text || ''} onChange={(event) => setComposer((current) => ({ ...current, text: event.target.value }))} /></label>
                   <label className="full"><span>{t.url}</span><input value={composer.url || ''} onChange={(event) => setComposer((current) => ({ ...current, url: event.target.value }))} /></label>
                   <label className="full upload-label"><span>{t.upload}</span>
-                    <input type="file" multiple={composer.section === 'album'} accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
+                    <input type="file" multiple accept={composer.section === 'video' ? 'video/*' : composer.section === 'listening' ? 'audio/*' : 'image/*'} onClick={armFilePickerGuard} onChange={async (event) => {
                       const selectedFiles = Array.from(event.target.files || []);
                       if (!selectedFiles.length) return;
                       try {
@@ -1776,6 +1808,7 @@ function App() {
                           type: primary?.type || current.type,
                           title: current.title || primary?.title || selectedFiles[0]?.name || 'family-upload',
                         }));
+                        event.target.value = '';
                       } catch (error) {
                         console.error('R2 upload failed', error);
                         window.alert(error.message || 'Upload failed');
@@ -1784,16 +1817,37 @@ function App() {
                   </label>
 
                   {(composer.batchItems || []).length > 0 && (
-                    <div className="full" style={{ display: 'grid', gap: '8px', marginTop: '4px' }}>
-                      <span style={{ fontSize: '12px', color: '#5b6475' }}>已上传预览（可排序）</span>
+                    <div className="full" style={{ display: 'grid', gap: '10px', marginTop: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#5b6475', fontWeight: 700 }}>已上传预览（按顺序显示）</span>
+                        <span style={{ fontSize: '11px', color: '#64748b', background: '#eef2ff', padding: '3px 8px', borderRadius: '999px' }}>拖拽可排序</span>
+                      </div>
                       <div style={{ display: 'grid', gap: '8px' }}>
                         {(composer.batchItems || []).map((item, index) => (
-                          <div key={item.id || `${item.url || index}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px 8px', background: '#f8fafc' }}>
-                            <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '8px' }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{index + 1}. {item.title || `Image ${index + 1}`}</div>
+                          <div
+                            key={item.id || `${item.url || index}-${index}`}
+                            draggable
+                            onDragStart={() => setDraggedBatchItemIndex(index)}
+                            onDragOver={(event) => event.preventDefault()}
+                            onDrop={() => {
+                              if (draggedBatchItemIndex === null || draggedBatchItemIndex === index) return;
+                              setComposer((current) => ({
+                                ...current,
+                                batchItems: moveBatchItem(current.batchItems || [], draggedBatchItemIndex, index),
+                              }));
+                              setDraggedBatchItemIndex(null);
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', border: '1px solid #dbeafe', borderRadius: '12px', padding: '8px 10px', background: draggedBatchItemIndex === index ? '#e0f2fe' : '#f8fafc', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.06)' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #2563eb, #60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 }}>{index + 1}</div>
+                              <img src={item.url} alt={item.title || `image-${index + 1}`} style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #dbeafe' }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: '12px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{item.title || `Image ${index + 1}`}</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>第 {index + 1} 张 · 拖动调整顺序</div>
+                              </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '4px' }}>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                               <button type="button" className="inline-action" onClick={() => setComposer((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, -1) }))} disabled={index === 0}>↑</button>
                               <button type="button" className="inline-action" onClick={() => setComposer((current) => ({ ...current, batchItems: reorderBatchItems(current.batchItems || [], index, 1) }))} disabled={index === (composer.batchItems || []).length - 1}>↓</button>
                               <button type="button" className="inline-action danger" onClick={() => setComposer((current) => ({ ...current, batchItems: removeBatchItem(current.batchItems || [], index) }))}>删除</button>
