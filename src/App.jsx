@@ -10,6 +10,7 @@ import {
   shouldRestoreAuthSession,
 } from './security';
 import { getSectionForType, getVisibleContentItems } from './contentRules';
+import { compressImageFile } from './mediaCompression';
 import {
   BookOpenText,
   CalendarDays,
@@ -301,9 +302,15 @@ async function uploadLocalMediaBatchToR2(files, title = 'family-upload', section
   const uploaded = [];
 
   for (const file of selectedFiles) {
+    const normalizedFile = file && file.type && file.type.startsWith('image/')
+      ? await compressImageFile(file, {
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        })
+      : file;
+
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', title || file.name || 'family-upload');
+    formData.append('file', normalizedFile);
+    formData.append('title', title || normalizedFile.name || 'family-upload');
     formData.append('section', section || 'general');
 
     const response = await fetch('/api/media', {
