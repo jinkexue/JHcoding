@@ -9,6 +9,7 @@ import {
   shouldLockForVisibilityChange,
   shouldRestoreAuthSession,
 } from './security';
+import { getSectionForType, getVisibleContentItems } from './contentRules';
 import {
   BookOpenText,
   CalendarDays,
@@ -209,11 +210,6 @@ const composerTypeOptions = [
   { value: 'video', section: 'video', label: { en: 'Video', zh: '视频' } },
   { value: 'game', section: 'game', label: { en: 'Game', zh: '游戏' } },
 ];
-
-function getSectionForType(type) {
-  const entry = composerTypeOptions.find((option) => option.value === type);
-  return entry ? entry.section : 'reading';
-}
 
 function getCanadaElapsed() {
   const now = new Date();
@@ -553,8 +549,8 @@ function App() {
       lastActivityRef.current = Date.now();
     };
 
-    const lockSession = (message = '*') => {
-      const displayMessage = message || '*';
+    const lockSession = (message = 'I miss you and am waiting for you!') => {
+      const displayMessage = message || 'I miss you and am waiting for you!';
       setRole(null);
       setIsLoggedIn(false);
       setActiveTab('home');
@@ -571,7 +567,7 @@ function App() {
         return;
       }
       if (shouldLockForVisibilityChange(document.visibilityState === 'hidden')) {
-        lockSession('*');
+        lockSession('I miss you and am waiting for you!');
       }
     };
 
@@ -580,12 +576,12 @@ function App() {
         lastActivityRef.current = Date.now();
         return;
       }
-      lockSession('*');
+      lockSession('I miss you and am waiting for you!');
     };
 
     const checkIdleTimeout = () => {
       if (isSessionIdleExpired(lastActivityRef.current, Date.now())) {
-        lockSession('*');
+        lockSession('I miss you and am waiting for you!');
       }
     };
 
@@ -741,7 +737,7 @@ function App() {
   };
 
   const getVisibleItems = (section) => {
-    const items = sortByDateDesc((contentSections[section] || []).filter((item) => item.visible !== false));
+    const items = sortByDateDesc(getVisibleContentItems(section, contentSections[section] || [], { isAdmin }));
     const filter = contentFilters[section] || 'all';
     if (filter === 'all') return items;
     return items.filter((item) => {
@@ -761,7 +757,9 @@ function App() {
 
   const handleSaveComposer = () => {
     const batchItems = Array.isArray(composer.batchItems) ? composer.batchItems.filter((item) => item?.url) : [];
-    const nextId = composer.id || `${composer.section}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const targetSection = composer.section || getSectionForType(composer.type || 'text');
+    const sourceSection = composer.sourceSection || (composer.id ? getSectionForType(composer.type || 'text') : targetSection);
+    const nextId = composer.id || `${targetSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const base = {
       id: nextId,
       title: composer.title.trim(),
@@ -771,7 +769,7 @@ function App() {
       sortAt: composer.sortAt || new Date().toISOString(),
     };
 
-    if (composer.section === 'game') {
+    if (targetSection === 'game') {
       const gameItem = {
         ...base,
         id: composer.id || nextId,
@@ -779,18 +777,22 @@ function App() {
         visual: composer.visual || '🎮',
         accent: composer.accent || 'from-emerald-400 to-lime-300',
       };
-      setContentSections((current) => ({
-        ...current,
-        game: sortByDateDesc([
+      setContentSections((current) => {
+        const upcoming = { ...current };
+        if (sourceSection && sourceSection !== targetSection && Array.isArray(current[sourceSection])) {
+          upcoming[sourceSection] = normalizeCollectionWithIds(sourceSection, current[sourceSection]).filter((item) => String(item.id ?? '') !== String(composer.id ?? ''));
+        }
+        upcoming.game = sortByDateDesc([
           gameItem,
           ...normalizeCollectionWithIds('game', current.game || []).filter((item) => item.id !== gameItem.id),
-        ]),
-      }));
+        ]);
+        return upcoming;
+      });
     } else {
       const mediaEntries = batchItems.length > 1
         ? batchItems.map((item, index) => ({
             ...base,
-            id: `${composer.section}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+            id: `${targetSection}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
             title: (composer.title || item.title || `Image ${index + 1}`).trim() || `Image ${index + 1}`,
             text: composer.text.trim() || item.title || '',
             type: composer.type || 'image',
@@ -804,26 +806,28 @@ function App() {
           }];
 
       setContentSections((current) => {
-        const existing = normalizeCollectionWithIds(composer.section, current[composer.section] || []);
+        const upcoming = { ...current };
+        if (sourceSection && sourceSection !== targetSection && Array.isArray(current[sourceSection])) {
+          upcoming[sourceSection] = normalizeCollectionWithIds(sourceSection, current[sourceSection]).filter((item) => String(item.id ?? '') !== String(composer.id ?? ''));
+        }
+        const existing = normalizeCollectionWithIds(targetSection, current[targetSection] || []);
         const nextEntries = [
           ...mediaEntries,
           ...existing.filter((item) => !mediaEntries.some((entry) => String(item.id ?? '') === String(entry.id ?? ''))),
         ];
-        return {
-          ...current,
-          [composer.section]: sortByDateDesc(nextEntries),
-        };
+        upcoming[targetSection] = sortByDateDesc(nextEntries);
+        return upcoming;
       });
     }
     setComposerOpen(false);
-    setComposer({ section: composer.section, title: '', text: '', url: '', type: 'text', visible: true, href: './snake-game.html', visual: '🎮', accent: 'from-emerald-400 to-lime-300', batchItems: [] });
+    setComposer({ section: targetSection, sourceSection: targetSection, title: '', text: '', url: '', type: 'text', visible: true, href: './snake-game.html', visual: '🎮', accent: 'from-emerald-400 to-lime-300', batchItems: [] });
   };
 
   const openComposer = (section = 'reading', item = null) => {
     if (item) {
-      setComposer({ ...item, section, batchItems: item.batchItems || [] });
+      setComposer({ ...item, section, sourceSection: section, batchItems: item.batchItems || [] });
     } else {
-      setComposer({ ...getDefaultItemBySection(section), section, title: '', text: '', url: '', visible: true, batchItems: [] });
+      setComposer({ ...getDefaultItemBySection(section), section, sourceSection: section, title: '', text: '', url: '', visible: true, batchItems: [] });
     }
     setComposerOpen(true);
   };
@@ -924,35 +928,45 @@ function App() {
   const handleSaveAdmin = () => {
     if (!adminDraft) return;
     const { batchItems = [], ...draftData } = adminDraft;
+    const targetSection = getSectionForType(adminDraft.type || adminSection);
+    const sourceSection = adminDraft.sourceSection || adminSection;
     const payload = {
       ...draftData,
-      id: draftData.id || `${adminSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: draftData.id || `${targetSection}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     };
 
     const entries = batchItems.length > 1
       ? batchItems.map((item, index) => ({
           ...payload,
-          id: `${adminSection}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+          id: `${targetSection}-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
           title: (draftData.title || item.title || `Image ${index + 1}`).trim() || `Image ${index + 1}`,
           text: draftData.text || item.title || '',
-          type: adminSection === 'album' ? 'image' : (draftData.type || 'text'),
+          type: targetSection === 'album' ? 'image' : (draftData.type || 'text'),
           url: item.url || '',
           visible: draftData.visible !== false,
           reads: Number(draftData.reads || 0),
           sortAt: draftData.sortAt || new Date().toISOString(),
         }))
-      : [payload];
+      : [{
+          ...payload,
+          type: targetSection === 'album' ? 'image' : (draftData.type || 'text'),
+          visible: draftData.visible !== false,
+          reads: Number(draftData.reads || 0),
+          sortAt: draftData.sortAt || new Date().toISOString(),
+        }];
 
     setContentSections((current) => {
-      const existing = normalizeCollectionWithIds(adminSection, current[adminSection] || []);
+      const upcoming = { ...current };
+      if (sourceSection && sourceSection !== targetSection && Array.isArray(current[sourceSection])) {
+        upcoming[sourceSection] = normalizeCollectionWithIds(sourceSection, current[sourceSection]).filter((item) => String(item.id ?? '') !== String(draftData.id ?? ''));
+      }
+      const existing = normalizeCollectionWithIds(targetSection, current[targetSection] || []);
       const nextEntries = [
         ...entries,
         ...existing.filter((item) => !entries.some((entry) => String(item.id ?? '') === String(entry.id ?? ''))),
       ];
-      return {
-        ...current,
-        [adminSection]: sortByDateDesc(nextEntries),
-      };
+      upcoming[targetSection] = sortByDateDesc(nextEntries);
+      return upcoming;
     });
     setAdminDraft(getDefaultItemBySection(adminSection));
   };
@@ -1274,8 +1288,7 @@ function App() {
             </label>
 
             {(sessionLockedMessage || loginError) && (
-              <div className="auth-error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                <span aria-label="locked" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.18)' }} />
+              <div className="auth-error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center' }}>
                 <span>{sessionLockedMessage || loginError}</span>
               </div>
             )}
