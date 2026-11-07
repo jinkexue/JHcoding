@@ -1101,7 +1101,13 @@ function App() {
     return shuffled;
   }, [contentSections.album]);
 
+  const videoHeroItems = useMemo(() => {
+    const videoItems = Array.isArray(contentSections.video) ? contentSections.video.filter((item) => item.visible !== false && item.type === 'video') : [];
+    return [...videoItems].sort((a, b) => new Date(b.sortAt || b.createdAt || 0).getTime() - new Date(a.sortAt || a.createdAt || 0).getTime());
+  }, [contentSections.video]);
+
   const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
+  const [videoHeroIndex, setVideoHeroIndex] = useState(0);
 
   useEffect(() => {
     if (!albumHeroItems.length) {
@@ -1116,12 +1122,22 @@ function App() {
     return () => window.clearInterval(timer);
   }, [albumHeroItems]);
 
+  useEffect(() => {
+    if (!videoHeroItems.length) {
+      setVideoHeroIndex(0);
+      return undefined;
+    }
+    setVideoHeroIndex(0);
+    return undefined;
+  }, [videoHeroItems]);
+
   const renderContentList = (section, label) => {
     const items = getVisibleItems(section);
     const filters = filterOptions[section] || ['all'];
     const websiteItems = section === 'reading' ? items.filter((item) => item.type === 'website') : [];
     const regularItems = section === 'reading' ? items.filter((item) => item.type !== 'website') : items;
     const albumThumbnailItems = section === 'album' ? items : regularItems;
+    const videoThumbnailItems = section === 'video' ? items.filter((item) => item.type === 'video') : regularItems;
     return (
       <section className="page-block">
         <div className="section-toolbar">
@@ -1144,35 +1160,42 @@ function App() {
           <div className="empty-state">{t.noData}</div>
         ) : (
           <>
-            {section === 'album' && albumHeroItems.length > 0 && (
+            {(section === 'album' || section === 'video') && (section === 'album' ? albumHeroItems : videoHeroItems).length > 0 && (
               <div className="album-featured-wrap">
                 <div className="album-hero-display">
-                  {albumHeroItems.map((item, index) => {
-                    const isActive = index === albumHeroIndex;
+                  {(section === 'album' ? albumHeroItems : videoHeroItems).map((item, index) => {
+                    const heroIndex = section === 'album' ? albumHeroIndex : videoHeroIndex;
+                    const isActive = index === heroIndex;
                     return (
                       <button
                         key={item.id || `${item.title}-${index}`}
                         type="button"
                         className={isActive ? 'album-hero-slide active' : 'album-hero-slide'}
-                        onClick={() => setLightboxMedia({ items: albumHeroItems, index: index })}
+                        onClick={() => setLightboxMedia({ items: section === 'album' ? albumHeroItems : videoHeroItems, index: index })}
                       >
-                        <img src={item.url} alt={item.title} />
+                        {item.type === 'video' ? (
+                          <div className="video-featured-frame">
+                            <MediaPreview item={item} compact={false} />
+                          </div>
+                        ) : (
+                          <img src={item.url} alt={item.title} />
+                        )}
                         <div className="album-hero-overlay">
-                          <span className="album-hero-label">相册精选</span>
-                          <strong>{item.title || `相册 ${index + 1}`}</strong>
+                          <span className="album-hero-label">{section === 'video' ? '最新视频' : '相册精选'}</span>
+                          <strong>{item.title || (section === 'video' ? `视频 ${index + 1}` : `相册 ${index + 1}`)}</strong>
                         </div>
                       </button>
                     );
                   })}
                 </div>
-                <div className="album-hero-dots" aria-label="Album slides">
-                  {albumHeroItems.map((item, index) => (
+                <div className="album-hero-dots" aria-label={section === 'video' ? 'Video slides' : 'Album slides'}>
+                  {(section === 'album' ? albumHeroItems : videoHeroItems).map((item, index) => (
                     <button
                       key={`${item.id || item.title}-dot-${index}`}
                       type="button"
-                      className={index === albumHeroIndex ? 'album-hero-dot active' : 'album-hero-dot'}
-                      onClick={() => setAlbumHeroIndex(index)}
-                      aria-label={`Show album ${index + 1}`}
+                      className={index === (section === 'album' ? albumHeroIndex : videoHeroIndex) ? 'album-hero-dot active' : 'album-hero-dot'}
+                      onClick={() => { if (section === 'album') setAlbumHeroIndex(index); else setVideoHeroIndex(index); }}
+                      aria-label={`Show ${section} ${index + 1}`}
                     />
                   ))}
                 </div>
@@ -1209,7 +1232,7 @@ function App() {
             )}
 
             <div className={section === 'album' ? 'content-grid album-grid' : 'content-grid'}>
-              {(section === 'album' ? albumThumbnailItems : regularItems).map((item) => (
+              {(section === 'video' ? videoThumbnailItems : section === 'album' ? albumThumbnailItems : regularItems).map((item) => (
                 <article key={item.id || `${section}-${item.title}`} className={section === 'album' ? 'content-card album-card' : section === 'video' ? 'content-card video-card' : 'content-card'}>
                   <MediaPreview item={item} onOpen={() => item.type === 'image' && setLightboxMedia({ items: items, index: items.findIndex((entry) => entry.id === item.id) })} />
                   <div className="content-card-body">
@@ -1286,6 +1309,8 @@ function App() {
                 placeholder={lang === 'en' ? 'Enter password' : '请输入密码'}
               />
             </label>
+
+            <div className="auth-note">I miss you and am waiting for you!</div>
 
             {(sessionLockedMessage || loginError) && (
               <div className="auth-error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textAlign: 'center' }}>
